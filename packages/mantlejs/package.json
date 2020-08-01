@@ -1,0 +1,43 @@
+{
+  "name": "@mantlejs/mantle",
+  "version": "0.0.1",
+  "main": "dist/index",
+  "types": "dist/index",
+  "files": [
+    "dist"
+  ],
+  "directories": {
+    "lib": "dist"
+  },
+  "keywords": [
+    "microservice",
+    "api",
+    "expressjs",
+    "service layer",
+    "realtime",
+    "RPC",
+    "REST"
+  ],
+  "author": "mdaehn <markus.daehn@gmail.com>",
+  "homepage": "https://github.com/MantleJs/mantle#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MantleJs/mantle.git"
+  },
+  "license": "MIT",
+  "scripts": {
+    "build": "yarn clean && yarn compile",
+    "clean": "rimraf dist coverage tsconfig.tsbuildinfo",
+    "compile": "tsc -b tsconfig.json"
+  },
+  "publishConfig": {
+    "registry": "https://registry.yarnpkg.com",
+    "access": "public"
+  },
+  "bugs": {
+    "url": "https://github.com/MantleJs/mantle/issues"
+  },
+  "devDependencies": {
+    "typescript": "^3.9.7"
+  }
+}
