@@ -782,11 +782,6 @@
     npmlog "^4.1.2"
     write-file-atomic "^2.3.0"
 
-"@mantlejs/mantlejs@0.0.1":
-  version "0.0.1"
-  resolved "https://registry.yarnpkg.com/@mantlejs/mantlejs/-/mantlejs-0.0.1.tgz#3b6b94184fd03113706a63f5f2abc5d7a86a19fd"
-  integrity sha512-9x40QgnHuKdxe5ppV2rrmthZScowDj9SK2pivKEQIOG4pW+iyRCOFn1UOQLL6t9sM2MJItwYAo5ZVdnQfde64g==
-
 "@mrmlnc/readdir-enhanced@^2.2.1":
   version "2.2.1"
   resolved "https://registry.yarnpkg.com/@mrmlnc/readdir-enhanced/-/readdir-enhanced-2.2.1.tgz#524af240d1a360527b730475ecfa1344aa540dde"
