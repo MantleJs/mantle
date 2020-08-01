@@ -1,6 +1,6 @@
 {
   "name": "api",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "private": true,
   "scripts": {
     "build": "yarn clean && yarn compile",
@@ -8,7 +8,7 @@
     "compile": "tsc -b tsconfig.json"
   },
   "dependencies": {
-    "@mantlejs/mantle": "^0.0.1"
+    "@mantlejs/mantle": "^0.0.2"
   },
   "devDependencies": {
     "typescript": "^3.9.7"
