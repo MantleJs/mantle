@@ -4,8 +4,10 @@
   "private": true,
   "scripts": {
     "build": "yarn clean && yarn compile",
-    "clean": "rimraf lib coverage tsconfig.tsbuildinfo",
-    "compile": "tsc -b tsconfig.json"
+    "clean": "rimraf dist coverage tsconfig.tsbuildinfo",
+    "compile": "tsc -b tsconfig.json",
+    "pretest": "yarn compile",
+    "test": "jest"
   },
   "dependencies": {
     "@mantlejs/mantle": "^0.0.2"

@@ -28,7 +28,9 @@
   "scripts": {
     "build": "yarn clean && yarn compile",
     "clean": "rimraf dist coverage tsconfig.tsbuildinfo",
-    "compile": "tsc -b tsconfig.json"
+    "compile": "tsc -b tsconfig.json",
+    "pretest": "yarn compile",
+    "test": "jest --config=./jest.config.js"
   },
   "publishConfig": {
     "registry": "https://registry.yarnpkg.com",
