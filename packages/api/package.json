@@ -5,9 +5,9 @@
   "scripts": {
     "build": "yarn clean && yarn compile",
     "clean": "rimraf dist coverage tsconfig.tsbuildinfo",
-    "compile": "tsc -b tsconfig.json",
+    "compile": "tsc -b tsconfig.lib.json",
     "pretest": "yarn compile",
-    "test": "jest"
+    "test": "jest --config=./jest.config.js"
   },
   "dependencies": {
     "@mantlejs/mantle": "^0.0.2"

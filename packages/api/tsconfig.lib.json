@@ -9,6 +9,11 @@
       "node"
     ]
   },
+  "references": [
+    {
+      "path": "../mantle"
+    }
+  ],
   "exclude": [
     "**/*.spec.ts",
     "node_modules",
