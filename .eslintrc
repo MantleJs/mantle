@@ -17,6 +17,7 @@
   ],
   "extends": [
     "eslint:recommended",
+    "plugin:prettier/recommended",
     "plugin:@typescript-eslint/eslint-recommended",
     "plugin:@typescript-eslint/recommended",
     "plugin:jest/recommended",
@@ -28,6 +29,7 @@
       "error",
       "always"
     ],
+    "object-curly-spacing": "off",
     "quotes": "off",
     "@typescript-eslint/quotes": [
       "error",
@@ -38,9 +40,10 @@
       {
         "singleQuote": false,
         "trailingComma": "all",
-        "printWidth": 180,
+        "printWidth": 200,
         "semi": true,
-        "arrowParens": "always"
+        "arrowParens": "always",
+        "noBracketSpacing": true
       }
     ],
     "@typescript-eslint/no-use-before-define": [
@@ -52,6 +55,7 @@
         "typedefs": true
       }
     ],
+    "@typescript-eslint/explicit-module-boundary-types": "off",
     "@typescript-eslint/explicit-member-accessibility": "off",
     "@typescript-eslint/explicit-function-return-type": "off",
     "@typescript-eslint/no-parameter-properties": "off",

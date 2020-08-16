@@ -10,7 +10,8 @@
     "test": "jest --config=./jest.config.js"
   },
   "dependencies": {
-    "@mantlejs/mantle": "^0.0.2"
+    "@mantlejs/mantle": "^0.0.2",
+    "ramda": "^0.27.1"
   },
   "devDependencies": {
     "typescript": "^3.9.7"

@@ -10,7 +10,7 @@ module.exports = {
     "^.+\\.(ts)$": "ts-jest",
   },
   moduleFileExtensions: ["ts", "tsx", "js", "jsx", "html"],
-  coverageReporters: ["lcov", "html"],
+  coverageReporters: ["lcov", "text"],
   coverageThreshold: {
     global: {
       branches: 85,

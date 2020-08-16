@@ -1,0 +1,44 @@
+{
+  "name": "@mantlejs/common",
+  "version": "0.0.1",
+  "main": "dist/",
+  "types": "dist/",
+  "files": [
+    "dist"
+  ],
+  "directories": {
+    "lib": "dist"
+  },
+  "keywords": [
+    "common library",
+    "mantlejs",
+    "utils"
+  ],
+  "author": "mdaehn <markus.daehn@gmail.com>",
+  "homepage": "https://github.com/MantleJs/mantle#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MantleJs/mantle.git"
+  },
+  "license": "MIT",
+  "scripts": {
+    "build": "yarn clean && yarn compile",
+    "clean": "rimraf dist coverage tsconfig.tsbuildinfo",
+    "compile": "tsc -b tsconfig.lib.json",
+    "pretest": "yarn compile",
+    "test": "jest --config=./jest.config.js"
+  },
+  "publishConfig": {
+    "registry": "https://registry.yarnpkg.com",
+    "access": "public"
+  },
+  "bugs": {
+    "url": "https://github.com/MantleJs/mantle/issues"
+  },
+  "devDependencies": {
+    "typescript": "^3.9.7"
+  },
+  "dependencies": {
+    "ramda": "^0.27.1"
+  }
+}
