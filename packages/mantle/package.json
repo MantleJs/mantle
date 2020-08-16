@@ -1,8 +1,8 @@
 {
   "name": "@mantlejs/mantle",
   "version": "0.0.2",
-  "main": "dist/index",
-  "types": "dist/index",
+  "main": "dist/",
+  "types": "dist/",
   "files": [
     "dist"
   ],
@@ -40,6 +40,14 @@
     "url": "https://github.com/MantleJs/mantle/issues"
   },
   "devDependencies": {
+    "@types/debug": "^4.1.5",
+    "@types/jest": "^26.0.10",
+    "node-mocks-http": "^1.8.1",
     "typescript": "^3.9.7"
+  },
+  "dependencies": {
+    "@mantlejs/common": "^0.0.1",
+    "debug": "^4.1.1",
+    "ramda": "^0.27.1"
   }
 }

@@ -9,6 +9,11 @@
       "node"
     ]
   },
+  "references": [
+    {
+      "path": "../common"
+    }
+  ],
   "exclude": [
     "**/*.spec.ts",
     "node_modules",
