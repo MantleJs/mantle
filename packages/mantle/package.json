@@ -47,7 +47,10 @@
   },
   "dependencies": {
     "@mantlejs/common": "^0.0.1",
+    "@types/pluralize": "^0.0.29",
     "debug": "^4.1.1",
+    "decamelize": "^4.0.0",
+    "pluralize": "^8.0.0",
     "ramda": "^0.27.1"
   }
 }

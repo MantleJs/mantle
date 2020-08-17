@@ -10,13 +10,13 @@ export type BeforeFunction = (args: { request: ServiceRequest }) => Promise<Serv
 export type AfterFunction<T extends number = ServiceResponseType> = (args: { request: ServiceRequest; response: ServiceResponse<T> }) => Promise<ServiceResponse<T> | undefined | null | void>;
 export type ErrorFunction<T extends number = ServiceResponseType> = (args: { request: ServiceRequest; response: ServiceResponse<T> }) => Promise<ServiceResponse<T> | undefined | null | void>;
 
-export interface HookOptions {
+export interface HookDefinition {
   before?: BeforeFunction;
   after?: AfterFunction;
   error?: ErrorFunction;
 }
 
-export function ServiceHook<T extends number = ServiceResponseType>(options: HookOptions): HookFunction {
+export function ServiceHook<T extends number = ServiceResponseType>(options: HookDefinition): HookFunction {
   return (fn: ServiceFunction): ServiceFunction => {
     /** @note hook is an object to preserve original function name */
     const hook = {
