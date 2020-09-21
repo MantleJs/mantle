@@ -216,6 +216,42 @@ describe("ApplicationService", () => {
       expect(service.hooks().length).toEqual(2);
     });
   });
+
+  describe("setup", () => {
+    describe("when setup is NOT provided", () => {
+      const svc = ApplicationService(app, {
+        fn: getService,
+        path,
+        hooks,
+        resource: "resources",
+      });
+      it("should set the setup to nullable function", () => {
+        expect(typeof svc.setup).toEqual("function");
+      });
+      it("should not blow-up when called", async () => {
+        expect(await svc.setup()).toBeUndefined();
+      });
+    });
+    describe("when setup is provided", () => {
+      const setup = jest.fn(() => Promise.resolve());
+      const svc = ApplicationService(app, {
+        fn: getService,
+        path,
+        hooks,
+        resource: "resources",
+        setup,
+      });
+      beforeAll(async () => {
+        await svc.setup();
+      });
+      it("should set the setup to nullable function", () => {
+        expect(typeof svc.setup).toEqual("function");
+      });
+      it("should call service definition setup function with the app", async () => {
+        expect(setup).toBeCalledWith(app);
+      });
+    });
+  });
   describe("when the application service that was create is called", () => {
     it("should return a application service function that maintains the original service name", () => {
       const svc = ApplicationService(app, definition);
