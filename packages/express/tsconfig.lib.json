@@ -1,0 +1,28 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "module": "commonjs",
+    "outDir": "./dist",
+    "declaration": true,
+    "rootDir": "./src",
+    "types": [
+      "node"
+    ]
+  },
+  "references": [
+    {
+      "path": "../common"
+    },
+    {
+      "path": "../mantle"
+    }
+  ],
+  "exclude": [
+    "**/*.spec.ts",
+    "node_modules",
+    "dist",
+  ],
+  "include": [
+    "**/*.ts"
+  ]
+}

@@ -27,4 +27,5 @@ module.exports = {
   //   ...pathsToModuleNameMapper(compilerOptions.paths),
   // },
   verbose: true,
+  // moduleDirectories: ["node_modules", "src"],
 };

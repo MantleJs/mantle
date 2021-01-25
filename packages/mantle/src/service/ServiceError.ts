@@ -1,4 +1,4 @@
-import { ObjectUtil } from "@mantlejs/common";
+import { Enum, ObjectUtil } from "@mantlejs/common";
 
 export enum ServiceErrorType {
   NOT_FOUND = "NotFoundError",

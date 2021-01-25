@@ -1,10 +1,10 @@
 import Debug from "debug";
 import { ServiceRequest } from "./ServiceRequest";
-import { ServiceResponse, SERVICE_RESPONSE_ERROR_TYPE, ServiceResponseType } from "./ServiceResponse";
+import { ServiceResponse, ServiceResponseType } from "./ServiceResponse";
 
 const debug = Debug("@mantlejs/mantle/service/ServiceHook");
 
-export type ServiceFunction<T extends number = ServiceResponseType> = (request: ServiceRequest) => Promise<ServiceResponse<T>>;
+export type ServiceFunction<T extends number = ServiceResponseType> = (request: ServiceRequest, infrustructure?: any) => Promise<ServiceResponse<T>>;
 export type HookFunction = (fn: ServiceFunction) => ServiceFunction;
 export type BeforeFunction = (args: { request: ServiceRequest }) => Promise<ServiceRequest | undefined | null | void>;
 export type AfterFunction<T extends number = ServiceResponseType> = (args: { request: ServiceRequest; response: ServiceResponse<T> }) => Promise<ServiceResponse<T> | undefined | null | void>;
@@ -32,7 +32,7 @@ export function ServiceHook<T extends number = ServiceResponseType>(options: Hoo
           if (request.error) {
             debug("Creating error response from the request error");
             response = new ServiceResponse<T>({
-              type: SERVICE_RESPONSE_ERROR_TYPE as T,
+              type: ServiceResponseType.ERROR as T,
               payload: request.error,
             });
           } else {
@@ -48,7 +48,7 @@ export function ServiceHook<T extends number = ServiceResponseType>(options: Hoo
         } catch (error) {
           debug("Creating error response from unexpected expeception");
           response = new ServiceResponse<T>({
-            type: SERVICE_RESPONSE_ERROR_TYPE as T,
+            type: ServiceResponseType.ERROR as T,
             payload: error,
           });
         }

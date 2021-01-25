@@ -1,6 +1,6 @@
-import { getSomething } from "./index";
+import mantle, { Application } from "./index";
 describe("mantle", () => {
-  it("should return something", () => {
-    expect(getSomething()).toEqual("something");
+  it("should return instance of application", () => {
+    expect(mantle()).toBeInstanceOf(Application);
   });
 });

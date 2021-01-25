@@ -1,7 +1,9 @@
 import { ServiceFunction, HookDefinition, ServiceRequest, ServiceResponse, ServicePipe, HookFunction, ServiceHook } from "../service";
+import { TransportDescriptor } from "./TransportProvider";
 import { Application } from "./Application";
 import decamelize from "decamelize";
 import pluralize from "pluralize";
+import { Server } from "http";
 
 export type ServiceSetupFunction = (app: Application) => Promise<void>;
 
@@ -21,87 +23,146 @@ export interface ServiceDefinition {
   fn: ServiceFunction;
 
   /**
-   * Hook definition to run before and after the service funtion or when there is an error.
+   * Hook definition to run before and after the service function or when there is an error.
    */
   hooks?: HookDefinition[];
 
   /**
-   * This allows you to group services by resource. By default, services are grouped based on the base URL of the path
+   * This allows you to group services by resource.
    * (e.g., /users/:id, and /users, would  be grouped in "users" group)
    */
   resource?: string;
 
-  /**
-   * An optional field that allows overriding the default URI template path. The default is create a URI based on the resource and method.
-   */
-  path?: string;
+  // /**
+  //  * An optional field that allows overriding the default URI template path. The default is create a URI based on the resource and method.
+  //  */
+  // path?: string;
 
   /**
    * This allows you to specify the service method. The default is to use the verb in the service function.
    */
   method?: ServiceMethod;
 
+  /**
+   * An optional setup function. This will be called when the Application.listen is called. If listen is already running, it will be called immediately when registered
+   */
   setup?: ServiceSetupFunction;
 }
 
-export const ServiceMethod = ["get", "find", "search", "create", "update", "patch", "remove"];
-export type ServiceMethod = typeof ServiceMethod[number];
+export const ServiceMethod = {
+  get GET(): "get" {
+    return "get";
+  },
+  get FIND(): "find" {
+    return "find";
+  },
+  get SEARCH(): "search" {
+    return "search";
+  },
+  get CREATE(): "create" {
+    return "create";
+  },
+  get UPDATE(): "update" {
+    return "update";
+  },
+  get PATCH(): "patch" {
+    return "patch";
+  },
+  get REMOVE(): "remove" {
+    return "remove";
+  },
+  includes(method: string) {
+    if (typeof method !== "string") return false;
+
+    return Object.keys(this)
+      .filter((key) => !["includes"].includes(key))
+      .map((name) => this[name])
+      .includes(method.toLowerCase());
+  },
+};
+const serviceMethods = ["get", "find", "search", "create", "update", "patch", "remove"] as const;
+export type ServiceMethod = typeof serviceMethods[number];
 
 export interface ApplicationService {
   definition: ServiceDefinition;
-  service: ServiceFunction;
+  transports: TransportDescriptor[];
+  fn: ServiceFunction;
+  /** The service name */
+  name: string;
   method: ServiceMethod;
   resource: string;
-  path: string;
+  // path: string;
   app: Application;
   operationId: string;
-  setup: () => Promise<void>;
-  hooks: (hook?: HookDefinition) => HookFunction[];
+  setup: (server?: Server) => void;
+  isSetup: boolean;
+  hooks: (hook: HookDefinition | HookDefinition[]) => ApplicationServiceFunction;
+  getHooks: () => HookFunction[];
 }
-export type ApplicationServiceFunction = ((request: ServiceRequest) => Promise<ServiceResponse>) & ApplicationService;
+
+export type ApplicationServiceFunction = ((request: ServiceRequest, infrustructure?: any) => Promise<ServiceResponse>) & ApplicationService;
 
 /**
  * This wraps the service and applys the hooks in the definition, allowing the service to be used in the Application
  *
  * @param {Application} app - The mantle Application instance
- * @param {string} path - URI template
- * @param {HttpMethod} method - The HTTP method
- * @param {ServiceDefinition} definition - The service defintion
+ * @param {ServiceDefinition} definition - The service definition
  */
-export function ApplicationService(app: Application, definition: ServiceDefinition): ApplicationServiceFunction {
+export function ApplicationService(app: Application, definition: ServiceDefinition, transports?: TransportDescriptor[]): ApplicationServiceFunction {
   const hookFuncs = Array.isArray(definition.hooks) ? definition.hooks.map(ServiceHook) : [];
   // eslint-disable-next-line prefer-const
-  let execute: ApplicationServiceFunction;
+  let service: ApplicationServiceFunction;
+  let isSetup = false;
 
   /** This is so we can retain the service name */
-  const service = {
-    [definition.fn.name]: function (request: ServiceRequest): Promise<ServiceResponse> {
-      return ServicePipe([...execute.app.hooks(), ...hookFuncs])(execute.service)(request);
+  const fn = {
+    [definition.fn.name]: function (request: ServiceRequest, infrustructure?: any): Promise<ServiceResponse> {
+      return ServicePipe([...service.app.getHooks(), ...hookFuncs])(service.fn)(request, infrustructure);
     } as ApplicationServiceFunction,
   };
 
-  execute = service[definition.fn.name];
+  service = fn[definition.fn.name];
+  service.transports = transports ?? [];
 
-  function hooks(hook?: HookDefinition) {
-    if (hook) {
+  function hooks(hook: HookDefinition | HookDefinition[]) {
+    if (Array.isArray(hook)) {
+      hook.forEach((h) => hookFuncs.push(ServiceHook(h)));
+    } else {
       hookFuncs.push(ServiceHook(hook));
     }
+
+    return service;
+  }
+
+  function getHooks() {
     return [...hookFuncs];
   }
 
-  execute.definition = definition;
-  execute.method = getMethod(definition);
-  execute.service = definition.fn;
-  execute.resource = getResource(definition);
-  execute.operationId = getOperationalId(definition);
-  execute.path = definition.path;
-  execute.app = app;
-  execute.hooks = hooks;
-  execute.setup = () => {
-    if (definition.setup) return definition.setup.call(execute, app);
+  service.definition = definition;
+  service.method = getMethod(definition);
+  service.fn = definition.fn;
+  service.resource = getResource(definition);
+  service.operationId = getOperationalId(definition);
+  // service.path = definition.path;
+  service.app = app;
+  service.hooks = hooks;
+  service.getHooks = getHooks;
+
+  Object.defineProperty(service, "isSetup", {
+    get() {
+      return isSetup;
+    },
+  });
+
+  service.setup = () => {
+    if (isSetup) return;
+    if (definition.setup) definition.setup(app);
+
+    isSetup = true;
+    return service;
   };
 
-  return Object.freeze(execute);
+  return Object.freeze(service);
 }
 
 function getOperationalId(definition: ServiceDefinition) {
@@ -115,8 +176,8 @@ function getMethod(definition: ServiceDefinition): ServiceMethod {
   let method = definition.method;
 
   if (method && !ServiceMethod.includes(method)) throw invalidServiceMethodError;
-  if (!ServiceMethod.includes(method)) method = parseVerbFromName(definition.fn.name);
-  if (!ServiceMethod.includes(method)) method = parseVerbFromName(definition.id);
+  if (!ServiceMethod.includes(method)) method = parseVerbFromName(definition.fn.name) as ServiceMethod;
+  if (!ServiceMethod.includes(method)) method = parseVerbFromName(definition.id) as ServiceMethod;
   if (!ServiceMethod.includes(method)) throw invalidServiceMethodError;
 
   return method as ServiceMethod;
@@ -125,19 +186,10 @@ function getResource(definition: ServiceDefinition): string {
   let resource = definition.resource;
   if (resource) return resource;
 
-  resource = getResourceFromPath(definition.path);
-  if (resource) return resource;
-
   resource = parseSubjectFromName(definition.fn.name) || parseSubjectFromName(definition.id);
-  if (!resource) throw new Error("The service definition resource is invalid. A resource is require when no path, named fn service, and no operation Id properties are provided.");
+  if (!resource) throw new Error("The service definition resource is invalid. A resource is required when no named fn service or no operation Id properties are provided.");
 
   return pluralize(resource);
-}
-
-function getResourceFromPath(path: string) {
-  if (typeof path !== "string") return undefined;
-  const segments = path.split("/");
-  return path.startsWith("/") ? segments[1] : segments[0];
 }
 function parseVerbFromName(name: string) {
   if (typeof name !== "string") return undefined;

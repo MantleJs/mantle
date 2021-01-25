@@ -9,6 +9,7 @@ export enum HttpStatus {
   UNAUTHORIZED = 401,
   FORBIDDEN = 403,
   NOT_FOUND = 404,
+  METHOD_NOT_ALLOWED = 405,
   CONFLICT = 409,
   AUTH_TIMEOUT = 419,
   /** Server Errors */

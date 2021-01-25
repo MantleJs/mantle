@@ -1,7 +1,6 @@
-export default function logger(message: string) {
-  console.log(message);
-}
+import { mantle } from "./application";
+export * from "./application";
+export * from "./server";
+export * from "./service";
 
-export function getSomething() {
-  return "something";
-}
+export default mantle;
