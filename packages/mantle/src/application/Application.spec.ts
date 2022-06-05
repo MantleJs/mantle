@@ -1,5 +1,5 @@
 import { Application } from "./Application";
-import { TransportType } from "./TransportProvider";
+import { ProtocolType } from "./ProtocolProvider";
 import { HookDefinition, ServiceHook, ServiceRequest, ServiceResponse } from "../service";
 import { ServiceDefinition } from "./ApplicationService";
 
@@ -48,38 +48,38 @@ describe("Application", () => {
     const svcDef: ServiceDefinition = {
       fn: getSvc,
     };
-    describe("when one transport is set", () => {
+    describe("when one protocol is set", () => {
       let app: Application;
-      const firstTransport = { type: TransportType.HTTP, style: "REST", fn: jest.fn() };
+      const firstProtocol = { type: ProtocolType.HTTP, style: "REST", fn: jest.fn() };
       beforeEach(() => {
         app = new Application();
-        app.attachTransport(firstTransport);
+        app.protocols(firstProtocol);
       });
       afterEach(() => {
-        firstTransport.fn.mockReset();
+        firstProtocol.fn.mockReset();
       });
-      it("should add the service to the list of services when no transport options is provided", () => {
+      it("should add the service to the list of services when no protocol options is provided", () => {
         app.use(svcDef);
         expect(app.services[0].name).toEqual(getSvc.name);
       });
-      it("should add the service to the list of services when transport options is provided", () => {
-        app.use(svcDef, { type: TransportType.HTTP, style: "REST" });
+      it("should add the service to the list of services when protocol options is provided", () => {
+        app.use(svcDef, { type: ProtocolType.HTTP, style: "REST" });
         expect(app.services[0].name).toEqual(getSvc.name);
       });
     });
     describe("when the application has already been setup", () => {
       let app: Application;
-      const firstTransport = { type: TransportType.HTTP, style: "REST", fn: jest.fn() };
+      const firstProtocol = { type: ProtocolType.HTTP, style: "REST", fn: jest.fn() };
       const mockSetup = jest.fn();
       beforeEach(() => {
         app = new Application();
-        app.attachTransport(firstTransport);
+        app.protocols(firstProtocol);
         app.setup();
         svcDef.setup = mockSetup;
         app.use(svcDef);
       });
       afterEach(() => {
-        firstTransport.fn.mockReset();
+        firstProtocol.fn.mockReset();
         mockSetup.mockReset();
       });
       it("should call service setup method", () => {
@@ -96,7 +96,7 @@ describe("Application", () => {
     const operationId = getSvc.name;
     beforeAll(() => {
       app = new Application();
-      app.attachTransport({ type: TransportType.HTTP, fn: () => undefined });
+      app.protocols({ type: ProtocolType.HTTP, fn: () => undefined });
       app.use(svcDef);
     });
     it("should add the service to the list of services when given a service definition", () => {
@@ -134,7 +134,7 @@ describe("Application", () => {
       let app: Application;
       beforeAll(() => {
         app = new Application();
-        app.attachTransport({ type: TransportType.HTTP, fn: () => undefined });
+        app.protocols({ type: ProtocolType.HTTP, fn: () => undefined });
         app.use({ fn: getSvc, setup });
         app.setup();
       });
@@ -142,112 +142,112 @@ describe("Application", () => {
         expect(setup).toBeCalled();
       });
     });
-    describe("when no transport is set", () => {
-      it("should throw not transport configured exception when service definition and NO transport options are passed", () => {
+    describe("when no protocol is set", () => {
+      it("should throw not protocol configured exception when service definition and NO protocol options are passed", () => {
         const app = new Application();
         app.use(svcDef);
-        expect(() => app.setup()).toThrowError("No transport configured");
+        expect(() => app.setup()).toThrowError("No protocol configured");
       });
-      it("should throw no transport configured exception when service definition and transport options are passed", () => {
+      it("should throw no protocol configured exception when service definition and protocol options are passed", () => {
         const app = new Application();
-        app.use(svcDef, { type: TransportType.HTTP, style: "RPC" });
-        expect(() => app.setup()).toThrowError("No transport configured");
+        app.use(svcDef, { type: ProtocolType.HTTP, style: "RPC" });
+        expect(() => app.setup()).toThrowError("No protocol configured");
       });
     });
-    describe("when one transport is set", () => {
-      it("should pick the default transport when service does not have a transport configured", () => {
+    describe("when one protocol is set", () => {
+      it("should pick the default protocol when service does not have a protocol configured", () => {
         const app = new Application();
-        const firstTransport = { type: TransportType.HTTP, style: "REST", fn: jest.fn() };
-        app.attachTransport(firstTransport);
+        const firstProtocol = { type: ProtocolType.HTTP, style: "REST", fn: jest.fn() };
+        app.protocols(firstProtocol);
         app.use(svcDef);
         app.setup();
-        expect(firstTransport.fn).toBeCalled();
+        expect(firstProtocol.fn).toBeCalled();
       });
-      it("should pick the transport when the service transport option matches the type and style", () => {
+      it("should pick the protocol when the service protocol option matches the type and style", () => {
         const app = new Application();
-        const firstTransport = { type: TransportType.HTTP, style: "REST", fn: jest.fn() };
-        app.attachTransport(firstTransport);
-        app.use(svcDef, { type: TransportType.HTTP, style: "REST" });
+        const firstProtocol = { type: ProtocolType.HTTP, style: "REST", fn: jest.fn() };
+        app.protocols(firstProtocol);
+        app.use(svcDef, { type: ProtocolType.HTTP, style: "REST" });
         app.setup();
-        expect(firstTransport.fn).toBeCalled();
+        expect(firstProtocol.fn).toBeCalled();
       });
-      it("should throw transport not found expection when service definition and transport options type and style are passed", () => {
+      it("should throw protocol not found expection when service definition and protocol options type and style are passed", () => {
         const app = new Application();
-        const firstTransport = { type: TransportType.HTTP, style: "REST", fn: jest.fn() };
-        app.attachTransport(firstTransport);
-        app.use(svcDef, { type: TransportType.HTTP, style: "REST" });
+        const firstProtocol = { type: ProtocolType.HTTP, style: "REST", fn: jest.fn() };
+        app.protocols(firstProtocol);
+        app.use(svcDef, { type: ProtocolType.HTTP, style: "REST" });
         app.setup();
-        expect(() => app.use(svcDef, { type: TransportType.WebSocket, style: "RPC" })).toThrowError(new Error("No transport found for type WebSocket and style RPC"));
+        expect(() => app.use(svcDef, { type: ProtocolType.WebSocket, style: "RPC" })).toThrowError(new Error("No protocol found for type WebSocket and style RPC"));
       });
-      it("should throw transport not found expection when service definition and transport options type are passed", () => {
+      it("should throw protocol not found expection when service definition and protocol options type are passed", () => {
         const app = new Application();
-        const firstTransport = { type: TransportType.HTTP, style: "REST", fn: jest.fn() };
-        app.attachTransport(firstTransport);
-        app.use(svcDef, { type: TransportType.HTTP, style: "REST" });
+        const firstProtocol = { type: ProtocolType.HTTP, style: "REST", fn: jest.fn() };
+        app.protocols(firstProtocol);
+        app.use(svcDef, { type: ProtocolType.HTTP, style: "REST" });
         app.setup();
-        expect(() => app.use(svcDef, { type: TransportType.WebSocket })).toThrowError(new Error("No transport found for type WebSocket"));
+        expect(() => app.use(svcDef, { type: ProtocolType.WebSocket })).toThrowError(new Error("No protocol found for type WebSocket"));
       });
     });
-    describe("when more than one transport is set", () => {
-      const firstTransport = { type: TransportType.HTTP, style: "REST", fn: jest.fn() };
-      const secondTransport = { type: TransportType.HTTP, style: "RPC", fn: jest.fn() };
-      const thirdTransport = { type: TransportType.HTTP, style: "REST", fn: jest.fn() };
+    describe("when more than one protocol is set", () => {
+      const firstProtocol = { type: ProtocolType.HTTP, style: "REST", fn: jest.fn() };
+      const secondProtocol = { type: ProtocolType.HTTP, style: "RPC", fn: jest.fn() };
+      const thirdProtocol = { type: ProtocolType.HTTP, style: "REST", fn: jest.fn() };
       afterEach(() => {
-        firstTransport.fn.mockReset();
-        secondTransport.fn.mockReset();
-        thirdTransport.fn.mockReset();
+        firstProtocol.fn.mockReset();
+        secondProtocol.fn.mockReset();
+        thirdProtocol.fn.mockReset();
       });
       it("should not run service setup when setup is called more than once", () => {
         const app = new Application();
-        app.attachTransport(firstTransport);
-        app.attachTransport(secondTransport);
-        app.attachTransport(thirdTransport);
-        app.use(svcDef, { type: TransportType.HTTP, style: "RPC" });
+        app.protocols(firstProtocol);
+        app.protocols(secondProtocol);
+        app.protocols(thirdProtocol);
+        app.use(svcDef, { type: ProtocolType.HTTP, style: "RPC" });
         app.setup();
         app.setup();
-        expect(secondTransport.fn).toHaveBeenCalledTimes(1);
+        expect(secondProtocol.fn).toHaveBeenCalledTimes(1);
       });
-      it("should throw 'More than one default transport configured' exception when service was configured with no transport options", () => {
+      it("should throw 'More than one default protocol configured' exception when service was configured with no protocol options", () => {
         const app = new Application();
-        app.attachTransport(firstTransport);
-        app.attachTransport(secondTransport);
-        app.attachTransport(thirdTransport);
+        app.protocols(firstProtocol);
+        app.protocols(secondProtocol);
+        app.protocols(thirdProtocol);
         app.use(svcDef);
-        expect(() => app.setup()).toThrowError("More than one default transport configured");
+        expect(() => app.setup()).toThrowError("More than one default protocol configured");
       });
-      it("should pick the transport that matches the type and style when service was configured with transport options that matches a type and style", () => {
+      it("should pick the protocol that matches the type and style when service was configured with protocol options that matches a type and style", () => {
         const app = new Application();
-        app.attachTransport(firstTransport);
-        app.attachTransport(secondTransport);
-        app.attachTransport(thirdTransport);
-        app.use(svcDef, { type: TransportType.HTTP, style: "RPC" });
+        app.protocols(firstProtocol);
+        app.protocols(secondProtocol);
+        app.protocols(thirdProtocol);
+        app.use(svcDef, { type: ProtocolType.HTTP, style: "RPC" });
         app.setup();
-        expect(firstTransport.fn).not.toBeCalled();
-        expect(secondTransport.fn).toBeCalled();
+        expect(firstProtocol.fn).not.toBeCalled();
+        expect(secondProtocol.fn).toBeCalled();
       });
-      it("should throw transport 'No transport found' expection when service definition and transport options are passed when transport options is provided that does NOT match a type and style", () => {
+      it("should throw protocol 'No protocol found' expection when service definition and protocol options are passed when protocol options is provided that does NOT match a type and style", () => {
         const app = new Application();
-        app.attachTransport(firstTransport);
-        app.attachTransport(secondTransport);
-        app.attachTransport(thirdTransport);
-        app.use(svcDef, { type: TransportType.WebSocket, style: "RPC" });
-        expect(() => app.setup()).toThrowError("No transport found");
+        app.protocols(firstProtocol);
+        app.protocols(secondProtocol);
+        app.protocols(thirdProtocol);
+        app.use(svcDef, { type: ProtocolType.WebSocket, style: "RPC" });
+        expect(() => app.setup()).toThrowError("No protocol found");
       });
-      it("should throw 'More than one transport found for type HTTP and style REST' exception when transport options is provided that matches more than one transport for the given type and style", () => {
+      it("should throw 'More than one protocol found for type HTTP and style REST' exception when protocol options is provided that matches more than one protocol for the given type and style", () => {
         const app = new Application();
-        app.attachTransport(firstTransport);
-        app.attachTransport(secondTransport);
-        app.attachTransport(thirdTransport);
-        app.use(svcDef, { type: TransportType.HTTP, style: "REST" });
-        expect(() => app.setup()).toThrowError("More than one transport found for type HTTP and style REST");
+        app.protocols(firstProtocol);
+        app.protocols(secondProtocol);
+        app.protocols(thirdProtocol);
+        app.use(svcDef, { type: ProtocolType.HTTP, style: "REST" });
+        expect(() => app.setup()).toThrowError("More than one protocol found for type HTTP and style REST");
       });
-      it("should throw 'More than one transport found for type HTTP and style REST' exception when transport options is provided that matches more than one transport for the given type", () => {
+      it("should throw 'More than one protocol found for type HTTP and style REST' exception when protocol options is provided that matches more than one protocol for the given type", () => {
         const app = new Application();
-        app.attachTransport(firstTransport);
-        app.attachTransport(secondTransport);
-        app.attachTransport(thirdTransport);
-        app.use(svcDef, { type: TransportType.HTTP });
-        expect(() => app.setup()).toThrowError("More than one transport found for type HTTP");
+        app.protocols(firstProtocol);
+        app.protocols(secondProtocol);
+        app.protocols(thirdProtocol);
+        app.use(svcDef, { type: ProtocolType.HTTP });
+        expect(() => app.setup()).toThrowError("More than one protocol found for type HTTP");
       });
     });
   });
@@ -258,23 +258,23 @@ describe("Application", () => {
       app = new Application();
     });
     it("should call configure function the app instance", async () => {
-      await expect(app.listen).rejects.toEqual(new Error("Failed to start listening. No transport attached"));
+      await expect(app.listen).rejects.toEqual(new Error("Failed to start listening. No protocol attached"));
     });
   });
-  describe("attachTransport", () => {
+  describe("protocols", () => {
     let app: Application;
-    const firstTransport = { type: TransportType.HTTP, style: "REST", fn: jest.fn() };
+    const firstProtocol = { type: ProtocolType.HTTP, style: "REST", fn: jest.fn() };
     const mockSetup = jest.fn();
     beforeEach(() => {
       app = new Application();
       app.setup();
     });
     afterEach(() => {
-      firstTransport.fn.mockReset();
+      firstProtocol.fn.mockReset();
       mockSetup.mockReset();
     });
-    it("should throw 'Cannot attach transport provider after application has been setup' exception when application is already setup", () => {
-      expect(() => app.attachTransport(firstTransport)).toThrowError("Cannot attach transport provider after application has been setup");
+    it("should throw 'Cannot attach protocol provider after application has been setup' exception when application is already setup", () => {
+      expect(() => app.protocols(firstProtocol)).toThrowError("Cannot attach protocol provider after application has been setup");
     });
   });
 });

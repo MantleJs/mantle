@@ -1,5 +1,5 @@
 import { ServiceFunction, HookDefinition, ServiceRequest, ServiceResponse, ServicePipe, HookFunction, ServiceHook } from "../service";
-import { TransportDescriptor } from "./TransportProvider";
+import { ProtocolDescriptor } from "./ProtocolProvider";
 import { Application } from "./Application";
 import decamelize from "decamelize";
 import pluralize from "pluralize";
@@ -85,7 +85,7 @@ export type ServiceMethod = typeof serviceMethods[number];
 
 export interface ApplicationService {
   definition: ServiceDefinition;
-  transports: TransportDescriptor[];
+  protocols: ProtocolDescriptor[];
   fn: ServiceFunction;
   /** The service name */
   name: string;
@@ -108,7 +108,7 @@ export type ApplicationServiceFunction = ((request: ServiceRequest, infrustructu
  * @param {Application} app - The mantle Application instance
  * @param {ServiceDefinition} definition - The service definition
  */
-export function ApplicationService(app: Application, definition: ServiceDefinition, transports?: TransportDescriptor[]): ApplicationServiceFunction {
+export function ApplicationService(app: Application, definition: ServiceDefinition, protocols?: ProtocolDescriptor[]): ApplicationServiceFunction {
   const hookFuncs = Array.isArray(definition.hooks) ? definition.hooks.map(ServiceHook) : [];
   // eslint-disable-next-line prefer-const
   let service: ApplicationServiceFunction;
@@ -122,7 +122,7 @@ export function ApplicationService(app: Application, definition: ServiceDefiniti
   };
 
   service = fn[definition.fn.name];
-  service.transports = transports ?? [];
+  service.protocols = protocols ?? [];
 
   function hooks(hook: HookDefinition | HookDefinition[]) {
     if (Array.isArray(hook)) {
