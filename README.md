@@ -1,109 +1,102 @@
-# Mantle
+# Mantle JS
 
-<a alt="Nx logo" href="https://nx.dev" target="_blank" rel="noreferrer"><img src="https://raw.githubusercontent.com/nrwl/nx/master/images/nx-logo.png" width="45"></a>
+A full-stack, tech-agnostic JavaScript/TypeScript framework for building real-time applications and scalable web APIs. Follows Clean Architecture principles — the Application Layer sits between the database core and the UI, like the geological mantle.
 
-✨ Your new, shiny [Nx workspace](https://nx.dev) is ready ✨.
+**Key differentiator from FeathersJS:** `Service<T>` is a contract only. Data access lives in `Repository<T>` implementations in the Infrastructure layer — business logic is never coupled to a database.
 
-[Learn more about this workspace setup and its capabilities](https://nx.dev/nx-api/js?utm_source=nx_project&amp;utm_medium=readme&amp;utm_campaign=nx_projects) or run `npx nx graph` to visually explore what was created. Now, let's get you up to speed!
-
-## Generate a library
-
-```sh
-npx nx g @nx/js:lib packages/pkg1 --publishable --importPath=@my-org/pkg1
-```
-
-## Run tasks
-
-To build the library use:
-
-```sh
-npx nx build pkg1
-```
-
-To run any task with Nx use:
-
-```sh
-npx nx <target> <project-name>
-```
-
-These targets are either [inferred automatically](https://nx.dev/concepts/inferred-tasks?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects) or defined in the `project.json` or `package.json` files.
-
-[More about running tasks in the docs &raquo;](https://nx.dev/features/run-tasks?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-
-## Versioning and releasing
-
-To version and release the library use
+## Architecture
 
 ```
-npx nx release
+Transport Layer       Express adapter — routes HTTP to services
+Application Layer     Service<T> contracts, hook pipeline (a.k.a. THE MANTLE)
+Domain Layer (Core)   Entities, Repository<T> interfaces
+Infrastructure        KnexRepository — implements Domain interfaces
 ```
 
-Pass `--dry-run` to see what would happen without actually releasing the library.
+Dependencies always point inward. Nothing in Domain or Application layers knows about HTTP or databases.
 
-[Learn more about Nx release &raquo;](https://nx.dev/features/manage-releases?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
+## Packages
 
-## Keep TypeScript project references up to date
+| Package                | Description                                                                |
+| ---------------------- | -------------------------------------------------------------------------- |
+| `@mantlejs/core`       | Framework kernel — Service, Repository, hooks, errors. Zero external deps. |
+| `@mantlejs/express`    | Express HTTP transport adapter                                             |
+| `@mantlejs/postgresql` | PostgreSQL adapter via Knex.js                                             |
+| `@mantlejs/auth`       | JWT engine + strategy runner                                               |
+| `@mantlejs/auth-local` | Local email+password strategy (Argon2id)                                   |
+| `@mantlejs/upload`     | File upload via busboy, local disk storage                                 |
 
-Nx automatically updates TypeScript [project references](https://www.typescriptlang.org/docs/handbook/project-references.html) in `tsconfig.json` files to ensure they remain accurate based on your project dependencies (`import` or `require` statements). This sync is automatically done when running tasks such as `build` or `typecheck`, which require updated references to function correctly.
+## Quick Start
 
-To manually trigger the process to sync the project graph dependencies information to the TypeScript project references, run the following command:
+```typescript
+import { mantle } from "@mantlejs/core";
+import { express } from "@mantlejs/express";
+import { postgresql } from "@mantlejs/postgresql";
+import { auth, authenticate, sanitizeUser } from "@mantlejs/auth";
+import { localStrategy, hashPassword } from "@mantlejs/auth-local";
 
-```sh
-npx nx sync
+const app = mantle()
+  .configure(express())
+  .configure(postgresql({ connection: process.env.DATABASE_URL }))
+  .configure(auth({ secret: process.env.JWT_SECRET! }))
+  .configure(localStrategy());
+
+app.use("/users", new UserService(new UserRepository(app)), {
+  methods: ["find", "get", "create", "update", "patch", "remove"],
+});
+
+app.service("users").hooks({
+  before: {
+    create: [hashPassword()],
+    all: [authenticate("jwt")],
+  },
+  after: { all: [sanitizeUser()] },
+  error: { all: [logError()] },
+});
+
+app.listen(3030);
 ```
 
-You can enforce that the TypeScript project references are always in the correct state when running in CI by adding a step to your CI job configuration that runs the following command:
+## Development
 
-```sh
-npx nx sync:check
+This monorepo is managed with [Nx](https://nx.dev).
+
+```bash
+# Build
+npx nx build core                   # build one package
+npx nx run-many -t build            # build all packages
+
+# Test
+npx nx test core                    # test one package
+npx nx run-many -t test             # test all packages
+
+# Lint
+npx nx run-many -t lint
+
+# Visualise the dependency graph
+npx nx graph
 ```
 
-[Learn more about nx sync](https://nx.dev/reference/nx-commands#sync)
+### Add a new package
 
-## Set up CI!
-
-### Step 1
-
-To connect to Nx Cloud, run the following command:
-
-```sh
-npx nx connect
+```bash
+NX_DAEMON=false npx nx g @nx/js:library \
+  --name=<name> \
+  --directory=packages/<name> \
+  --bundler=tsc \
+  --unitTestRunner=vitest \
+  --linter=eslint \
+  --publishable \
+  --importPath=@mantlejs/<name>
 ```
 
-Connecting to Nx Cloud ensures a [fast and scalable CI](https://nx.dev/ci/intro/why-nx-cloud?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects) pipeline. It includes features such as:
+## Tech Choices
 
-- [Remote caching](https://nx.dev/ci/features/remote-cache?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-- [Task distribution across multiple machines](https://nx.dev/ci/features/distribute-task-execution?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-- [Automated e2e test splitting](https://nx.dev/ci/features/split-e2e-tasks?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-- [Task flakiness detection and rerunning](https://nx.dev/ci/features/flaky-tasks?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-
-### Step 2
-
-Use the following command to configure a CI workflow for your workspace:
-
-```sh
-npx nx g ci-workflow
-```
-
-[Learn more about Nx on CI](https://nx.dev/ci/intro/ci-with-nx#ready-get-started-with-your-provider?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-
-## Install Nx Console
-
-Nx Console is an editor extension that enriches your developer experience. It lets you run tasks, generate code, and improves code autocompletion in your IDE. It is available for VSCode and IntelliJ.
-
-[Install Nx Console &raquo;](https://nx.dev/getting-started/editor-setup?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-
-## Useful links
-
-Learn more:
-
-- [Learn more about this workspace setup](https://nx.dev/nx-api/js?utm_source=nx_project&amp;utm_medium=readme&amp;utm_campaign=nx_projects)
-- [Learn about Nx on CI](https://nx.dev/ci/intro/ci-with-nx?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-- [Releasing Packages with Nx release](https://nx.dev/features/manage-releases?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-- [What are Nx plugins?](https://nx.dev/concepts/nx-plugins?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-
-And join the Nx community:
-- [Discord](https://go.nx.dev/community)
-- [Follow us on X](https://twitter.com/nxdevtools) or [LinkedIn](https://www.linkedin.com/company/nrwl)
-- [Our Youtube channel](https://www.youtube.com/@nxdevtools)
-- [Our blog](https://nx.dev/blog?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
+| Decision         | Choice                     | Reason                                                 |
+| ---------------- | -------------------------- | ------------------------------------------------------ |
+| Monorepo         | Nx (TS preset, npm)        | Task pipeline, module boundary enforcement             |
+| DB adapter       | Knex.js                    | Query builder not ORM — keeps infra layer thin         |
+| Password hashing | @node-rs/argon2 (Argon2id) | OWASP recommended; no 72-char bcrypt limit             |
+| Testing          | Vitest                     | Faster than Jest, native ESM, Jest-compatible API      |
+| Transport        | Express                    | Most familiar; AI-legible                              |
+| Bundler          | tsc                        | Emits .d.ts natively — critical for TS-first libraries |
