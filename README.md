@@ -1,8 +1,35 @@
 # Mantle JS
 
-A full-stack, tech-agnostic JavaScript/TypeScript framework for building real-time applications and scalable web APIs. Follows Clean Architecture principles — the Application Layer sits between the database core and the UI, like the geological mantle.
+A full-stack, tech-agnostic JavaScript/TypeScript framework optimized for building real-time applications and scalable web APIs. Mantle serves as a flexible core layer between the database and the UI — analogous to the geological mantle sitting beneath the crust.
 
-**Key differentiator from FeathersJS:** `Service<T>` is a contract only. Data access lives in `Repository<T>` implementations in the Infrastructure layer — business logic is never coupled to a database.
+Mantle is designed to be **architecture-first**: it enforces a clean separation of concerns inspired by Clean Architecture and Onion Architecture, rather than coupling business logic to data access or transport concerns.
+
+Mantle is built for three audiences: **indie developers** who want structure without ceremony, **startup teams** who need conventions that scale, and **AI coding agents** (Claude, Gemini, GPT-4o) that scaffold or generate backend code on behalf of a developer. Consistent naming, explicit interfaces, and clear layer boundaries make Mantle code correct to generate — an AI agent can produce a valid, runnable service with no human correction.
+
+## Background & Motivation
+
+**FeathersJS** is the closest analog to Mantle. It is a lightweight, real-time capable service framework with a strong following. However, it carries a structural limitation: **services couple business logic directly with data access logic**. A Feathers service is simultaneously a use case, a repository, and a controller. This works well for small applications but becomes a liability at scale, during testing, or when swapping infrastructure.
+
+Other frameworks (NestJS, AdonisJS, Hapi) either impose too much framework opinion on domain code, require significant boilerplate, or are not optimized for real-time delivery.
+
+Mantle takes direct inspiration from FeathersJS's ergonomics — the plugin model, adapters, hooks-style middleware — but reimagines the core around a **layered architecture** where:
+
+- Domain logic is independent of infrastructure
+- Services define *contracts*, not *implementations*
+- Adapters and transports are swappable without touching business logic
+- The framework is predictable enough to be scaffolded and consumed by AI agents
+
+### Mantle vs. FeathersJS
+
+| Concern | FeathersJS | Mantle JS |
+|---|---|---|
+| Service definition | Class implementing data + logic | Interface (contract) only |
+| Data access | Inside the service via adapter | Repository in Infrastructure layer |
+| Business logic | Mixed into service methods | Isolated in Application / Domain |
+| Hooks | Transport-aware | Transport-agnostic |
+| Swapping databases | Requires service changes | Swap adapter only |
+| Testability | Requires mocking transport | Domain testable with no mocks |
+| AI scaffoldability | Moderate | High (clear boundaries) |
 
 ## Architecture
 
