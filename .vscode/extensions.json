@@ -1,3 +1,15 @@
 {
-  "recommendations": ["nrwl.angular-console", "esbenp.prettier-vscode"]
+  "recommendations": [
+    // Linting & formatting
+    "dbaeumer.vscode-eslint",
+    "esbenp.prettier-vscode",
+    // Nx monorepo
+    "nx-console.nx-console",
+    // Testing
+    "vitest.explorer",
+    // Git
+    "eamodio.gitlens",
+    // TypeScript utilities
+    "mattpocock.ts-error-translator"
+  ]
 }
