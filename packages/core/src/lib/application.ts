@@ -5,6 +5,7 @@ import type {
   HookFunction,
   Id,
   MantleApplication,
+  MantleOptions,
   MantlePlugin,
   Paginated,
   Service,
@@ -62,39 +63,52 @@ class ServiceHandleImpl<T> implements ServiceHandle<T> {
       throw new MethodNotAllowed(`Method '${ctx.method}' is not allowed on service '${ctx.path}'`);
     }
 
-    const method = ctx.method as keyof Service<T>;
-    const fn = this.service[method];
-    if (typeof fn !== "function") {
-      throw new MethodNotAllowed(`Method '${ctx.method}' is not implemented on service '${ctx.path}'`);
-    }
-
-    switch (method) {
-      case "find":
+    switch (ctx.method) {
+      case "find": {
+        const fn = this.service.find;
+        if (typeof fn !== "function") throw new MethodNotAllowed(`Method 'find' is not implemented on service '${ctx.path}'`);
         return (fn as Service<T>["find"]).call(this.service, ctx.params);
-      case "create":
+      }
+      case "create": {
+        const fn = this.service.create;
+        if (typeof fn !== "function") throw new MethodNotAllowed(`Method 'create' is not implemented on service '${ctx.path}'`);
         return (fn as Service<T>["create"]).call(this.service, ctx.data as Partial<T>, ctx.params);
+      }
       case "get": {
-        const id = ctx.id;
-        if (id === undefined) throw new BadRequest("'id' is required for get");
-        return (fn as Service<T>["get"]).call(this.service, id, ctx.params);
+        const fn = this.service.get;
+        if (typeof fn !== "function") throw new MethodNotAllowed(`Method 'get' is not implemented on service '${ctx.path}'`);
+        if (ctx.id === undefined) throw new BadRequest("'id' is required for get");
+        return (fn as Service<T>["get"]).call(this.service, ctx.id, ctx.params);
       }
       case "update": {
-        const id = ctx.id;
-        if (id === undefined) throw new BadRequest("'id' is required for update");
-        return (fn as Service<T>["update"]).call(this.service, id, ctx.data as Partial<T>, ctx.params);
+        const fn = this.service.update;
+        if (typeof fn !== "function") throw new MethodNotAllowed(`Method 'update' is not implemented on service '${ctx.path}'`);
+        if (ctx.id === undefined) throw new BadRequest("'id' is required for update");
+        return (fn as Service<T>["update"]).call(this.service, ctx.id, ctx.data as Partial<T>, ctx.params);
       }
       case "patch": {
-        const id = ctx.id;
-        if (id === undefined) throw new BadRequest("'id' is required for patch");
-        return (fn as Service<T>["patch"]).call(this.service, id, ctx.data as Partial<T>, ctx.params);
+        const fn = this.service.patch;
+        if (typeof fn !== "function") throw new MethodNotAllowed(`Method 'patch' is not implemented on service '${ctx.path}'`);
+        if (ctx.id === undefined) throw new BadRequest("'id' is required for patch");
+        return (fn as Service<T>["patch"]).call(this.service, ctx.id, ctx.data as Partial<T>, ctx.params);
       }
       case "remove": {
-        const id = ctx.id;
-        if (id === undefined) throw new BadRequest("'id' is required for remove");
-        return (fn as Service<T>["remove"]).call(this.service, id, ctx.params);
+        const fn = this.service.remove;
+        if (typeof fn !== "function") throw new MethodNotAllowed(`Method 'remove' is not implemented on service '${ctx.path}'`);
+        if (ctx.id === undefined) throw new BadRequest("'id' is required for remove");
+        return (fn as Service<T>["remove"]).call(this.service, ctx.id, ctx.params);
       }
-      default:
+      default: {
+        const customFn = (this.service as Record<string, unknown>)[ctx.method];
+        if (typeof customFn === "function") {
+          return (customFn as (data: Partial<T>, params: ServiceParams) => Promise<T | T[] | Paginated<T>>).call(
+            this.service,
+            ctx.data as Partial<T>,
+            ctx.params,
+          );
+        }
         throw new MethodNotAllowed(`Method '${ctx.method}' is not a standard service method`);
+      }
     }
   }
 
@@ -147,12 +161,20 @@ class ServiceHandleImpl<T> implements ServiceHandle<T> {
   async remove(id: Id, params?: ServiceParams): Promise<T> {
     return this.runPipeline("remove", params, id) as Promise<T>;
   }
+
+  async dispatch(method: string, data?: Partial<T>, id?: Id, params?: ServiceParams): Promise<T | T[] | Paginated<T>> {
+    return this.runPipeline(method, params, id, data);
+  }
 }
 
 export class MantleApplicationImpl implements MantleApplication {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private readonly _services = new Map<string, ServiceHandleImpl<any>>();
   private readonly _settings = new Map<string, unknown>();
+
+  constructor(private readonly _options: MantleOptions = {}) {
+    void this._options;
+  }
 
   use<T = unknown>(path: string, service: Partial<Service<T>>, options: ServiceOptions = {}): this {
     const key = path.replace(/^\//, "");

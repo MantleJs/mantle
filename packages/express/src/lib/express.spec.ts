@@ -1,7 +1,330 @@
-import { express } from './express.js';
+import { createServer } from "node:http";
+import type { AddressInfo } from "node:net";
+import type { Application } from "express";
+import { mantle } from "@mantlejs/core";
+import { BadRequest, NotFound } from "@mantlejs/core";
+import type { ServiceParams } from "@mantlejs/core";
+import { express } from "./express.js";
 
-describe('express', () => {
-  it('should work', () => {
-    expect(express()).toEqual('express');
+async function startServer(expressApp: Application): Promise<{ port: number; stop: () => Promise<void> }> {
+  const server = createServer(expressApp as Parameters<typeof createServer>[0]);
+  await new Promise<void>((resolve) => server.listen(0, resolve));
+  const port = (server.address() as AddressInfo).port;
+  return {
+    port,
+    stop: () => new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve()))),
+  };
+}
+
+interface User {
+  id: string;
+  name: string;
+  email: string;
+}
+
+class TestUserService {
+  async find(_params?: ServiceParams): Promise<User[]> {
+    return [{ id: "1", name: "Alice", email: "alice@example.com" }];
+  }
+
+  async get(id: string | number, _params?: ServiceParams): Promise<User> {
+    return { id: String(id), name: "Alice", email: "alice@example.com" };
+  }
+
+  async create(data: Partial<User>, _params?: ServiceParams): Promise<User> {
+    return { id: "99", name: data.name ?? "", email: data.email ?? "" };
+  }
+
+  async update(id: string | number, data: Partial<User>, _params?: ServiceParams): Promise<User> {
+    return { id: String(id), name: data.name ?? "", email: data.email ?? "" };
+  }
+
+  async patch(id: string | number, data: Partial<User>, _params?: ServiceParams): Promise<User> {
+    return { id: String(id), name: data.name ?? "Alice", email: data.email ?? "alice@example.com" };
+  }
+
+  async remove(id: string | number, _params?: ServiceParams): Promise<User> {
+    return { id: String(id), name: "Alice", email: "alice@example.com" };
+  }
+}
+
+describe("express adapter", () => {
+  describe("plugin setup", () => {
+    it("stores an express application on app.get('express')", () => {
+      const app = mantle().configure(express());
+      expect(app.get("express")).toBeDefined();
+    });
+  });
+
+  describe("standard REST routes", () => {
+    let port: number;
+    let stop: () => Promise<void>;
+
+    beforeEach(async () => {
+      const app = mantle().configure(express());
+      app.use("users", new TestUserService());
+      const expressApp = app.get<Application>("express");
+      const server = await startServer(expressApp);
+      port = server.port;
+      stop = server.stop;
+    });
+
+    afterEach(async () => {
+      await stop();
+    });
+
+    it("find — GET /users returns 200 with array", async () => {
+      const res = await fetch(`http://localhost:${port}/users`);
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(Array.isArray(body)).toBe(true);
+      expect(body[0]).toMatchObject({ id: "1", name: "Alice" });
+    });
+
+    it("get — GET /users/:id returns 200 with single resource", async () => {
+      const res = await fetch(`http://localhost:${port}/users/42`);
+      expect(res.status).toBe(200);
+      const body = await res.json() as User;
+      expect(body.id).toBe("42");
+    });
+
+    it("create — POST /users returns 201 with created resource", async () => {
+      const res = await fetch(`http://localhost:${port}/users`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: "Bob", email: "bob@example.com" }),
+      });
+      expect(res.status).toBe(201);
+      const body = await res.json() as User;
+      expect(body.name).toBe("Bob");
+    });
+
+    it("update — PUT /users/:id returns 200", async () => {
+      const res = await fetch(`http://localhost:${port}/users/42`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: "Updated", email: "updated@example.com" }),
+      });
+      expect(res.status).toBe(200);
+      const body = await res.json() as User;
+      expect(body.id).toBe("42");
+      expect(body.name).toBe("Updated");
+    });
+
+    it("patch — PATCH /users/:id returns 200", async () => {
+      const res = await fetch(`http://localhost:${port}/users/42`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: "Patched" }),
+      });
+      expect(res.status).toBe(200);
+      const body = await res.json() as User;
+      expect(body.id).toBe("42");
+    });
+
+    it("remove — DELETE /users/:id returns 200 with removed resource", async () => {
+      const res = await fetch(`http://localhost:${port}/users/42`, {
+        method: "DELETE",
+      });
+      expect(res.status).toBe(200);
+      const body = await res.json() as User;
+      expect(body.id).toBe("42");
+    });
+  });
+
+  describe("params population", () => {
+    it("sets params.provider to 'rest' for HTTP requests", async () => {
+      let capturedProvider: string | undefined;
+
+      const app = mantle().configure(express());
+      app.use("users", new TestUserService());
+      app.service("users").hooks({
+        before: {
+          find: [
+            (ctx) => {
+              capturedProvider = ctx.params.provider;
+              return ctx;
+            },
+          ],
+        },
+      });
+
+      const expressApp = app.get<Application>("express");
+      const { port, stop } = await startServer(expressApp);
+      try {
+        await fetch(`http://localhost:${port}/users`);
+        expect(capturedProvider).toBe("rest");
+      } finally {
+        await stop();
+      }
+    });
+
+    it("populates params.query from the request query string", async () => {
+      let capturedQuery: Record<string, unknown> | undefined;
+
+      const app = mantle().configure(express());
+      app.use("users", new TestUserService());
+      app.service("users").hooks({
+        before: {
+          find: [
+            (ctx) => {
+              capturedQuery = ctx.params.query;
+              return ctx;
+            },
+          ],
+        },
+      });
+
+      const expressApp = app.get<Application>("express");
+      const { port, stop } = await startServer(expressApp);
+      try {
+        await fetch(`http://localhost:${port}/users?page=2&limit=10`);
+        expect(capturedQuery).toMatchObject({ page: "2", limit: "10" });
+      } finally {
+        await stop();
+      }
+    });
+  });
+
+  describe("error handling", () => {
+    it("serialises NotFound (404) from a service to a 404 HTTP response with correct JSON", async () => {
+      class NotFoundService {
+        async find(_params?: ServiceParams): Promise<User[]> {
+          throw new NotFound("User not found");
+        }
+      }
+
+      const app = mantle().configure(express());
+      app.use("items", new NotFoundService());
+
+      const expressApp = app.get<Application>("express");
+      expressApp.use((_err: unknown, _req: unknown, res: { status: (n: number) => { json: (b: unknown) => void } }, _next: unknown) => {
+        if (_err instanceof NotFound) {
+          res.status((_err as NotFound).code).json((_err as NotFound).toJSON());
+        }
+      });
+
+      const { port, stop } = await startServer(expressApp);
+      try {
+        const res = await fetch(`http://localhost:${port}/items`);
+        expect(res.status).toBe(404);
+        const body = await res.json() as Record<string, unknown>;
+        expect(body["code"]).toBe(404);
+        expect(body["className"]).toBe("not-found");
+      } finally {
+        await stop();
+      }
+    });
+
+    it("serialises BadRequest (400) to a 400 HTTP response", async () => {
+      class BadService {
+        async find(_params?: ServiceParams): Promise<User[]> {
+          throw new BadRequest("Invalid input");
+        }
+      }
+
+      const app = mantle().configure(express());
+      app.use("items", new BadService());
+
+      const expressApp = app.get<Application>("express");
+      const { port, stop } = await startServer(expressApp);
+      try {
+        const res = await fetch(`http://localhost:${port}/items`);
+        expect(res.status).toBe(400);
+        const body = await res.json() as Record<string, unknown>;
+        expect(body["code"]).toBe(400);
+        expect(body["className"]).toBe("bad-request");
+      } finally {
+        await stop();
+      }
+    });
+
+    it("maps an unknown error to 500", async () => {
+      class BrokenService {
+        async find(_params?: ServiceParams): Promise<User[]> {
+          throw new Error("Something broke");
+        }
+      }
+
+      const app = mantle().configure(express());
+      app.use("items", new BrokenService());
+
+      const expressApp = app.get<Application>("express");
+      const { port, stop } = await startServer(expressApp);
+      try {
+        const res = await fetch(`http://localhost:${port}/items`);
+        expect(res.status).toBe(500);
+        const body = await res.json() as Record<string, unknown>;
+        expect(body["code"]).toBe(500);
+      } finally {
+        await stop();
+      }
+    });
+  });
+
+  describe("method restriction", () => {
+    it("returns 404 when a non-registered method route is not mounted", async () => {
+      const app = mantle().configure(express());
+      app.use("users", new TestUserService(), { methods: ["find"] });
+
+      const expressApp = app.get<Application>("express");
+      const { port, stop } = await startServer(expressApp);
+      try {
+        const res = await fetch(`http://localhost:${port}/users`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name: "Bob" }),
+        });
+        // Express v5 returns 404 when no route matches (POST /users not mounted)
+        expect(res.status).toBe(404);
+      } finally {
+        await stop();
+      }
+    });
+  });
+
+  describe("custom methods", () => {
+    it("dispatches POST /path/methodName and runs hooks", async () => {
+      let hookRan = false;
+
+      class EmailService {
+        async find(_params?: ServiceParams): Promise<User[]> {
+          return [];
+        }
+
+        async verifyEmail(data: unknown, _params?: ServiceParams): Promise<{ verified: boolean; data: unknown }> {
+          return { verified: true, data };
+        }
+      }
+
+      const app = mantle().configure(express());
+      app.use("emails", new EmailService(), { methods: ["find", "verifyEmail"] });
+      app.service("emails").hooks({
+        before: {
+          verifyEmail: [
+            (ctx) => {
+              hookRan = true;
+              return ctx;
+            },
+          ],
+        },
+      });
+
+      const expressApp = app.get<Application>("express");
+      const { port, stop } = await startServer(expressApp);
+      try {
+        const res = await fetch(`http://localhost:${port}/emails/verifyEmail`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ token: "abc123" }),
+        });
+        expect(res.status).toBe(200);
+        const body = await res.json() as { verified: boolean };
+        expect(body.verified).toBe(true);
+        expect(hookRan).toBe(true);
+      } finally {
+        await stop();
+      }
+    });
   });
 });

@@ -82,6 +82,7 @@ export type MantlePlugin = (app: MantleApplication) => void | Promise<void>;
 
 export interface ServiceHandle<T> extends Service<T> {
   hooks(config: HookConfig<T>): this;
+  dispatch(method: string, data?: Partial<T>, id?: Id, params?: ServiceParams): Promise<T | T[] | Paginated<T>>;
 }
 
 export interface MantleApplication {
