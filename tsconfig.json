@@ -10,9 +10,6 @@
       "path": "./packages/express"
     },
     {
-      "path": "./packages/postgresql"
-    },
-    {
       "path": "./packages/auth"
     },
     {
@@ -20,6 +17,9 @@
     },
     {
       "path": "./packages/upload"
+    },
+    {
+      "path": "./packages/knex"
     }
   ]
 }

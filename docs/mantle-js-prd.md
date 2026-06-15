@@ -90,7 +90,7 @@ The name **Mantle** reflects this positioning: the framework occupies the servic
 ### Primary
 
 | Persona | Description |
-|---|---|
+| --- | --- |
 | **Indie Developer** | Solo builder shipping a SaaS, API, or side project. Wants structure without ceremony. Familiar with Node.js and one major framework. |
 | **Startup Engineering Team** | Small team (2–8 engineers) building an API-first product. Needs conventions that scale as the codebase grows, and an easy onboarding story for new hires. |
 | **AI Coding Agent** | Claude, Gemini, GPT-4o, or similar agent building or scaffolding backend code on behalf of a developer. Requires consistent, well-documented patterns and clear separation of concerns. |
@@ -162,7 +162,7 @@ Mantle separates these concerns using a **layered architecture** informed by bot
 ### Comparison: FeathersJS vs Mantle
 
 | Concern | FeathersJS | Mantle JS |
-|---|---|---|
+| --- | --- | --- |
 | Service definition | Class implementing data + logic | Interface (contract) only |
 | Data access | Inside the service via adapter | Repository in Infrastructure layer |
 | Business logic | Mixed into service methods | Isolated in Application / Domain |
@@ -193,7 +193,7 @@ Services are the primary unit of logic in Mantle. A Mantle service is defined as
 Standard service methods mirror FeathersJS for familiarity:
 
 | Method | HTTP Equivalent | Description |
-|---|---|---|
+| --- | --- | --- |
 | `find(params)` | GET /resource | List / query multiple records |
 | `get(id, params)` | GET /resource/:id | Retrieve single record |
 | `create(data, params)` | POST /resource | Create a new record |
@@ -300,14 +300,17 @@ Express transport adapter. Provides:
 - `req` → `params` mapping (query strings, route params, auth context)
 - Support for Express middleware injection: `app.use(middleware)`
 
-#### @mantlejs/postgresql
+#### @mantlejs/knex
 
-PostgreSQL database adapter using **Knex.js** as the query builder (chosen for its flexibility, wide adoption, and lack of ORM opinion). Provides:
+SQL database adapter using **Knex.js** as the query builder (chosen for its flexibility, wide adoption, and lack of ORM opinion). Supports PostgreSQL (primary), MySQL/MariaDB, SQLite, and MSSQL via a single package. Provides:
 
-- `postgresql(config)` plugin factory
+- `knex(config)` plugin factory
 - Base `KnexRepository<T>` class implementing the Repository interface
 - Support for: find (with filtering/pagination), get, create, update, patch, remove
-- Transaction support
+- Full query operator support (`$lt`, `$gt`, `$in`, `$nin`, `$or`, `$and`, `$like`, `$ilike`, etc.)
+- Transaction support via `withTransaction()`
+- Automatic timestamp management (`createdAt`, `updatedAt`)
+- MySQL `RETURNING` fallback (re-fetch after insert/update for databases that lack native `RETURNING`)
 - Connection pooling via Knex defaults
 - Configurable table name, id field, timestamps
 
@@ -385,7 +388,7 @@ The following are **explicitly out of scope** for Phase 1 and must not be implem
 ### Phase 1 Technical Constraints
 
 | Constraint | Decision |
-|---|---|
+| --- | --- |
 | Node.js minimum | v18 LTS |
 | Language | TypeScript (compiled to ESM + CJS dual output) |
 | Module format | ESM-first, CJS interop |
@@ -430,7 +433,6 @@ A Phase 1 release is considered complete when a developer can:
 ### Phase 3 — Scale & Ecosystem
 
 - Raw HTTP adapter (zero-dependency transport)
-- MySQL / SQLite adapters
 - Hono adapter (edge runtime compatible)
 - `@mantlejs/channels` — real-time channel/room management
 - `@mantlejs/queue` — job queue integration (BullMQ)
@@ -451,7 +453,7 @@ A Phase 1 release is considered complete when a developer can:
 
 ## Package Structure
 
-```
+```text
 mantle/
 ├── packages/
 │   ├── core/              # @mantlejs/core
@@ -462,7 +464,7 @@ mantle/
 │   │   ├── src/
 │   │   ├── project.json
 │   │   └── package.json
-│   ├── postgresql/        # @mantlejs/postgresql
+│   ├── knex/              # @mantlejs/knex
 │   │   ├── src/
 │   │   ├── project.json
 │   │   └── package.json
@@ -526,7 +528,7 @@ mantle/
 ## Success Metrics
 
 | Metric | Phase 1 Target |
-|---|---|
+| --- | --- |
 | npm weekly downloads | 100+ within 60 days of launch |
 | GitHub stars | 250+ within 90 days |
 | Time to first working API | < 30 minutes for a developer familiar with Node.js |
@@ -542,9 +544,9 @@ mantle/
 All Phase 1 open questions have been resolved.
 
 | # | Question | Decision |
-|---|---|---|
+| --- | --- | --- |
 | 1 | Co-locate Application + Domain or enforce separation from day one? | **Co-locate** for Phase 1. Full layer separation is opt-in as the app grows. |
-| 2 | `@mantlejs/postgresql`: Knex or pg-native? | **Knex.js.** Establishes a consistent adapter pattern for future DB adapters. pg-native is too low-level and adds native dependency complexity. |
+| 2 | SQL adapter strategy? | **`@mantlejs/knex` is the single SQL adapter for all supported databases** (PostgreSQL, MySQL/MariaDB, SQLite, MSSQL). Knex.js handles dialect differences, keeping adapter maintenance minimal. |
 | 3 | Name for the core service interface? | **`Service<T>`** — simple and idiomatic TypeScript. Implementations are named by the developer (e.g. `UserService implements Service<User>`). Repository abstraction follows the same pattern: `Repository<T>`. |
 | 4 | Hooks: class-based, function-based, or both? | **Function-based only.** Easier to compose, better tree-shaking, cleaner TypeScript inference, more AI-legible. Mirrors the direction FeathersJS v5 took. |
 | 5 | CLI in Phase 1 or defer? | **Stretch goal for Phase 1.** Included if time allows; otherwise deferred to Phase 2. |

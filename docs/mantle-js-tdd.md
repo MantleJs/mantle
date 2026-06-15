@@ -1,5 +1,4 @@
-# Technical Design Document (Thin)
-# Mantle JS — Phase 1
+# Mantle JS — Technical Design Document (Thin)
 
 **Version:** 0.1.0-draft  
 **Status:** In Progress  
@@ -14,7 +13,7 @@
 2. [Package Dependency Graph](#package-dependency-graph)
 3. [Public API Surface — @mantlejs/core](#public-api-surface--mantlejscore)
 4. [Public API Surface — @mantlejs/express](#public-api-surface--mantlejsexpress)
-5. [Public API Surface — @mantlejs/postgresql](#public-api-surface--mantlejspostgresql)
+5. [Public API Surface — @mantlejs/knex](#public-api-surface--mantlejsknex)
 6. [Public API Surface — @mantlejs/auth](#public-api-surface--mantlejsauth)
 7. [Public API Surface — @mantlejs/auth-local](#public-api-surface--mantlejsauth-local)
 8. [Public API Surface — @mantlejs/upload](#public-api-surface--mantlejsupload)
@@ -47,15 +46,15 @@ It does **not** cover internal implementation details, class internals, or infra
 
 ### Graph
 
-```
+```text
 @mantlejs/core
 │   (no external deps)
 │
 ├── @mantlejs/express
 │       depends on: @mantlejs/core, express
 │
-├── @mantlejs/postgresql
-│       depends on: @mantlejs/core, knex, pg
+├── @mantlejs/knex
+│       depends on: @mantlejs/core, knex
 │
 ├── @mantlejs/auth
 │       depends on: @mantlejs/core, jsonwebtoken
@@ -69,11 +68,11 @@ It does **not** cover internal implementation details, class internals, or infra
 
 ### Matrix View
 
-| Package | core | express | postgresql | auth | auth-local | upload |
-|---|---|---|---|---|---|---|
+| Package | core | express | knex | auth | auth-local | upload |
+| --- | --- | --- | --- | --- | --- | --- |
 | `@mantlejs/core` | — | | | | | |
 | `@mantlejs/express` | ✅ | — | | | | |
-| `@mantlejs/postgresql` | ✅ | | — | | | |
+| `@mantlejs/knex` | ✅ | | — | | | |
 | `@mantlejs/auth` | ✅ | | | — | | |
 | `@mantlejs/auth-local` | ✅ | | | ✅ | — | |
 | `@mantlejs/upload` | ✅ | | | | | — |
@@ -394,7 +393,7 @@ app.listen(3030);
 ### Method → Route Mapping
 
 | Service Method | HTTP Method | Route |
-|---|---|---|
+| --- | --- | --- |
 | `find` | GET | `/path` |
 | `get` | GET | `/path/:id` |
 | `create` | POST | `/path` |
@@ -405,39 +404,54 @@ app.listen(3030);
 
 ---
 
-## Public API Surface — @mantlejs/postgresql
+## Public API Surface — @mantlejs/knex
 
-### `postgresql()`
+### `knex()`
 
-Plugin factory. Registers a PostgreSQL connection via Knex on the app.
+Plugin factory. Registers a SQL database connection via Knex on the app. Supports PostgreSQL, MySQL/MariaDB, SQLite3, and MSSQL.
 
 ```typescript
-function postgresql(config: PostgreSQLConfig): MantlePlugin;
+function knex(config: KnexConfig): MantlePlugin;
 
-interface PostgreSQLConfig {
+interface KnexConfig {
+  /** Knex client: 'pg', 'mysql2', 'sqlite3', 'mssql', 'oracledb', etc. */
+  client: string;
   /** Knex connection config or connection string */
-  connection: Knex.StaticConnectionConfig | string;
+  connection: Knex.Config['connection'];
   /** Connection pool options. Defaults: min 2, max 10. */
   pool?: { min?: number; max?: number };
+  /** PostgreSQL schema search path (optional) */
+  searchPath?: string | string[];
 }
 ```
 
+Wraps `app.teardown()` to automatically destroy the Knex connection pool on shutdown.
+
 ### `KnexRepository<T>`
 
-Base class for PostgreSQL-backed repositories. Implements `Repository<T>`.
+Abstract base class for SQL-backed repositories. Implements `Repository<T>`.
 
 ```typescript
 abstract class KnexRepository<T, D = Partial<T>> implements Repository<T, D> {
   constructor(app: MantleApplication);
 
-  /** The table name. Must be set by the subclass. */
+  /** The table name. Must be declared by the subclass. */
   abstract readonly tableName: string;
 
-  /** The primary key field. Defaults to 'id'. */
-  readonly idField: string = 'id';
+  /** The primary key column. Defaults to 'id'. */
+  readonly idField: string;
 
-  /** Whether to manage createdAt / updatedAt. Defaults to true. */
-  readonly timestamps: boolean = true;
+  /** Auto-manage createdAt / updatedAt. Defaults to true. */
+  readonly timestamps: boolean;
+
+  /** Raw Knex query builder for this table (respects active transaction). */
+  get db(): Knex.QueryBuilder;
+
+  /**
+   * Run operations inside a transaction.
+   * The callback receives a transaction-scoped copy of the repository.
+   */
+  withTransaction<R>(callback: (repo: this) => Promise<R>): Promise<R>;
 
   // Implements all Repository<T, D> methods
   findAll(params?: QueryParams): Promise<T[]>;
@@ -448,25 +462,82 @@ abstract class KnexRepository<T, D = Partial<T>> implements Repository<T, D> {
   patchById(id: Id, data: D): Promise<T>;
   deleteById(id: Id): Promise<T>;
   count(params?: QueryParams): Promise<number>;
-
-  /** Access the raw Knex query builder for this table */
-  get db(): Knex.QueryBuilder;
 }
 ```
+
+**RETURNING * support**: PostgreSQL, SQLite3, MSSQL, and OracleDB use `RETURNING *` for efficient single-query writes. MySQL/MariaDB automatically falls back to an insert-then-select pattern.
+
+### `knexify()`
+
+Translates a structured `where` clause with query operators into Knex query builder calls. Used internally by `KnexRepository.buildQuery()` and available for custom queries.
+
+```typescript
+function knexify(builder: Knex.QueryBuilder, where: WhereClause): Knex.QueryBuilder;
+
+type WhereClause = Record<string, WhereValue>;
+```
+
+**Supported operators in `where`:**
+
+| Syntax | SQL | Notes |
+| --- | --- | --- |
+| `{ field: value }` | `field = value` | equality |
+| `{ field: null }` | `field IS NULL` | null check |
+| `{ field: [1,2,3] }` | `field IN (1,2,3)` | array shorthand |
+| `{ field: { $gt: v } }` | `field > v` | also `$gte`, `$lt`, `$lte` |
+| `{ field: { $ne: v } }` | `field != v` | `$ne: null` → `IS NOT NULL` |
+| `{ field: { $in: [...] } }` | `field IN (...)` | |
+| `{ field: { $nin: [...] } }` | `field NOT IN (...)` | |
+| `{ field: { $like: 'Al%' } }` | `field LIKE 'Al%'` | |
+| `{ field: { $notlike: 'Al%' } }` | `field NOT LIKE 'Al%'` | |
+| `{ field: { $ilike: '%al%' } }` | `field ILIKE '%al%'` | PostgreSQL only |
+| `{ $or: [...clauses] }` | `(c1 OR c2 OR ...)` | nested WhereClause array |
+| `{ $and: [...clauses] }` | `(c1 AND c2 AND ...)` | nested WhereClause array |
+
+### Error mapping
+
+`KnexRepository` maps PostgreSQL SQLSTATE error codes to typed Mantle errors:
+
+| SQLSTATE prefix | Maps to |
+| --- | --- |
+| `08xxx` (connection error) | `Unavailable` |
+| `22xxx` (data exception) | `BadRequest` |
+| `23505` (unique violation) | `Conflict` |
+| `23xxx` (other integrity) | `BadRequest` |
+| `28xxx` (auth failure) | `Forbidden` |
+| `42xxx`, `3Dxxx`, `3Fxxx` | `Unprocessable` |
+| `57xxx` (operator intervention) | `Unavailable` |
+| other | `GeneralError` |
 
 ### Usage Pattern
 
 ```typescript
-import { KnexRepository } from '@mantlejs/postgresql';
+import { KnexRepository } from '@mantlejs/knex';
 
 class UserRepository extends KnexRepository<User> {
   readonly tableName = 'users';
 
-  // Extend with custom queries
   async findByEmail(email: string): Promise<User | null> {
     return this.db.where({ email }).first() ?? null;
   }
 }
+
+// In a service:
+const repo = new UserRepository(app);
+
+// Simple query with operators
+const adults = await repo.findAll({
+  where: { age: { $gte: 18 }, deletedAt: null },
+  sort: { name: 'asc' },
+  limit: 20,
+  skip: 0,
+});
+
+// Transaction
+await repo.withTransaction(async (tx) => {
+  const user = await tx.save({ name: 'Alice', email: 'alice@example.com' });
+  await tx.save({ userId: user.id, role: 'member' });
+});
 ```
 
 ---
@@ -521,7 +592,7 @@ function sanitizeUser(fields?: string[]): HookFunction;
 ### Auth Routes (registered automatically by plugin)
 
 | Method | Route | Description |
-|---|---|---|
+| --- | --- | --- |
 | POST | `/authentication` | Login — returns access + refresh tokens |
 | DELETE | `/authentication` | Logout — invalidates refresh token |
 
@@ -643,7 +714,7 @@ interface UploadedFile {
 
 ## Request Lifecycle (Data Flow)
 
-The following traces a `POST /users` request end-to-end through a Mantle application configured with Express, PostgreSQL, and auth-local.
+The following traces a `POST /users` request end-to-end through a Mantle application configured with Express, Knex, and auth-local.
 
 ```
 Client

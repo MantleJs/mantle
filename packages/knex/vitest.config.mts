@@ -2,9 +2,9 @@ import { defineConfig } from 'vitest/config';
 
 export default defineConfig(() => ({
   root: __dirname,
-  cacheDir: '../../node_modules/.vite/packages/postgresql',
+  cacheDir: '../../node_modules/.vite/packages/knex',
   test: {
-    name: 'postgresql',
+    name: 'knex',
     watch: false,
     globals: true,
     environment: 'node',

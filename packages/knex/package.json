@@ -1,5 +1,5 @@
 {
-  "name": "@mantlejs/postgresql",
+  "name": "@mantlejs/knex",
   "version": "0.0.1",
   "type": "module",
   "main": "./dist/index.js",
@@ -19,22 +19,24 @@
     "!**/*.tsbuildinfo"
   ],
   "nx": {
-    "name": "postgresql"
+    "name": "knex"
   },
   "dependencies": {
     "tslib": "^2.3.0"
   },
-  "description": "PostgreSQL adapter for Mantle JS via Knex.js",
+  "description": "SQL database adapter for Mantle JS via Knex.js (PostgreSQL, MySQL, SQLite, MSSQL)",
   "license": "MIT",
   "keywords": [
     "mantle",
-    "postgresql",
     "knex",
+    "sql",
+    "postgresql",
+    "mysql",
+    "sqlite",
     "database"
   ],
   "peerDependencies": {
     "@mantlejs/core": "^0.1.0",
-    "knex": "^3.0.0",
-    "pg": "^8.0.0"
+    "knex": "^3.0.0"
   }
 }

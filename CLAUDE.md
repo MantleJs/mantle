@@ -47,7 +47,7 @@ mantle/
 ├── packages/
 │   ├── core/           @mantlejs/core        Framework kernel, zero external deps
 │   ├── express/        @mantlejs/express     Express HTTP transport adapter
-│   ├── postgresql/     @mantlejs/postgresql  PostgreSQL adapter via Knex.js
+│   ├── knex/           @mantlejs/knex        SQL adapter via Knex.js (pg, mysql2, sqlite3…)
 │   ├── auth/           @mantlejs/auth        JWT engine + strategy runner
 │   ├── auth-local/     @mantlejs/auth-local  Local email+password strategy (Argon2id)
 │   └── upload/         @mantlejs/upload      File upload via busboy, local disk storage
@@ -61,7 +61,7 @@ mantle/
 |---|---|
 | @mantlejs/core | nothing |
 | @mantlejs/express | @mantlejs/core |
-| @mantlejs/postgresql | @mantlejs/core |
+| @mantlejs/knex | @mantlejs/core |
 | @mantlejs/auth | @mantlejs/core |
 | @mantlejs/auth-local | @mantlejs/core, @mantlejs/auth |
 | @mantlejs/upload | @mantlejs/core |
@@ -96,6 +96,27 @@ interface Repository<T, D = Partial<T>> {
   count(params?: QueryParams): Promise<number>;
 }
 ```
+
+### QueryParams — supported where operators
+
+```typescript
+interface QueryParams {
+  where?: Record<string, unknown>;  // see operators below
+  limit?: number;
+  skip?: number;
+  sort?: Record<string, "asc" | "desc">;
+  select?: string[];
+}
+```
+
+Operators supported in `where`:
+- Equality: `{ field: value }` → `field = value`
+- Null: `{ field: null }` → `IS NULL`
+- Comparison: `$lt`, `$lte`, `$gt`, `$gte`
+- Not-equal: `{ field: { $ne: value } }` (value `null` → `IS NOT NULL`)
+- Inclusion: `$in`, `$nin`
+- Logical: `$or`, `$and` (accept arrays of where clauses)
+- Pattern: `$like`, `$notlike`, `$ilike` (PostgreSQL only)
 
 ### HookContext<T>
 ```typescript
@@ -139,13 +160,13 @@ throw new GeneralError("Something broke");    // 500
 ```typescript
 import { mantle } from "@mantlejs/core";
 import { express } from "@mantlejs/express";
-import { postgresql } from "@mantlejs/postgresql";
+import { knex } from "@mantlejs/knex";
 import { auth, authenticate, sanitizeUser } from "@mantlejs/auth";
 import { localStrategy, hashPassword } from "@mantlejs/auth-local";
 
 const app = mantle()
   .configure(express())
-  .configure(postgresql({ connection: process.env.DATABASE_URL }))
+  .configure(knex({ client: "pg", connection: process.env.DATABASE_URL }))
   .configure(auth({ secret: process.env.JWT_SECRET! }))
   .configure(localStrategy());
 
@@ -163,6 +184,28 @@ app.service("users").hooks({
 });
 
 app.listen(3030);
+```
+
+### KnexRepository usage
+
+```typescript
+import { KnexRepository } from "@mantlejs/knex";
+
+class UserRepository extends KnexRepository<User> {
+  readonly tableName = "users";
+
+  // Custom query using the raw query builder
+  async findByEmail(email: string): Promise<User | null> {
+    return this.db.where({ email }).first() ?? null;
+  }
+}
+
+// Transaction example
+const repo = new UserRepository(app);
+await repo.withTransaction(async (txRepo) => {
+  const user = await txRepo.save({ name: "Alice", email: "alice@example.com" });
+  await txRepo.save({ userId: user.id, role: "admin" }); // hypothetical
+});
 ```
 
 ---
@@ -217,7 +260,8 @@ NX_DAEMON=false npx nx g @nx/js:library   --name=<name> --directory=packages/<na
 | Decision | Choice | Reason |
 |---|---|---|
 | Monorepo | Nx (TS preset, npm) | Task pipeline, module boundary enforcement |
-| DB adapter | Knex.js | Query builder not ORM — keeps infra layer thin |
+| DB adapter | @mantlejs/knex via Knex.js | Single package for all SQL databases; query builder not ORM |
+| Supported SQL databases | PostgreSQL (primary), MySQL/MariaDB, SQLite, MSSQL | Knex abstracts differences; `RETURNING *` fallback for MySQL |
 | Password hashing | @node-rs/argon2 (Argon2id) | OWASP recommended; no 72-char bcrypt limit |
 | Testing | Vitest | Faster than Jest, native ESM, Jest-compatible API |
 | Transport (P1) | Express | Most familiar; AI-legible |
