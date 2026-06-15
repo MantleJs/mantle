@@ -76,7 +76,7 @@ describe("express adapter", () => {
     it("find — GET /users returns 200 with array", async () => {
       const res = await fetch(`http://localhost:${port}/users`);
       expect(res.status).toBe(200);
-      const body = await res.json();
+      const body = (await res.json()) as User[];
       expect(Array.isArray(body)).toBe(true);
       expect(body[0]).toMatchObject({ id: "1", name: "Alice" });
     });
@@ -84,7 +84,7 @@ describe("express adapter", () => {
     it("get — GET /users/:id returns 200 with single resource", async () => {
       const res = await fetch(`http://localhost:${port}/users/42`);
       expect(res.status).toBe(200);
-      const body = await res.json() as User;
+      const body = (await res.json()) as User;
       expect(body.id).toBe("42");
     });
 
@@ -95,7 +95,7 @@ describe("express adapter", () => {
         body: JSON.stringify({ name: "Bob", email: "bob@example.com" }),
       });
       expect(res.status).toBe(201);
-      const body = await res.json() as User;
+      const body = (await res.json()) as User;
       expect(body.name).toBe("Bob");
     });
 
@@ -106,7 +106,7 @@ describe("express adapter", () => {
         body: JSON.stringify({ name: "Updated", email: "updated@example.com" }),
       });
       expect(res.status).toBe(200);
-      const body = await res.json() as User;
+      const body = (await res.json()) as User;
       expect(body.id).toBe("42");
       expect(body.name).toBe("Updated");
     });
@@ -118,7 +118,7 @@ describe("express adapter", () => {
         body: JSON.stringify({ name: "Patched" }),
       });
       expect(res.status).toBe(200);
-      const body = await res.json() as User;
+      const body = (await res.json()) as User;
       expect(body.id).toBe("42");
     });
 
@@ -127,7 +127,7 @@ describe("express adapter", () => {
         method: "DELETE",
       });
       expect(res.status).toBe(200);
-      const body = await res.json() as User;
+      const body = (await res.json()) as User;
       expect(body.id).toBe("42");
     });
   });
@@ -198,17 +198,24 @@ describe("express adapter", () => {
       app.use("items", new NotFoundService());
 
       const expressApp = app.get<Application>("express");
-      expressApp.use((_err: unknown, _req: unknown, res: { status: (n: number) => { json: (b: unknown) => void } }, _next: unknown) => {
-        if (_err instanceof NotFound) {
-          res.status((_err as NotFound).code).json((_err as NotFound).toJSON());
-        }
-      });
+      expressApp.use(
+        (
+          _err: unknown,
+          _req: unknown,
+          res: { status: (n: number) => { json: (b: unknown) => void } },
+          _next: unknown,
+        ) => {
+          if (_err instanceof NotFound) {
+            res.status((_err as NotFound).code).json((_err as NotFound).toJSON());
+          }
+        },
+      );
 
       const { port, stop } = await startServer(expressApp);
       try {
         const res = await fetch(`http://localhost:${port}/items`);
         expect(res.status).toBe(404);
-        const body = await res.json() as Record<string, unknown>;
+        const body = (await res.json()) as Record<string, unknown>;
         expect(body["code"]).toBe(404);
         expect(body["className"]).toBe("not-found");
       } finally {
@@ -216,7 +223,7 @@ describe("express adapter", () => {
       }
     });
 
-    it("serialises BadRequest (400) to a 400 HTTP response", async () => {
+    it("serializes BadRequest (400) to a 400 HTTP response", async () => {
       class BadService {
         async find(_params?: ServiceParams): Promise<User[]> {
           throw new BadRequest("Invalid input");
@@ -231,7 +238,7 @@ describe("express adapter", () => {
       try {
         const res = await fetch(`http://localhost:${port}/items`);
         expect(res.status).toBe(400);
-        const body = await res.json() as Record<string, unknown>;
+        const body = (await res.json()) as Record<string, unknown>;
         expect(body["code"]).toBe(400);
         expect(body["className"]).toBe("bad-request");
       } finally {
@@ -254,7 +261,7 @@ describe("express adapter", () => {
       try {
         const res = await fetch(`http://localhost:${port}/items`);
         expect(res.status).toBe(500);
-        const body = await res.json() as Record<string, unknown>;
+        const body = (await res.json()) as Record<string, unknown>;
         expect(body["code"]).toBe(500);
       } finally {
         await stop();
@@ -299,10 +306,11 @@ describe("express adapter", () => {
 
       const app = mantle().configure(express());
       app.use("emails", new EmailService(), { methods: ["find", "verifyEmail"] });
-      app.service("emails").hooks({
+      const emailsService: any = app.service("emails");
+      emailsService.hooks({
         before: {
           verifyEmail: [
-            (ctx) => {
+            (ctx: any) => {
               hookRan = true;
               return ctx;
             },
@@ -319,7 +327,7 @@ describe("express adapter", () => {
           body: JSON.stringify({ token: "abc123" }),
         });
         expect(res.status).toBe(200);
-        const body = await res.json() as { verified: boolean };
+        const body = (await res.json()) as { verified: boolean };
         expect(body.verified).toBe(true);
         expect(hookRan).toBe(true);
       } finally {
