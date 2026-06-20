@@ -33,6 +33,7 @@ Infrastructure        KnexRepository — implements Domain interfaces (outer lay
 ```
 
 ### Dependency Rule (non-negotiable)
+
 - Dependencies always point inward
 - Infrastructure implements interfaces defined by Domain — never the reverse
 - Nothing in Domain or Application layers knows about HTTP or databases
@@ -57,20 +58,21 @@ mantle/
 
 ### Package Dependency Rules (enforced by @nx/enforce-module-boundaries)
 
-| Package | May depend on |
-|---|---|
-| @mantlejs/core | nothing |
-| @mantlejs/express | @mantlejs/core |
-| @mantlejs/knex | @mantlejs/core |
-| @mantlejs/auth | @mantlejs/core |
+| Package              | May depend on                  |
+| -------------------- | ------------------------------ |
+| @mantlejs/core       | nothing                        |
+| @mantlejs/express    | @mantlejs/core                 |
+| @mantlejs/knex       | @mantlejs/core                 |
+| @mantlejs/auth       | @mantlejs/core                 |
 | @mantlejs/auth-local | @mantlejs/core, @mantlejs/auth |
-| @mantlejs/upload | @mantlejs/core |
+| @mantlejs/upload     | @mantlejs/core                 |
 
 ---
 
 ## Key Interfaces (all in @mantlejs/core)
 
 ### Service<T>
+
 ```typescript
 interface Service<T, D = Partial<T>> {
   find(params?: ServiceParams): Promise<T[] | Paginated<T>>;
@@ -81,9 +83,11 @@ interface Service<T, D = Partial<T>> {
   remove(id: Id, params?: ServiceParams): Promise<T>;
 }
 ```
+
 Custom methods beyond these six must be explicitly registered in app.use() options.
 
 ### Repository<T>
+
 ```typescript
 interface Repository<T, D = Partial<T>> {
   findAll(params?: QueryParams): Promise<T[]>;
@@ -101,7 +105,7 @@ interface Repository<T, D = Partial<T>> {
 
 ```typescript
 interface QueryParams {
-  where?: Record<string, unknown>;  // see operators below
+  where?: Record<string, unknown>; // see operators below
   limit?: number;
   skip?: number;
   sort?: Record<string, "asc" | "desc">;
@@ -110,6 +114,7 @@ interface QueryParams {
 ```
 
 Operators supported in `where`:
+
 - Equality: `{ field: value }` → `field = value`
 - Null: `{ field: null }` → `IS NULL`
 - Comparison: `$lt`, `$lte`, `$gt`, `$gte`
@@ -119,13 +124,14 @@ Operators supported in `where`:
 - Pattern: `$like`, `$notlike`, `$ilike` (PostgreSQL only)
 
 ### HookContext<T>
+
 ```typescript
 interface HookContext<T = any> {
   app: MantleApplication;
   service: Service<T>;
-  path: string;        // e.g. "users"
-  method: string;      // e.g. "create"
-  provider?: string;   // "rest" | undefined (internal)
+  path: string; // e.g. "users"
+  method: string; // e.g. "create"
+  provider?: string; // "rest" | undefined (internal)
   params: ServiceParams;
   data?: Partial<T>;
   id?: Id;
@@ -135,22 +141,25 @@ interface HookContext<T = any> {
 ```
 
 ### HookFunction<T>
+
 All hooks are pure functions — no class-based hooks.
+
 ```typescript
-type HookFunction<T = any> =
-  (context: HookContext<T>) => Promise<HookContext<T>> | HookContext<T>;
+type HookFunction<T = any> = (context: HookContext<T>) => Promise<HookContext<T>> | HookContext<T>;
 ```
 
 ### Error Classes
+
 Always throw a typed error — never a plain new Error().
+
 ```typescript
-throw new BadRequest("Invalid input");        // 400
+throw new BadRequest("Invalid input"); // 400
 throw new NotAuthenticated("Login required"); // 401
-throw new Forbidden("Access denied");         // 403
-throw new NotFound("User not found");         // 404
-throw new Conflict("Email already exists");   // 409
+throw new Forbidden("Access denied"); // 403
+throw new NotFound("User not found"); // 404
+throw new Conflict("Email already exists"); // 409
 throw new Unprocessable("Validation failed"); // 422
-throw new GeneralError("Something broke");    // 500
+throw new GeneralError("Something broke"); // 500
 ```
 
 ---
@@ -228,17 +237,17 @@ NX_DAEMON=false npx nx g @nx/js:library   --name=<name> --directory=packages/<na
 
 ## Coding Conventions
 
-| Convention | Rule |
-|---|---|
-| Quotes | Double quotes — enforced by Prettier |
-| Semicolons | Required |
-| Trailing commas | All |
-| Print width | 120 characters |
-| Hooks | Function-based only — no classes |
-| Exports | Each package exports only from src/index.ts |
-| Error handling | Always throw a typed MantleError subclass |
-| any | Banned — use unknown and narrow |
-| Test files | Co-located with source, *.spec.ts suffix |
+| Convention      | Rule                                        |
+| --------------- | ------------------------------------------- |
+| Quotes          | Double quotes — enforced by Prettier        |
+| Semicolons      | Required                                    |
+| Trailing commas | All                                         |
+| Print width     | 120 characters                              |
+| Hooks           | Function-based only — no classes            |
+| Exports         | Each package exports only from src/index.ts |
+| Error handling  | Always throw a typed MantleError subclass   |
+| any             | Banned — use unknown and narrow             |
+| Test files      | Co-located with source, \*.spec.ts suffix   |
 
 ---
 
@@ -257,14 +266,38 @@ NX_DAEMON=false npx nx g @nx/js:library   --name=<name> --directory=packages/<na
 
 ## Key Technology Decisions
 
-| Decision | Choice | Reason |
-|---|---|---|
-| Monorepo | Nx (TS preset, npm) | Task pipeline, module boundary enforcement |
-| DB adapter | @mantlejs/knex via Knex.js | Single package for all SQL databases; query builder not ORM |
+| Decision                | Choice                                             | Reason                                                       |
+| ----------------------- | -------------------------------------------------- | ------------------------------------------------------------ |
+| Monorepo                | Nx (TS preset, npm)                                | Task pipeline, module boundary enforcement                   |
+| DB adapter              | @mantlejs/knex via Knex.js                         | Single package for all SQL databases; query builder not ORM  |
 | Supported SQL databases | PostgreSQL (primary), MySQL/MariaDB, SQLite, MSSQL | Knex abstracts differences; `RETURNING *` fallback for MySQL |
-| Password hashing | @node-rs/argon2 (Argon2id) | OWASP recommended; no 72-char bcrypt limit |
-| Testing | Vitest | Faster than Jest, native ESM, Jest-compatible API |
-| Transport (P1) | Express | Most familiar; AI-legible |
-| Auth | auth + auth-local (two packages) | Engine separate from strategy |
-| Bundler | tsc | Emits .d.ts natively — critical for TS-first libraries |
-| Deployment | Google Cloud Run | Scales to zero; pairs with Cloud SQL |
+| Password hashing        | @node-rs/argon2 (Argon2id)                         | OWASP recommended; no 72-char bcrypt limit                   |
+| Testing                 | Vitest                                             | Faster than Jest, native ESM, Jest-compatible API            |
+| Transport (P1)          | Express                                            | Most familiar; AI-legible                                    |
+| Auth                    | auth + auth-local (two packages)                   | Engine separate from strategy                                |
+| Bundler                 | tsc                                                | Emits .d.ts natively — critical for TS-first libraries       |
+| Deployment              | Google Cloud Run                                   | Scales to zero; pairs with Cloud SQL                         |
+
+<!-- nx configuration start-->
+<!-- Leave the start & end comments to automatically receive updates. -->
+
+## General Guidelines for working with Nx
+
+- For navigating/exploring the workspace, invoke the `nx-workspace` skill first - it has patterns for querying projects, targets, and dependencies
+- When running tasks (for example build, lint, test, e2e, etc.), always prefer running the task through `nx` (i.e. `nx run`, `nx run-many`, `nx affected`) instead of using the underlying tooling directly
+- Prefix nx commands with the workspace's package manager (e.g., `pnpm nx build`, `npm exec nx test`) - avoids using globally installed CLI
+- You have access to the Nx MCP server and its tools, use them to help the user
+- For Nx plugin best practices, check `node_modules/@nx/<plugin>/PLUGIN.md`. Not all plugins have this file - proceed without it if unavailable.
+- NEVER guess CLI flags - always check nx_docs or `--help` first when unsure
+
+## Scaffolding & Generators
+
+- For scaffolding tasks (creating apps, libs, project structure, setup), ALWAYS invoke the `nx-generate` skill FIRST before exploring or calling MCP tools
+
+## When to use nx_docs
+
+- USE for: advanced config options, unfamiliar flags, migration guides, plugin configuration, edge cases
+- DON'T USE for: basic generator syntax (`nx g @nx/react:app`), standard commands, things you already know
+- The `nx-generate` skill handles generator discovery internally - don't call nx_docs just to look up generator syntax
+
+<!-- nx configuration end-->
