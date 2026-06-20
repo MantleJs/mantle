@@ -151,6 +151,7 @@ app.service("accounts").hooks({
 ```
 
 The hook is a no-op when:
+
 - `context.data` is `undefined`
 - The target field is absent from `context.data`
 - The target field value is not a string
@@ -218,4 +219,42 @@ If you have more than one kind of entity that can authenticate (e.g. `users` and
 npx nx build auth-local     # compile
 npx nx test auth-local      # run tests
 npx nx lint auth-local      # lint
+```
+
+---
+
+## Publishing
+
+Build before publishing:
+
+```bash
+npx nx build auth-local
+```
+
+First publish (scoped packages require `--access public`):
+
+```bash
+cd packages/auth-local
+npm publish --access public
+```
+
+Subsequent releases — bump `version` in `packages/auth-local/package.json`, then:
+
+```bash
+cd packages/auth-local
+npm publish
+```
+
+### Testing locally with Verdaccio
+
+```bash
+# Terminal 1 — start the local registry
+npx nx run @mantle/source:local-registry
+
+# Terminal 2 — publish to it
+cd packages/auth-local
+npm publish --registry http://localhost:4873
+
+# Install from it in another project
+npm install @mantlejs/auth-local --registry http://localhost:4873
 ```

@@ -310,3 +310,41 @@ npx nx build auth     # compile
 npx nx test auth      # run tests
 npx nx lint auth      # lint
 ```
+
+---
+
+## Publishing
+
+Build before publishing:
+
+```bash
+npx nx build auth
+```
+
+First publish (scoped packages require `--access public`):
+
+```bash
+cd packages/auth
+npm publish --access public
+```
+
+Subsequent releases — bump `version` in `packages/auth/package.json`, then:
+
+```bash
+cd packages/auth
+npm publish
+```
+
+### Testing locally with Verdaccio
+
+```bash
+# Terminal 1 — start the local registry
+npx nx run @mantle/source:local-registry
+
+# Terminal 2 — publish to it
+cd packages/auth
+npm publish --registry http://localhost:4873
+
+# Install from it in another project
+npm install @mantlejs/auth --registry http://localhost:4873
+```
