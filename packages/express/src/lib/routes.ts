@@ -8,6 +8,7 @@ function buildParams(req: Request): ServiceParams {
     query: req.query as Record<string, unknown>,
     provider: "rest",
     headers: req.headers as Record<string, string>,
+    request: req,
   };
 }
 
@@ -34,7 +35,7 @@ export function mountServiceRoutes(
   if (methods.includes("get")) {
     expressApp.get(`${routePath}/:__id`, async (req: Request, res: Response, next: NextFunction) => {
       try {
-        const result = await app.service(path).get(req.params["__id"]!, buildParams(req));
+        const result = await app.service(path).get(req.params["__id"] as string, buildParams(req));
         res.json(result);
       } catch (err) {
         next(err);
@@ -58,7 +59,7 @@ export function mountServiceRoutes(
       try {
         const result = await app
           .service(path)
-          .update(req.params["__id"]!, req.body as Record<string, unknown>, buildParams(req));
+          .update(req.params["__id"] as string, req.body as Record<string, unknown>, buildParams(req));
         res.json(result);
       } catch (err) {
         next(err);
@@ -71,7 +72,7 @@ export function mountServiceRoutes(
       try {
         const result = await app
           .service(path)
-          .patch(req.params["__id"]!, req.body as Record<string, unknown>, buildParams(req));
+          .patch(req.params["__id"] as string, req.body as Record<string, unknown>, buildParams(req));
         res.json(result);
       } catch (err) {
         next(err);
@@ -82,7 +83,7 @@ export function mountServiceRoutes(
   if (methods.includes("remove")) {
     expressApp.delete(`${routePath}/:__id`, async (req: Request, res: Response, next: NextFunction) => {
       try {
-        const result = await app.service(path).remove(req.params["__id"]!, buildParams(req));
+        const result = await app.service(path).remove(req.params["__id"] as string, buildParams(req));
         res.json(result);
       } catch (err) {
         next(err);
