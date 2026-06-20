@@ -33,7 +33,7 @@
     "authentication"
   ],
   "peerDependencies": {
-    "@mantlejs/core": "^0.1.0",
+    "@mantlejs/core": "^0.0.1",
     "jsonwebtoken": "^9.0.0"
   }
 }

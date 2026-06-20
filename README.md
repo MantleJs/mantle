@@ -48,7 +48,7 @@ Dependencies always point inward. Nothing in Domain or Application layers knows 
 | ---------------------- | -------------------------------------------------------------------------- |
 | `@mantlejs/core`       | Framework kernel — Service, Repository, hooks, errors. Zero external deps. |
 | `@mantlejs/express`    | Express HTTP transport adapter                                             |
-| `@mantlejs/postgresql` | PostgreSQL adapter via Knex.js                                             |
+| `@mantlejs/knex`       | SQL adapter via Knex.js (PostgreSQL, MySQL/MariaDB, SQLite3, MSSQL)        |
 | `@mantlejs/auth`       | JWT engine + strategy runner                                               |
 | `@mantlejs/auth-local` | Local email+password strategy (Argon2id)                                   |
 | `@mantlejs/upload`     | File upload via busboy, local disk storage                                 |
@@ -58,13 +58,13 @@ Dependencies always point inward. Nothing in Domain or Application layers knows 
 ```typescript
 import { mantle } from "@mantlejs/core";
 import { express } from "@mantlejs/express";
-import { postgresql } from "@mantlejs/postgresql";
+import { knex } from "@mantlejs/knex";
 import { auth, authenticate, sanitizeUser } from "@mantlejs/auth";
 import { localStrategy, hashPassword } from "@mantlejs/auth-local";
 
 const app = mantle()
   .configure(express())
-  .configure(postgresql({ connection: process.env.DATABASE_URL }))
+  .configure(knex({ client: "pg", connection: process.env.DATABASE_URL }))
   .configure(auth({ secret: process.env.JWT_SECRET! }))
   .configure(localStrategy());
 
