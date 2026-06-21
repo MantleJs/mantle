@@ -7,5 +7,6 @@
   },
   "eslint.validate": ["typescript"],
   "eslint.workingDirectories": [{ "mode": "auto" }],
-  "typescript.tsdk": "node_modules/typescript/lib"
+  "typescript.tsdk": "node_modules/typescript/lib",
+  "cSpell.words": ["typebox"]
 }

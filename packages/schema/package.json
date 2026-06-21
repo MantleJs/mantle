@@ -1,0 +1,40 @@
+{
+  "name": "@mantlejs/schema",
+  "version": "0.0.1",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    "./package.json": "./package.json",
+    ".": {
+      "@mantle/source": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "!**/*.tsbuildinfo"
+  ],
+  "nx": {
+    "name": "schema"
+  },
+  "dependencies": {
+    "@sinclair/typebox": "^0.34.0",
+    "tslib": "^2.3.0"
+  },
+  "description": "TypeBox-based schema definition, validation, and data resolution for Mantle JS",
+  "license": "MIT",
+  "keywords": [
+    "mantle",
+    "schema",
+    "typebox",
+    "validation",
+    "resolver"
+  ],
+  "peerDependencies": {
+    "@mantlejs/core": "^0.0.1"
+  }
+}
