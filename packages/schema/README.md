@@ -1,6 +1,6 @@
 # @mantlejs/schema
 
-TypeBox-based schema definition, validation, and data resolution for [Mantle JS](https://github.com/mantlejs/mantle). Re-exports the TypeBox builder so a single schema definition produces both a TypeScript type and a validated runtime contract.
+TypeBox schema definition, Ajv validation, and data resolution for [Mantle JS](https://github.com/mantlejs/mantle). Re-exports the TypeBox builder so a single schema definition produces both a TypeScript type and a validated runtime contract. Uses Ajv with `ajv-formats` for RFC-compliant string format validation out of the box.
 
 ---
 
@@ -10,7 +10,7 @@ TypeBox-based schema definition, validation, and data resolution for [Mantle JS]
 npm install @mantlejs/schema
 ```
 
-`@sinclair/typebox` ships as a direct dependency — no separate install needed.
+`@sinclair/typebox`, `ajv`, and `ajv-formats` ship as direct dependencies — no separate install needed.
 
 ---
 
@@ -36,34 +36,32 @@ type User = Static<typeof UserSchema>;
 // ^ { id: string; email: string; name: string; password?: string; createdAt: string; updatedAt: string }
 ```
 
-### Built-in format validation
+### RFC-compliant format validation
 
-`@mantlejs/schema` automatically registers the most common JSON Schema string formats so `validate()` checks them at runtime without any extra setup:
+`@mantlejs/schema` uses **Ajv** with **`ajv-formats`** for validation. Common JSON Schema string formats are validated against the relevant RFCs out of the box:
 
-| Format | Example |
+| Format | RFC |
 |---|---|
-| `email` | `"alice@example.com"` |
-| `date-time` | `"2024-01-15T10:30:00Z"` |
-| `date` | `"2024-01-15"` |
-| `uuid` | `"550e8400-e29b-41d4-a716-446655440000"` |
-| `uri` | `"https://example.com"` |
-| `ipv4` | `"192.168.1.1"` |
-| `ipv6` | `"2001:0db8:..."` |
+| `email` | RFC 5321/5322 |
+| `date-time` | RFC 3339 |
+| `date` | ISO 8601 |
+| `uuid` | RFC 4122 |
+| `uri` | RFC 3986 |
+| `ipv4` / `ipv6` | RFC 791 / RFC 4291 |
 
-Custom formats can be registered via `FormatRegistry` (see [Registering custom formats](#registering-custom-formats)).
+No setup required — formats are validated automatically when you add them to a TypeBox schema.
 
 ### Validation vs resolution
 
-- **`validate()`** — runs in a `before` hook. Checks incoming data against the schema and throws `Unprocessable` with field-level errors on failure.
-- **`resolver()`** — runs in an `after` hook. Transforms the result field-by-field: compute derived fields, strip sensitive data, or join related records.
+- **`validate()`** — runs in a `before` hook. Validates incoming data against the schema using Ajv. Throws `Unprocessable` with field-level errors on failure.
+- **`resolver()`** — runs in an `after` hook. Transforms the result field-by-field: strip sensitive data, compute derived fields, or join related records.
 
 ---
 
 ## Quick start
 
 ```typescript
-import { Type, Static } from "@mantlejs/schema";
-import { validate, resolver } from "@mantlejs/schema";
+import { Type, Static, validate, resolver } from "@mantlejs/schema";
 
 const UserSchema = Type.Object({
   id:       Type.String({ format: "uuid" }),
@@ -87,7 +85,7 @@ app.service("users").hooks({
   after: {
     all: [
       resolver<User>({
-        password: () => undefined, // strip — returning undefined removes the field
+        password: () => undefined, // returning undefined removes the field
       }),
     ],
   },
@@ -100,7 +98,9 @@ app.service("users").hooks({
 
 ### `validate(schema, options?)`
 
-Before hook. Validates `context.data` (default), `context.result`, or `context.params.query` against a TypeBox schema. Throws `Unprocessable` with field-level error details on failure. The context target is written back when `coerce` or `stripAdditional` transforms the value.
+Before hook. Validates `context.data` (default), `context.result`, or `context.params.query` against a TypeBox schema using Ajv. Throws `Unprocessable` with field-level error details on failure.
+
+Compiled validators are cached per schema object reference — Ajv compiles once on first use, not on every request.
 
 ```typescript
 function validate<T extends TSchema>(schema: T, options?: ValidateOptions): HookFunction;
@@ -115,11 +115,13 @@ interface ValidateOptions {
 }
 ```
 
+`coerce` uses TypeBox's `Value.Convert` and `stripAdditional` uses `Value.Clean` as pre-processing steps before Ajv validates. The transformed value is written back to the context target.
+
 ```typescript
 app.service("users").hooks({
   before: {
     create: [validate(UserSchema)],
-    // coerce query params (strings from query string → numbers)
+    // coerce query string params ("limit=10") to numbers before validating
     find:   [validate(QuerySchema, { target: "query", coerce: true })],
   },
 });
@@ -144,24 +146,63 @@ app.service("users").hooks({
 
 ---
 
-### `resolver(map)`
+### `validate(validator, options?)` — BYOV
 
-After hook. Iterates the field map and calls each resolver with the current field value, the full record, and the hook context. The resolved value replaces the field in the output. Returning `undefined` removes the field entirely.
-
-Supports single records (`T`), arrays (`T[]`), and paginated results (`Paginated<T>`).
+Pass a function as the first argument to bypass Ajv entirely and use any validation library. The function receives the raw data and returns either an array of `{ field, message }` errors (triggers `Unprocessable`) or `null`/`undefined`/empty array (passes).
 
 ```typescript
-type FieldResolver<T, K extends keyof T> = (
+type ValidatorFn = (data: unknown) => Array<{ field: string; message: string }> | null | undefined;
+
+function validate(validator: ValidatorFn, options?: Pick<ValidateOptions, "target">): HookFunction;
+```
+
+`coerce` and `stripAdditional` do not apply — the custom validator handles any transforms.
+
+```typescript
+import { z } from "zod";
+import type { ValidatorFn } from "@mantlejs/schema";
+
+const UserZod = z.object({ email: z.string().email(), name: z.string().min(1) });
+
+const zodValidator: ValidatorFn = (data) => {
+  const result = UserZod.safeParse(data);
+  if (result.success) return null;
+  return result.error.issues.map((i) => ({
+    field: "/" + i.path.join("/"),
+    message: i.message,
+  }));
+};
+
+app.service("users").hooks({
+  before: { create: [validate(zodValidator)] },
+});
+```
+
+> Ajv is a hard dependency of `@mantlejs/schema` and is always loaded. BYOV replaces the validation logic, not the package dependency. If removing Ajv entirely is a requirement, skip `@mantlejs/schema` and throw `Unprocessable` from a plain hook function.
+
+---
+
+### `resolver(map, options?)`
+
+After hook. Iterates the field map and calls each resolver with the current field value, the full record, the hook context, and an optional shared context. Returning `undefined` removes the field entirely. Supports single records (`T`), arrays (`T[]`), and paginated results (`Paginated<T>`).
+
+```typescript
+type FieldResolver<T, K extends keyof T, C = undefined> = (
   value: T[K] | undefined,
   data: T,
   context: HookContext,
+  shared: C,
 ) => Promise<T[K] | undefined> | T[K] | undefined;
 
-type ResolverMap<T> = {
-  [K in keyof T]?: FieldResolver<T, K>;
+type ResolverMap<T, C = undefined> = {
+  [K in keyof T]?: FieldResolver<T, K, C>;
 };
 
-function resolver<T>(map: ResolverMap<T>): HookFunction;
+interface ResolverOptions<T, C> {
+  createContext?: (record: T, ctx: HookContext) => Promise<C> | C;
+}
+
+function resolver<T, C = undefined>(map: ResolverMap<T, C>, options?: ResolverOptions<T, C>): HookFunction;
 ```
 
 ```typescript
@@ -169,23 +210,38 @@ app.service("users").hooks({
   after: {
     all: [
       resolver<User>({
-        // strip sensitive field
-        password: () => undefined,
-        // compute derived field
-        fullName: (_, data) => `${data.firstName} ${data.lastName}`,
-        // async lookup
-        avatar: async (_, data) => fetchAvatar(data.id),
+        password: () => undefined,                      // strip sensitive field
+        fullName: (_, data) => `${data.firstName} ${data.lastName}`, // compute derived field
+        avatar:   async (_, data) => fetchAvatar(data.id),           // async lookup
       }),
     ],
   },
 });
 ```
 
+#### Shared context
+
+`createContext` is called once per record before field resolvers run. Its return value is passed to every field resolver as the fourth argument. Use this to perform a single expensive async lookup shared across multiple fields:
+
+```typescript
+resolver<User, { isAdmin: boolean }>(
+  {
+    role:  (_, data, ctx, shared) => shared.isAdmin ? data.role : "viewer",
+    badge: (_, data, ctx, shared) => shared.isAdmin ? "admin" : null,
+  },
+  {
+    createContext: async (record) => ({ isAdmin: await checkAdmin(record.id) }),
+  },
+)
+```
+
+For array and paginated results, `createContext` is called once per element. Existing field resolvers that ignore the fourth argument continue to work — TypeScript allows functions with fewer parameters.
+
 ---
 
 ## Schema registration on a service
 
-Pass `schema` to `app.use()` to store it for tooling introspection (CLI, future OpenAPI generation):
+Pass `schema` to `app.use()` to store it for tooling introspection (CLI code generation, future OpenAPI output):
 
 ```typescript
 app.use("/users", new UserService(repo), {
@@ -198,25 +254,9 @@ app.service("users").schema; // → TSchema | undefined
 
 ---
 
-## Registering custom formats
-
-`FormatRegistry` is re-exported from `@mantlejs/schema`. Call `FormatRegistry.Set` to add a format before any `validate()` hooks run:
-
-```typescript
-import { FormatRegistry } from "@mantlejs/schema";
-
-FormatRegistry.Set("phone", (value) => /^\+[1-9]\d{6,14}$/.test(value));
-
-const ContactSchema = Type.Object({
-  phone: Type.String({ format: "phone" }),
-});
-```
-
----
-
 ## TypeBox re-exports
 
-`@mantlejs/schema` re-exports the TypeBox builder and common type helpers so you import from one place:
+`@mantlejs/schema` re-exports the TypeBox builder and common type helpers:
 
 ```typescript
 import { Type, Static, FormatRegistry } from "@mantlejs/schema";
@@ -228,7 +268,7 @@ import type { TSchema, TObject, TString, TNumber, TBoolean, TArray, TOptional } 
 ## Types
 
 ```typescript
-import type { ValidateOptions, ResolverMap, FieldResolver } from "@mantlejs/schema";
+import type { ValidateOptions, ValidatorFn, ResolverMap, FieldResolver, ResolverOptions } from "@mantlejs/schema";
 import type { TSchema, Static } from "@mantlejs/schema";
 ```
 
@@ -236,9 +276,11 @@ import type { TSchema, Static } from "@mantlejs/schema";
 |---|---|
 | `TSchema` | Base TypeBox schema type |
 | `Static<T>` | Infers the TypeScript type from a schema |
-| `ValidateOptions` | Options for `validate()` |
-| `ResolverMap<T>` | Field-keyed map of resolver functions |
-| `FieldResolver<T, K>` | Single field resolver function signature |
+| `ValidateOptions` | Options for the TypeBox + Ajv overload of `validate()` |
+| `ValidatorFn` | Custom validator function signature for the BYOV overload |
+| `ResolverMap<T, C>` | Field-keyed map of resolver functions |
+| `FieldResolver<T, K, C>` | Single field resolver function signature |
+| `ResolverOptions<T, C>` | Options for `resolver()`, including `createContext` |
 
 ---
 

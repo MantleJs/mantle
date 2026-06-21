@@ -23,9 +23,11 @@
   },
   "dependencies": {
     "@sinclair/typebox": "^0.34.0",
+    "ajv": "^8.17.0",
+    "ajv-formats": "^3.0.1",
     "tslib": "^2.3.0"
   },
-  "description": "TypeBox-based schema definition, validation, and data resolution for Mantle JS",
+  "description": "TypeBox schema definition, Ajv validation, and data resolution for Mantle JS",
   "license": "MIT",
   "keywords": [
     "mantle",

@@ -1,0 +1,911 @@
+# Mantle JS — Technical Design Document
+# Phase 2
+
+**Version:** 0.2.0-draft
+**Status:** In Progress
+**Companion:** [Mantle JS Phase 2 PRD](./mantle-js-phase-2-prd.md)
+**Last Updated:** 2026-06-20
+
+---
+
+## Table of Contents
+
+1. [Scope of This Document](#scope-of-this-document)
+2. [Package Dependency Graph](#package-dependency-graph)
+3. [Core Additions — `@mantlejs/core`](#core-additions--mantlejscore)
+4. [Public API Surface — `@mantlejs/logger`](#public-api-surface--mantlejslogger)
+5. [Public API Surface — `@mantlejs/schema`](#public-api-surface--mantlejsschema)
+6. [Public API Surface — `@mantlejs/memory`](#public-api-surface--mantlejsmemory)
+7. [Public API Surface — `@mantlejs/config`](#public-api-surface--mantlejsconfig)
+8. [Public API Surface — `@mantlejs/auth-google`](#public-api-surface--mantlejsauth-google)
+9. [Public API Surface — `@mantlejs/auth-github`](#public-api-surface--mantlejsauth-github)
+10. [Public API Surface — `@mantlejs/socketio`](#public-api-surface--mantlejssocketio)
+11. [Public API Surface — `@mantlejs/upload-s3`](#public-api-surface--mantlejsupload-s3)
+12. [Public API Surface — `@mantlejs/upload-gcs`](#public-api-surface--mantlejsupload-gcs)
+13. [Public API Surface — `@mantlejs/cli`](#public-api-surface--mantlejscli)
+14. [Request Lifecycle Additions](#request-lifecycle-additions)
+
+---
+
+## Scope of This Document
+
+This is a **thin TDD** for Phase 2. It covers:
+
+- The updated full package dependency graph
+- The exact public TypeScript API surface for every Phase 2 addition
+- Data flow walkthroughs for the new concerns: logging, schema validation, and Socket.io real-time events
+
+Internal implementation details are deferred to the full TDD, produced as implementation progresses.
+
+---
+
+## Package Dependency Graph
+
+### Dependency Rules (updated for Phase 2)
+
+- Dependencies always point **inward** — outer packages depend on inner packages, never the reverse
+- `@mantlejs/core` retains **zero** external runtime dependencies
+- `@mantlejs/upload-s3` and `@mantlejs/upload-gcs` depend on `@mantlejs/upload`, not directly on `@mantlejs/core`
+- `@mantlejs/cli` is a code generator with no runtime imports from any Mantle package
+
+### Full Graph (Phase 1 + Phase 2)
+
+```text
+@mantlejs/core                        (no external deps)
+│
+├── @mantlejs/express                 depends on: @mantlejs/core, express
+├── @mantlejs/knex                    depends on: @mantlejs/core, knex
+├── @mantlejs/auth                    depends on: @mantlejs/core, jsonwebtoken
+│   ├── @mantlejs/auth-local          depends on: @mantlejs/core, @mantlejs/auth, @node-rs/argon2
+│   ├── @mantlejs/auth-google         depends on: @mantlejs/core, @mantlejs/auth       [NEW P2]
+│   └── @mantlejs/auth-github         depends on: @mantlejs/core, @mantlejs/auth       [NEW P2]
+├── @mantlejs/upload                  depends on: @mantlejs/core, busboy
+│   ├── @mantlejs/upload-s3           depends on: @mantlejs/upload, @aws-sdk/client-s3 [NEW P2]
+│   └── @mantlejs/upload-gcs          depends on: @mantlejs/upload, @google-cloud/storage [NEW P2]
+├── @mantlejs/logger                  depends on: @mantlejs/core, pino                 [NEW P2]
+├── @mantlejs/schema                  depends on: @mantlejs/core, @sinclair/typebox    [NEW P2]
+├── @mantlejs/memory                  depends on: @mantlejs/core                       [NEW P2]
+├── @mantlejs/config                  depends on: @mantlejs/core, @sinclair/typebox*   [NEW P2]
+└── @mantlejs/socketio                depends on: @mantlejs/core, socket.io            [NEW P2]
+
+@mantlejs/cli                         (no runtime deps — code generator only)          [NEW P2]
+
+* @sinclair/typebox is an optional peer dependency of @mantlejs/config
+```
+
+### Dependency Matrix (full Phase 1 + Phase 2)
+
+| Package | core | express | knex | auth | auth-local | upload | logger | schema | memory | config | auth-google | auth-github | socketio | upload-s3 | upload-gcs | cli |
+|---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+| `core` | — | | | | | | | | | | | | | | | |
+| `express` | ✅ | — | | | | | | | | | | | | | | |
+| `knex` | ✅ | | — | | | | | | | | | | | | | |
+| `auth` | ✅ | | | — | | | | | | | | | | | | |
+| `auth-local` | ✅ | | | ✅ | — | | | | | | | | | | | |
+| `upload` | ✅ | | | | | — | | | | | | | | | | |
+| `logger` | ✅ | | | | | | — | | | | | | | | | |
+| `schema` | ✅ | | | | | | | — | | | | | | | | |
+| `memory` | ✅ | | | | | | | | — | | | | | | | |
+| `config` | ✅ | | | | | | | | | — | | | | | | |
+| `auth-google` | ✅ | | | ✅ | | | | | | | — | | | | | |
+| `auth-github` | ✅ | | | ✅ | | | | | | | | — | | | | |
+| `socketio` | ✅ | | | | | | | | | | | | — | | | |
+| `upload-s3` | | | | | | ✅ | | | | | | | | — | | |
+| `upload-gcs` | | | | | | ✅ | | | | | | | | | — | |
+| `cli` | | | | | | | | | | | | | | | | — |
+
+---
+
+## Core Additions — `@mantlejs/core`
+
+### `Logger` interface
+
+Added to the public API surface of `@mantlejs/core`. No implementation is shipped. Zero new dependencies.
+
+```typescript
+interface Logger {
+  debug(msg: string, context?: Record<string, unknown>): void;
+  info(msg: string, context?: Record<string, unknown>): void;
+  warn(msg: string, context?: Record<string, unknown>): void;
+  error(msg: string, context?: Record<string, unknown>): void;
+}
+```
+
+`MantleApplication.get('logger')` returns `Logger | undefined`. All Mantle packages access the logger via:
+
+```typescript
+app.get<Logger | undefined>('logger')?.debug('Service registered', {
+  component: 'mantle:core',
+  path,
+});
+```
+
+The `component` field is a string in the format `mantle:<package>` (e.g. `mantle:core`, `mantle:knex`, `mantle:auth`). Third-party plugins should use their own namespace (e.g. `my-plugin:auth`).
+
+### `ServiceOptions` — `schema` field (additive)
+
+```typescript
+interface ServiceOptions {
+  methods?: string[];
+  events?: string[];
+  schema?: TSchema;  // [NEW P2] — TypeBox schema, stored for tooling introspection
+}
+```
+
+### `ServiceHandle<T>` — `schema` property (additive)
+
+```typescript
+interface ServiceHandle<T> extends Service<T> {
+  hooks(config: HookConfig<T>): this;
+  schema?: TSchema;  // [NEW P2] — set when schema is passed to app.use()
+}
+```
+
+---
+
+## Public API Surface — `@mantlejs/logger`
+
+### Exports
+
+```typescript
+export function logger(adapter: Logger): MantlePlugin;
+export function pinoAdapter(pinoInstance: pino.Logger): Logger;
+export function logRequest(options?: LogRequestOptions): HookFunction;
+export function logError(options?: LogErrorOptions): HookFunction;
+```
+
+### `logger(adapter)`
+
+```typescript
+function logger(adapter: Logger): MantlePlugin;
+```
+
+Registers the adapter on the app via `app.set('logger', adapter)`. Must be called before any other plugin that emits logs.
+
+### `pinoAdapter(pinoInstance)`
+
+```typescript
+function pinoAdapter(pinoInstance: pino.Logger): Logger;
+```
+
+Wraps a pino logger to satisfy the `Logger` interface. Translates the interface's `(msg, context?)` argument order to pino's `(context, msg)` form for structured logging.
+
+```typescript
+import pino from 'pino';
+import { logger, pinoAdapter } from '@mantlejs/logger';
+
+app.configure(
+  logger(pinoAdapter(pino({ level: process.env.LOG_LEVEL ?? 'info' })))
+);
+```
+
+### `LogRequestOptions`
+
+```typescript
+interface LogRequestOptions {
+  /** Log level for successful requests. Default: 'debug' */
+  level?: 'debug' | 'info';
+  /** Include params object in record. Default: false */
+  includeParams?: boolean;
+}
+```
+
+### `LogErrorOptions`
+
+```typescript
+interface LogErrorOptions {
+  /** Map 4xx to 'warn', 5xx to 'error'. Default: true */
+  levelByCode?: boolean;
+  /** Include stack trace in record. Default: process.env.NODE_ENV !== 'production' */
+  includeStack?: boolean;
+}
+```
+
+### Log record shapes
+
+**`logRequest` — success record:**
+```typescript
+{
+  component: 'mantle:request';
+  method: string;       // 'find' | 'get' | 'create' | 'update' | 'patch' | 'remove'
+  path: string;         // service path, e.g. 'users'
+  provider: string;     // 'rest' | 'socket.io' | undefined
+  durationMs: number;
+  status: 'ok';
+  params?: ServiceParams; // only if includeParams: true
+}
+```
+
+**`logError` — error record:**
+```typescript
+{
+  component: 'mantle:error';
+  method: string;
+  path: string;
+  provider: string | undefined;
+  code: number;         // HTTP status code from MantleError
+  name: string;         // e.g. 'NotFound', 'Conflict'
+  message: string;
+  stack?: string;       // only if includeStack: true
+}
+```
+
+---
+
+## Public API Surface — `@mantlejs/schema`
+
+### Exports
+
+```typescript
+// Re-exported from @sinclair/typebox
+export { Type, Kind, Hint, FormatRegistry } from '@sinclair/typebox';
+export type { Static, TSchema, TObject, TString, TNumber, TBoolean, TArray, TOptional } from '@sinclair/typebox';
+
+// Mantle-specific additions
+export function validate<T extends TSchema>(schema: T, options?: ValidateOptions): HookFunction;
+export function validate(validator: ValidatorFn, options?: Pick<ValidateOptions, 'target'>): HookFunction;
+export function resolver<T, C = undefined>(map: ResolverMap<T, C>, options?: ResolverOptions<T, C>): HookFunction;
+
+export type ValidatorFn = (data: unknown) => Array<{ field: string; message: string }> | null | undefined;
+export interface ValidateOptions { ... }
+export type ResolverMap<T, C = undefined> = { ... };
+export type FieldResolver<T, K extends keyof T, C = undefined> = { ... };
+export interface ResolverOptions<T, C> { ... }
+```
+
+### `validate(schema, options?)` — TypeBox + Ajv path
+
+```typescript
+function validate<T extends TSchema>(schema: T, options?: ValidateOptions): HookFunction;
+
+interface ValidateOptions {
+  /** Source to validate. Default: 'data' */
+  target?: 'data' | 'result' | 'query';
+  /** Coerce input types to schema types via Value.Convert before validation. Default: false */
+  coerce?: boolean;
+  /** Strip properties absent from the schema via Value.Clean before validation. Default: false */
+  stripAdditional?: boolean;
+}
+```
+
+Validation is performed by **Ajv** (single shared instance with `allErrors: true, strict: false`) using RFC-compliant format implementations from **`ajv-formats`**. Compiled validators are cached in a `WeakMap` keyed on the schema object reference — compilation happens once per schema, not per request.
+
+`coerce` and `stripAdditional` are handled by TypeBox's `Value.Convert` and `Value.Clean` as pre-processing steps before Ajv validates the (potentially transformed) value. The transformed value is written back to `ctx.data`, `ctx.result`, or `ctx.params.query` when either option is true.
+
+On failure, throws:
+
+```typescript
+throw new Unprocessable('Validation failed', {
+  errors: (ajvFn.errors ?? []).map((e) => ({
+    field: e.instancePath,   // e.g. '/email', '/name'
+    message: e.message ?? 'invalid',
+  })),
+});
+```
+
+### `validate(validator, options?)` — BYOV path
+
+```typescript
+type ValidatorFn = (data: unknown) => Array<{ field: string; message: string }> | null | undefined;
+
+function validate(validator: ValidatorFn, options?: Pick<ValidateOptions, 'target'>): HookFunction;
+```
+
+When the first argument is a function, the TypeBox + Ajv path is bypassed entirely. The validator function receives the raw data and returns either an array of field errors (throws `Unprocessable`) or `null`/`undefined`/empty array (passes). `coerce` and `stripAdditional` do not apply — the custom validator is responsible for any transforms.
+
+```typescript
+// Example: Zod validator
+import { z } from "zod";
+import type { ValidatorFn } from "@mantlejs/schema";
+
+const UserZod = z.object({ email: z.string().email(), name: z.string().min(1) });
+
+const zodValidator: ValidatorFn = (data) => {
+  const result = UserZod.safeParse(data);
+  if (result.success) return null;
+  return result.error.issues.map((i) => ({
+    field: "/" + i.path.join("/"),
+    message: i.message,
+  }));
+};
+
+app.service("users").hooks({
+  before: { create: [validate(zodValidator)] },
+});
+```
+
+Note: Ajv is a hard dependency of `@mantlejs/schema` and is always loaded, regardless of which overload is used. BYOV is an escape hatch for custom validation logic, not for removing the Ajv dependency.
+
+### `resolver(map, options?)`
+
+```typescript
+type FieldResolver<T, K extends keyof T, C = undefined> = (
+  value: T[K] | undefined,
+  data: T,
+  context: HookContext,
+  shared: C,
+) => Promise<T[K] | undefined> | T[K] | undefined;
+
+type ResolverMap<T, C = undefined> = {
+  [K in keyof T]?: FieldResolver<T, K, C>;
+};
+
+interface ResolverOptions<T, C> {
+  createContext?: (record: T, ctx: HookContext) => Promise<C> | C;
+}
+
+function resolver<T, C = undefined>(map: ResolverMap<T, C>, options?: ResolverOptions<T, C>): HookFunction;
+```
+
+Runs after the service method (after hook). Iterates the map, calls each resolver, and writes the result back to the record. Field resolvers returning `undefined` cause that field to be deleted from the output.
+
+Supports single records (`T`), arrays (`T[]`), and paginated results (`Paginated<T>`).
+
+**Shared context:** `createContext` is called once per record before field resolvers run. Its return value is passed as the fourth argument to every field resolver in the map. Use this to perform a single async lookup (e.g. permissions check, role fetch) shared across multiple fields without repeating the call.
+
+```typescript
+resolver<User, { isAdmin: boolean }>(
+  {
+    role:   (_, data, ctx, shared) => shared.isAdmin ? data.role : 'viewer',
+    badge:  (_, data, ctx, shared) => shared.isAdmin ? 'admin' : null,
+  },
+  {
+    createContext: async (record) => ({ isAdmin: await checkAdmin(record.id) }),
+  },
+)
+```
+
+Existing field resolvers that do not use the fourth argument continue to work — TypeScript allows functions with fewer parameters to satisfy a function type with more parameters.
+
+### Bringing your own validation package
+
+The hook pipeline is fully open — `validate()` and `resolver()` are plain `HookFunction` implementations with no required registration. Any developer can bypass `@mantlejs/schema` entirely and write hooks against any library. The only contract: throw `Unprocessable` (from `@mantlejs/core`) on failure so the Express error handler serializes the response consistently:
+
+```typescript
+import { z } from "zod";
+import { Unprocessable } from "@mantlejs/core";
+
+const UserZod = z.object({ email: z.string().email(), name: z.string().min(1) });
+
+app.service("users").hooks({
+  before: {
+    create: [
+      (ctx) => {
+        const result = UserZod.safeParse(ctx.data);
+        if (!result.success) {
+          throw new Unprocessable("Validation failed", {
+            errors: result.error.issues.map((i) => ({
+              field: "/" + i.path.join("/"),
+              message: i.message,
+            })),
+          });
+        }
+        return ctx;
+      },
+    ],
+  },
+});
+```
+
+---
+
+## Public API Surface — `@mantlejs/memory`
+
+### Exports
+
+```typescript
+export class MemoryRepository<T extends Record<string, unknown>> implements Repository<T>;
+export interface MemoryRepositoryOptions { ... }
+```
+
+### `MemoryRepository<T>`
+
+```typescript
+class MemoryRepository<T extends Record<string, unknown>> implements Repository<T, Partial<T>> {
+  constructor(options?: MemoryRepositoryOptions);
+
+  // Repository<T> implementation
+  findAll(params?: QueryParams): Promise<T[]>;
+  findById(id: Id): Promise<T | null>;
+  save(data: Partial<T>): Promise<T>;
+  saveAll(data: Partial<T>[]): Promise<T[]>;
+  updateById(id: Id, data: Partial<T>): Promise<T>;
+  patchById(id: Id, data: Partial<T>): Promise<T>;
+  deleteById(id: Id): Promise<T>;
+  count(params?: QueryParams): Promise<number>;
+
+  // Test helpers
+  seed(records: T[]): this;
+  clear(): this;
+  readonly store: ReadonlyMap<Id, T>;
+}
+
+interface MemoryRepositoryOptions {
+  idField?: string;    // Default: 'id'
+  autoId?: boolean;    // Default: true — generates UUID via crypto.randomUUID()
+  timestamps?: boolean; // Default: true — manages createdAt / updatedAt
+}
+```
+
+### QueryParams operator support
+
+All `QueryParams` operators defined in `@mantlejs/core` are implemented in-memory using the same semantics as `KnexRepository`. A test using `MemoryRepository` can be swapped for a `KnexRepository` in production with no query changes.
+
+Supported: equality, null, `$gt`, `$gte`, `$lt`, `$lte`, `$ne`, `$in`, `$nin`, `$like`, `$notlike`, `$ilike`, `$or`, `$and`, `limit`, `skip`, `sort`, `select`.
+
+> `$ilike` performs case-insensitive match in-memory — behaviour matches PostgreSQL's `ILIKE`.
+
+---
+
+## Public API Surface — `@mantlejs/config`
+
+### Exports
+
+```typescript
+export function config(options?: ConfigOptions): MantlePlugin;
+export interface ConfigOptions { ... }
+```
+
+### `config(options?)`
+
+```typescript
+function config(options?: ConfigOptions): MantlePlugin;
+
+interface ConfigOptions {
+  directory?: string;   // Default: path.join(process.cwd(), 'config')
+  schema?: TSchema;     // TypeBox schema — validates merged config at startup
+  envVar?: string;      // Default: 'NODE_ENV'
+}
+```
+
+### Config loading algorithm
+
+```
+1. Load {directory}/default.json           → base
+2. Load {directory}/{NODE_ENV}.json        → overlay (merged deeply over base)
+3. Apply MANTLE_* environment variables    → top-level overrides
+4. If options.schema provided: validate merged config
+   → throws GeneralError('Invalid configuration', { errors }) on failure
+5. app.set('config', mergedConfig)
+6. For each top-level key in mergedConfig: app.set(key, value)
+```
+
+Environment variable override format: `MANTLE_PORT=8080` sets `config.port = 8080`. Nested keys use double underscore: `MANTLE_DB__POOL__MAX=25` sets `config.db.pool.max = 25`.
+
+### Accessing configuration
+
+```typescript
+// Full config object
+const cfg = app.get<AppConfig>('config');
+
+// Individual keys (set by plugin for convenience)
+const port = app.get<number>('port');
+const dbClient = app.get<string>('db.client'); // not supported — use app.get('config').db.client
+```
+
+---
+
+## Public API Surface — `@mantlejs/auth-google`
+
+### Exports
+
+```typescript
+export function googleStrategy(config: GoogleStrategyConfig): MantlePlugin;
+export interface GoogleStrategyConfig { ... }
+```
+
+### `googleStrategy(config)`
+
+```typescript
+function googleStrategy(config: GoogleStrategyConfig): MantlePlugin;
+
+interface GoogleStrategyConfig {
+  clientId: string;
+  clientSecret: string;
+  callbackUrl?: string;         // Default: '/auth/google/callback'
+  scope?: string[];             // Default: ['openid', 'profile', 'email']
+  entity?: string;              // Default: 'users'
+  entityIdField?: string;       // Default: 'googleId'
+}
+```
+
+### OAuth flow (authorization code)
+
+```
+GET /auth/google
+  → builds Google authorization URL with state + code_challenge (PKCE)
+  → 302 redirect to accounts.google.com
+
+GET /auth/google/callback?code=...&state=...
+  → verifies state
+  → exchanges code for Google access token
+  → fetches Google userinfo (id, email, name, picture)
+  → calls app.service(entity).find({ query: { [entityIdField]: googleId } })
+      → if found: use existing user
+      → if not found: calls app.service(entity).create({ googleId, email, name })
+  → issues Mantle access + refresh tokens via @mantlejs/auth
+  → responds: { accessToken, refreshToken, user }
+```
+
+### Response shape
+
+Identical to `@mantlejs/auth-local` login response:
+
+```typescript
+interface OAuthAuthenticationResult {
+  accessToken: string;
+  refreshToken: string;
+  user: Record<string, unknown>;  // sanitized user entity
+}
+```
+
+---
+
+## Public API Surface — `@mantlejs/auth-github`
+
+### Exports
+
+```typescript
+export function githubStrategy(config: GithubStrategyConfig): MantlePlugin;
+export interface GithubStrategyConfig { ... }
+```
+
+### `githubStrategy(config)`
+
+```typescript
+function githubStrategy(config: GithubStrategyConfig): MantlePlugin;
+
+interface GithubStrategyConfig {
+  clientId: string;
+  clientSecret: string;
+  callbackUrl?: string;         // Default: '/auth/github/callback'
+  scope?: string[];             // Default: ['user:email']
+  entity?: string;              // Default: 'users'
+  entityIdField?: string;       // Default: 'githubId'
+}
+```
+
+### OAuth flow (authorization code)
+
+```
+GET /auth/github
+  → builds GitHub authorization URL with state
+  → 302 redirect to github.com/login/oauth/authorize
+
+GET /auth/github/callback?code=...&state=...
+  → verifies state
+  → exchanges code for GitHub access token (POST github.com/login/oauth/access_token)
+  → fetches user profile (GET api.github.com/user)
+  → fetches user emails (GET api.github.com/user/emails) if email not in profile
+  → find-or-create user via app.service(entity)
+  → issues Mantle access + refresh tokens
+  → responds: { accessToken, refreshToken, user }
+```
+
+---
+
+## Public API Surface — `@mantlejs/socketio`
+
+### Exports
+
+```typescript
+export function socketio(options?: SocketioOptions): MantlePlugin;
+export interface SocketioOptions { ... }
+```
+
+### `socketio(options?)`
+
+```typescript
+function socketio(options?: SocketioOptions): MantlePlugin;
+
+interface SocketioOptions {
+  serverOptions?: Partial<ServerOptions>;  // socket.io Server constructor options
+  timeout?: number;                        // Default: 30000ms
+  path?: string;                           // Default: '/socket.io'
+}
+```
+
+### Socket.io server attachment
+
+The plugin attaches to the HTTP server created by `@mantlejs/express`. It must be configured after `express()`:
+
+```typescript
+const app = mantle()
+  .configure(express())
+  .configure(socketio());
+```
+
+The underlying `socket.io` Server instance is accessible via `app.get('socketio')`.
+
+### Socket event protocol
+
+#### Client → server (service method calls)
+
+```typescript
+// Signature
+socket.emit(method, servicePath, ...args, callback)
+
+// find
+socket.emit('find', 'users', params, (error, result) => { ... });
+
+// get
+socket.emit('get', 'users', id, params, (error, result) => { ... });
+
+// create
+socket.emit('create', 'users', data, params, (error, result) => { ... });
+
+// update
+socket.emit('update', 'users', id, data, params, (error, result) => { ... });
+
+// patch
+socket.emit('patch', 'users', id, data, params, (error, result) => { ... });
+
+// remove
+socket.emit('remove', 'users', id, params, (error, result) => { ... });
+```
+
+Callbacks follow Node.js error-first convention: `(error: MantleError | null, result: T | null)`.
+
+#### Server → client (service events)
+
+Emitted automatically after successful mutating operations, to all connected clients:
+
+```typescript
+// Event name format: '<servicePath> <eventName>'
+socket.on('users created',  (data: User) => { ... });
+socket.on('users updated',  (data: User) => { ... });
+socket.on('users patched',  (data: User) => { ... });
+socket.on('users removed',  (data: User) => { ... });
+```
+
+### `params.provider` for socket calls
+
+```typescript
+params.provider === 'socket.io'
+```
+
+Hooks can use `params.provider` to apply different logic for REST vs socket calls.
+
+### Error serialization over sockets
+
+Socket.io errors are serialized using `MantleError.toJSON()`:
+
+```typescript
+{
+  name: 'NotAuthenticated',
+  message: 'Not authenticated',
+  code: 401,
+  className: 'not-authenticated',
+  data: undefined,
+  errors: []
+}
+```
+
+---
+
+## Public API Surface — `@mantlejs/upload-s3`
+
+### Exports
+
+```typescript
+export function s3Storage(config: S3StorageConfig): StorageAdapter;
+export interface S3StorageConfig { ... }
+```
+
+### `s3Storage(config)`
+
+```typescript
+function s3Storage(config: S3StorageConfig): StorageAdapter;
+
+interface S3StorageConfig {
+  bucket: string;
+  region: string;
+  credentials?: {
+    accessKeyId: string;
+    secretAccessKey: string;
+  };
+  keyPrefix?: string;           // Default: ''
+  acl?: 'private' | 'public-read';  // Default: 'private'
+  key?: (file: IncomingFile) => string;
+}
+```
+
+The `key` function defaults to: `[keyPrefix/]${Date.now()}-${file.originalname}`
+
+`UploadedFile.path` after storage: `https://{bucket}.s3.{region}.amazonaws.com/{key}`
+
+Uses `@aws-sdk/lib-storage` `Upload` for multipart upload, supporting files of any size.
+
+---
+
+## Public API Surface — `@mantlejs/upload-gcs`
+
+### Exports
+
+```typescript
+export function gcsStorage(config: GCSStorageConfig): StorageAdapter;
+export interface GCSStorageConfig { ... }
+```
+
+### `gcsStorage(config)`
+
+```typescript
+function gcsStorage(config: GCSStorageConfig): StorageAdapter;
+
+interface GCSStorageConfig {
+  bucket: string;
+  projectId?: string;
+  keyFilename?: string;          // Default: uses Application Default Credentials
+  keyPrefix?: string;            // Default: ''
+  public?: boolean;              // Default: false
+  key?: (file: IncomingFile) => string;
+}
+```
+
+`UploadedFile.path` after storage:
+- `public: true` → `https://storage.googleapis.com/{bucket}/{key}`
+- `public: false` → `gs://{bucket}/{key}` (use for server-side access or signed URL generation)
+
+---
+
+## Public API Surface — `@mantlejs/cli`
+
+The CLI has no importable TypeScript API. It is a binary (`mantle`) distributed as an npm package.
+
+### Commands
+
+```bash
+mantle new <project-name> [options]
+mantle generate <generator> <name> [options]
+mantle g <generator> <name> [options]      # shorthand
+```
+
+### `mantle new` options
+
+```
+--transport <transport>    HTTP transport. Default: express
+--database <db>            Database adapter. Choices: pg, sqlite, none. Default: pg
+--auth <auth>              Auth strategy. Choices: local, google, github, none. Default: local
+--packageManager <pm>      Choices: npm, yarn, pnpm. Default: npm
+--skip-install             Scaffold files only, do not run install
+```
+
+### `mantle generate` generators
+
+| Generator | Alias | Output |
+|---|---|---|
+| `service` | `s` | `<name>.service.ts`, `<name>.repository.ts`, `<name>.schema.ts`, `<name>.service.spec.ts` |
+| `hook` | `h` | `<name>.hook.ts`, `<name>.hook.spec.ts` |
+| `repository` | `r` | `<name>.repository.ts` |
+
+### Generator output location
+
+All generators write to `src/services/<name>/` by default. Override with `--directory <path>`.
+
+### Generated test convention
+
+Service tests generated by `mantle g service` use `@mantlejs/memory` as the repository:
+
+```typescript
+// <name>.service.spec.ts (generated)
+import { MemoryRepository } from '@mantlejs/memory';
+import { UserService } from './<name>.service';
+
+describe('UserService', () => {
+  let repo: MemoryRepository<User>;
+  let service: UserService;
+
+  beforeEach(() => {
+    repo = new MemoryRepository<User>();
+    service = new UserService(repo);
+  });
+
+  it('creates a user', async () => {
+    const user = await service.create({ email: 'a@b.com', name: 'Alice' }, {});
+    expect(user.id).toBeDefined();
+    expect(user.email).toBe('a@b.com');
+  });
+});
+```
+
+---
+
+## Request Lifecycle Additions
+
+### Lifecycle with Logging and Schema Validation
+
+The following traces a `POST /users` request through a Phase 2 application with logging and schema validation enabled.
+
+```
+Client
+  │
+  │  POST /users  { email: "not-an-email", name: "" }
+  ▼
+@mantlejs/express  (Transport Layer)
+  │  • Matches route to service: 'users' → create method
+  │  • Parses body, maps req → ServiceParams
+  │  • Sets params.provider = 'rest'
+  ▼
+Hook Pipeline — BEFORE
+  │  • logRequest()          starts timer, records method + path
+  │  • validate(UserSchema)  checks data against TypeBox schema
+  │       email → fails format 'email'
+  │       name  → fails minLength 1
+  │       throws Unprocessable({ errors: [{ field: '/email', ... }, { field: '/name', ... }] })
+  ▼
+Hook Pipeline — ERROR (short-circuit — service never called)
+  │  • logError()            logs warn-level record:
+  │       { component: 'mantle:error', method: 'create', code: 422, name: 'Unprocessable' }
+  ▼
+@mantlejs/express error handler
+  │  • Serializes via MantleError.toJSON()
+  │  • HTTP 422 Unprocessable Entity
+  ▼
+Client
+     HTTP 422  { name: 'Unprocessable', code: 422, data: { errors: [...] } }
+```
+
+**Happy path — valid data:**
+
+```
+Hook Pipeline — BEFORE
+  │  • logRequest()           starts timer
+  │  • validate(UserSchema)   passes — data is valid
+  │  • hashPassword()         hashes data.password
+  ▼
+Service.create(data, params)
+  │  • calls UserRepository.save(data)
+  ▼
+UserRepository.save(data)   (KnexRepository → PostgreSQL)
+  │  • INSERT ... RETURNING *
+  │  • returns User entity
+  ▼
+Hook Pipeline — AFTER
+  │  • resolver<User>({ password: () => undefined })
+  │       strips password field
+  │  • logRequest()   stops timer, logs debug record:
+  │       { component: 'mantle:request', durationMs: 14, status: 'ok' }
+  ▼
+@mantlejs/express
+  │  • HTTP 201 Created
+  ▼
+Client
+     HTTP 201  { id, email, name, createdAt, updatedAt }
+```
+
+---
+
+### Socket.io Real-Time Event Lifecycle
+
+The following traces a Socket.io `create` call and the resulting broadcast event.
+
+```
+Socket.io Client A                    Socket.io Client B (listener)
+  │                                         │
+  │  socket.emit('create', 'messages',       │
+  │    { text: 'Hello' }, {}, callback)      │
+  ▼                                         │
+@mantlejs/socketio  (Transport Layer)        │
+  │  • Parses socket event arguments         │
+  │  • Sets params.provider = 'socket.io'   │
+  ▼                                         │
+Hook Pipeline — BEFORE                       │
+  │  • authenticate('jwt')                   │
+  │       verifies params.headers.authorization token
+  │       sets params.user                  │
+  ▼                                         │
+Service.create(data, params)                 │
+  ▼                                         │
+Repository.save(data) → Message entity       │
+  ▼                                         │
+Hook Pipeline — AFTER                        │
+  │  • (any after hooks)                     │
+  ▼                                         │
+@mantlejs/socketio                           │
+  │  • Calls callback(null, message)  →→→  Client A receives result
+  │  • Emits 'messages created', message →→ Client B receives event
+  │                                         ▼
+  │                              socket.on('messages created', (msg) => ...)
+```
+
+**Key difference from REST:** The socket transport calls the Acknowledgement callback for the caller's result AND emits a named event to all connected clients. The same hook pipeline runs for both.
