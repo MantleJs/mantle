@@ -4,6 +4,7 @@ import type {
   HookContext,
   HookFunction,
   Id,
+  Logger,
   MantleApplication,
   MantleOptions,
   MantlePlugin,
@@ -13,6 +14,12 @@ import type {
   ServiceOptions,
   ServiceParams,
 } from "./types.js";
+
+type ResolvedServiceOptions = {
+  methods: string[];
+  events: string[];
+  schema?: unknown;
+};
 
 const DEFAULT_METHODS = ["find", "get", "create", "update", "patch", "remove"];
 const DEFAULT_EVENTS = ["created", "updated", "patched", "removed"];
@@ -27,13 +34,16 @@ async function runHookChain<T>(hooks: HookFunction<T>[], ctx: HookContext<T>): P
 
 class ServiceHandleImpl<T> implements ServiceHandle<T> {
   private hookConfig: HookConfig<T> = {};
+  readonly schema: unknown;
 
   constructor(
     private readonly service: Partial<Service<T>>,
     private readonly path: string,
     private readonly app: MantleApplication,
-    private readonly options: Required<ServiceOptions>,
-  ) {}
+    private readonly options: ResolvedServiceOptions,
+  ) {
+    this.schema = options.schema;
+  }
 
   hooks(config: HookConfig<T>): this {
     this.hookConfig = config;
@@ -181,8 +191,10 @@ export class MantleApplicationImpl implements MantleApplication {
     const handle = new ServiceHandleImpl<T>(service, key, this, {
       methods: options.methods ?? DEFAULT_METHODS,
       events: options.events ?? DEFAULT_EVENTS,
+      schema: options.schema,
     });
     this._services.set(key, handle);
+    this.get<Logger | undefined>("logger")?.debug("Service registered", { component: "mantle:core", path: key });
     return this;
   }
 
@@ -208,6 +220,6 @@ export class MantleApplicationImpl implements MantleApplication {
   }
 
   async teardown(): Promise<void> {
-    // Adapters register teardown callbacks via app.get('teardown') if needed
+    this.get<Logger | undefined>("logger")?.info("Application teardown", { component: "mantle:core" });
   }
 }

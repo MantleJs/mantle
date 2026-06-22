@@ -1,6 +1,17 @@
 import { mantle } from "./mantle.js";
 import { NotFound, MethodNotAllowed, BadRequest } from "./errors.js";
-import type { HookContext, Service, ServiceParams } from "./types.js";
+import type { HookContext, Logger, Service, ServiceParams } from "./types.js";
+
+function makeLogger(): Logger & { calls: Record<string, unknown[][]> } {
+  const calls: Record<string, unknown[][]> = { debug: [], info: [], warn: [], error: [] };
+  return {
+    calls,
+    debug: (msg, ctx) => calls["debug"].push([msg, ctx]),
+    info: (msg, ctx) => calls["info"].push([msg, ctx]),
+    warn: (msg, ctx) => calls["warn"].push([msg, ctx]),
+    error: (msg, ctx) => calls["error"].push([msg, ctx]),
+  };
+}
 
 interface User {
   id: number;
@@ -88,6 +99,16 @@ describe("MantleApplication", () => {
   describe("teardown", () => {
     it("resolves without error", async () => {
       await expect(mantle().teardown()).resolves.toBeUndefined();
+    });
+
+    it("logs info on teardown when a logger is configured", async () => {
+      const app = mantle();
+      const logger = makeLogger();
+      app.set("logger", logger);
+      await app.teardown();
+      expect(logger.calls["info"]).toHaveLength(1);
+      expect(logger.calls["info"][0][0]).toContain("teardown");
+      expect(logger.calls["info"][0][1]).toMatchObject({ component: "mantle:core" });
     });
   });
 });
@@ -328,5 +349,45 @@ describe("Hook pipeline — error hooks", () => {
     const params: ServiceParams = { provider: "rest" };
     await app.service<User>("users").find(params);
     expect(capturedProvider).toBe("rest");
+  });
+});
+
+describe("Logger", () => {
+  it("logs debug when a service is registered", () => {
+    const app = mantle();
+    const logger = makeLogger();
+    app.set("logger", logger);
+    app.use("users", makeUserService());
+    expect(logger.calls["debug"]).toHaveLength(1);
+    expect(logger.calls["debug"][0][0]).toContain("registered");
+    expect(logger.calls["debug"][0][1]).toMatchObject({ component: "mantle:core", path: "users" });
+  });
+
+  it("strips leading slash from path in log record", () => {
+    const app = mantle();
+    const logger = makeLogger();
+    app.set("logger", logger);
+    app.use("/users", makeUserService());
+    expect(logger.calls["debug"][0][1]).toMatchObject({ path: "users" });
+  });
+
+  it("does not throw when no logger is configured", () => {
+    const app = mantle();
+    expect(() => app.use("users", makeUserService())).not.toThrow();
+  });
+});
+
+describe("ServiceOptions — schema", () => {
+  it("stores and exposes schema on the service handle", () => {
+    const app = mantle();
+    const schema = { type: "object", properties: { name: { type: "string" } } };
+    app.use("users", makeUserService(), { schema });
+    expect(app.service("users").schema).toBe(schema);
+  });
+
+  it("schema is undefined when not provided", () => {
+    const app = mantle();
+    app.use("users", makeUserService());
+    expect(app.service("users").schema).toBeUndefined();
   });
 });

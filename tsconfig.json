@@ -20,6 +20,12 @@
     },
     {
       "path": "./packages/knex"
+    },
+    {
+      "path": "./packages/logger"
+    },
+    {
+      "path": "./packages/schema"
     }
   ]
 }

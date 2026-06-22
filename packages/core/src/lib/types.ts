@@ -1,5 +1,12 @@
 export type Id = string | number;
 
+export interface Logger {
+  debug(msg: string, context?: Record<string, unknown>): void;
+  info(msg: string, context?: Record<string, unknown>): void;
+  warn(msg: string, context?: Record<string, unknown>): void;
+  error(msg: string, context?: Record<string, unknown>): void;
+}
+
 export interface Paginated<T> {
   total: number;
   limit: number;
@@ -72,6 +79,8 @@ export interface HookConfig<T = unknown> {
 export interface ServiceOptions {
   methods?: string[];
   events?: string[];
+  /** TypeBox schema for this service. Stored for tooling introspection — not validated here. */
+  schema?: unknown;
 }
 
 export interface MantleOptions {
@@ -83,6 +92,7 @@ export type MantlePlugin = (app: MantleApplication) => void | Promise<void>;
 export interface ServiceHandle<T> extends Service<T> {
   hooks(config: HookConfig<T>): this;
   dispatch(method: string, data?: Partial<T>, id?: Id, params?: ServiceParams): Promise<T | T[] | Paginated<T>>;
+  readonly schema?: unknown;
 }
 
 export interface MantleApplication {
