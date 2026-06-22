@@ -45,6 +45,38 @@ LOG_LEVEL=warn npm start    # warn + error only
 
 All records emitted by Mantle packages include a `component` field (`mantle:core`, `mantle:knex`, `mantle:request`, `mantle:error`, etc.). Use this field in your log aggregation tool (CloudWatch, Datadog, Grafana Loki) to filter framework-internal logs without restarting the process.
 
+### Correlation ID
+
+When you use `pinoAdapter` with the `express()` transport, every log record emitted during a request automatically includes a `correlationId` field. No manual threading required.
+
+The `express()` plugin reads the `X-Correlation-ID` request header (or generates a UUID) and stores it in `@mantlejs/core`'s `AsyncLocalStorage` context via `withContext`. `pinoAdapter` calls `getContext()` on every log call and merges the result into the pino object.
+
+```json
+{
+  "correlationId": "a3f2c1d4-8b2e-4f1a-9c3d-1e2f3a4b5c6d",
+  "component": "mantle:request",
+  "method": "create",
+  "path": "users",
+  "provider": "rest",
+  "durationMs": 12,
+  "status": "ok"
+}
+```
+
+The `X-Correlation-ID` is echoed back in the response header so callers can correlate their requests with server-side log entries.
+
+Hooks and other code can read the correlation ID directly:
+
+```typescript
+import { getContext } from "@mantlejs/core";
+
+const hook = (ctx) => {
+  const { correlationId } = getContext() ?? {};
+  // ...
+  return ctx;
+};
+```
+
 ### Output destination
 
 Destination is configured on the pino instance, not by Mantle. Common patterns:
@@ -86,7 +118,7 @@ app.use("/users", new UserService(new UserRepository(app)));
 app.service("users").hooks({
   before: { all: [requestLogger] },
   after:  { all: [requestLogger] },
-  error:  { all: [logError()] },
+  error:  { all: [requestLogger, logError()] },
 });
 
 app.listen(3030);
@@ -115,6 +147,8 @@ app.configure(logger(pinoAdapter(pino({ level: "info" }))));
 
 Wraps a pino logger to satisfy the `Logger` interface. Pino uses `(object, message)` argument order; the `Logger` interface uses `(message, object)`. The adapter flips this internally.
 
+On every log call the adapter reads `getContext()` from `@mantlejs/core` and merges the current `RequestContext` (including `correlationId`) into the pino object. Per-call context fields take precedence over request context fields. When called outside an Express request (e.g. a startup log), no context is present and the field is simply omitted.
+
 ```typescript
 function pinoAdapter(pino: PinoLike): Logger;
 ```
@@ -132,13 +166,13 @@ const adapter = pinoAdapter(pino({ level: process.env.LOG_LEVEL ?? "info" }));
 
 ### `logRequest(options?)`
 
-Returns a hook that logs service call duration. Register the **same returned function** in both `before.all` and `after.all`. The first call (before phase) records the start time; the second call (after phase) emits the log record.
+Returns a hook that logs service call duration. Register the **same returned function** in `before.all`, `after.all`, **and** `error.all`. The before phase records the start time; the after or error phase emits the record with elapsed duration and `status`.
 
 ```typescript
 function logRequest(options?: LogRequestOptions): HookFunction;
 
 interface LogRequestOptions {
-  /** Log level for successful calls. Default: 'debug' */
+  /** Log level for calls. Default: 'debug' */
   level?: "debug" | "info";
   /** Include params in the log record. Default: false — may contain sensitive data */
   includeParams?: boolean;
@@ -151,10 +185,27 @@ const requestLogger = logRequest();
 app.service("users").hooks({
   before: { all: [requestLogger] },
   after:  { all: [requestLogger] },
+  error:  { all: [requestLogger, logError()] },
 });
 ```
 
-**Emitted record:**
+**Success record** (message: `"Service call completed"`):
+
+```json
+{
+  "component": "mantle:request",
+  "method": "get",
+  "path": "users",
+  "provider": "rest",
+  "id": "42",
+  "durationMs": 12,
+  "status": "ok"
+}
+```
+
+`id` is only present for `get`, `update`, `patch`, and `remove` calls. `correlationId` is automatically included by `pinoAdapter` when inside an Express request.
+
+**Error record** (message: `"Service call failed"`):
 
 ```json
 {
@@ -162,8 +213,8 @@ app.service("users").hooks({
   "method": "create",
   "path": "users",
   "provider": "rest",
-  "durationMs": 12,
-  "status": "ok"
+  "durationMs": 1,
+  "status": "error"
 }
 ```
 

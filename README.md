@@ -52,6 +52,8 @@ Dependencies always point inward. Nothing in Domain or Application layers knows 
 | `@mantlejs/auth`       | JWT engine + strategy runner                                               |
 | `@mantlejs/auth-local` | Local email+password strategy (Argon2id)                                   |
 | `@mantlejs/upload`     | File upload via busboy, local disk storage                                 |
+| `@mantlejs/logger`     | Structured logging — pino adapter, `logRequest` / `logError` hooks, correlation ID |
+| `@mantlejs/schema`     | TypeBox schema validation (`validate`) and field resolution (`resolver`) hooks |
 
 ## Quick Start
 
@@ -61,24 +63,29 @@ import { express } from "@mantlejs/express";
 import { knex } from "@mantlejs/knex";
 import { auth, authenticate, sanitizeUser } from "@mantlejs/auth";
 import { localStrategy, hashPassword } from "@mantlejs/auth-local";
+import { logger, pinoAdapter, logRequest, logError } from "@mantlejs/logger";
+import pino from "pino";
 
 const app = mantle()
   .configure(express())
   .configure(knex({ client: "pg", connection: process.env.DATABASE_URL }))
   .configure(auth({ secret: process.env.JWT_SECRET! }))
-  .configure(localStrategy());
+  .configure(localStrategy())
+  .configure(logger(pinoAdapter(pino({ level: process.env.LOG_LEVEL ?? "info" }))));
 
 app.use("/users", new UserService(new UserRepository(app)), {
   methods: ["find", "get", "create", "update", "patch", "remove"],
 });
 
+const requestLogger = logRequest();
+
 app.service("users").hooks({
   before: {
     create: [hashPassword()],
-    all: [authenticate("jwt")],
+    all: [authenticate("jwt"), requestLogger],
   },
-  after: { all: [sanitizeUser()] },
-  error: { all: [logError()] },
+  after: { all: [sanitizeUser(), requestLogger] },
+  error: { all: [requestLogger, logError()] },
 });
 
 app.listen(3030);
