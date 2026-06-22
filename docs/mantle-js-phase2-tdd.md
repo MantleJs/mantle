@@ -122,6 +122,31 @@ app.get<Logger | undefined>('logger')?.debug('Service registered', {
 
 The `component` field is a string in the format `mantle:<package>` (e.g. `mantle:core`, `mantle:knex`, `mantle:auth`). Third-party plugins should use their own namespace (e.g. `my-plugin:auth`).
 
+### `RequestContext` — `AsyncLocalStorage`-based request context
+
+Added to the public API surface of `@mantlejs/core`. Uses Node.js built-in `AsyncLocalStorage` — zero new dependencies.
+
+```typescript
+export interface RequestContext {
+  correlationId: string;
+  [key: string]: unknown;
+}
+
+export function withContext<T>(context: RequestContext, fn: () => T): T;
+export function getContext(): RequestContext | undefined;
+```
+
+`withContext` runs `fn` inside an `AsyncLocalStorage` scope. All async operations (promises, callbacks) spawned within `fn` inherit the context. `getContext` returns the current context, or `undefined` when called outside a `withContext` scope.
+
+**Express middleware** (registered automatically by the `express()` plugin) sets a `correlationId` per request:
+- Reads `X-Correlation-ID` request header if present; otherwise generates a `crypto.randomUUID()`.
+- Echoes the ID back in the `X-Correlation-ID` response header.
+- Wraps the entire downstream request chain in `withContext({ correlationId }, next)`.
+
+**`pinoAdapter`** calls `getContext()` on every log call and merges the result into the pino object, so `correlationId` appears in every log record emitted during a request — with no manual threading required.
+
+Custom loggers and hooks can also call `getContext()` directly to read the correlation ID.
+
 ### `ServiceOptions` — `schema` field (additive)
 
 ```typescript
@@ -152,6 +177,7 @@ export function logger(adapter: Logger): MantlePlugin;
 export function pinoAdapter(pinoInstance: pino.Logger): Logger;
 export function logRequest(options?: LogRequestOptions): HookFunction;
 export function logError(options?: LogErrorOptions): HookFunction;
+export type { PinoLike, LogRequestOptions, LogErrorOptions };
 ```
 
 ### `logger(adapter)`
@@ -168,7 +194,7 @@ Registers the adapter on the app via `app.set('logger', adapter)`. Must be calle
 function pinoAdapter(pinoInstance: pino.Logger): Logger;
 ```
 
-Wraps a pino logger to satisfy the `Logger` interface. Translates the interface's `(msg, context?)` argument order to pino's `(context, msg)` form for structured logging.
+Wraps a pino logger to satisfy the `Logger` interface. Translates the interface's `(msg, context?)` argument order to pino's `(context, msg)` form for structured logging. On every log call, reads `getContext()` from `@mantlejs/core` and merges the current `RequestContext` (including `correlationId`) into the pino object. Per-call context fields take precedence over request context fields.
 
 ```typescript
 import pino from 'pino';
@@ -207,14 +233,30 @@ interface LogErrorOptions {
 ```typescript
 {
   component: 'mantle:request';
-  method: string;       // 'find' | 'get' | 'create' | 'update' | 'patch' | 'remove'
-  path: string;         // service path, e.g. 'users'
-  provider: string;     // 'rest' | 'socket.io' | undefined
+  method: string;           // 'find' | 'get' | 'create' | 'update' | 'patch' | 'remove'
+  path: string;             // service path, e.g. 'users'
+  provider: string;         // 'rest' | 'socket.io' | undefined
+  id?: Id;                  // only for get, update, patch, remove
   durationMs: number;
   status: 'ok';
-  params?: ServiceParams; // only if includeParams: true
+  params?: ServiceParams;   // only if includeParams: true
 }
 ```
+
+**`logRequest` — error record** (register the same hook in `error.all` to capture failed-request timing):
+```typescript
+{
+  component: 'mantle:request';
+  method: string;
+  path: string;
+  provider: string | undefined;
+  id?: Id;
+  durationMs: number;
+  status: 'error';
+  params?: ServiceParams;   // only if includeParams: true
+}
+```
+Message: `"Service call failed"` (vs `"Service call completed"` on success).
 
 **`logError` — error record:**
 ```typescript
@@ -227,6 +269,20 @@ interface LogErrorOptions {
   name: string;         // e.g. 'NotFound', 'Conflict'
   message: string;
   stack?: string;       // only if includeStack: true
+}
+```
+
+When `pinoAdapter` is used and the request was initiated via the Express transport, all records automatically include `correlationId` merged from `RequestContext`. Example merged record:
+
+```json
+{
+  "correlationId": "a3f2c1d4-...",
+  "component": "mantle:request",
+  "method": "create",
+  "path": "users",
+  "provider": "rest",
+  "durationMs": 12,
+  "status": "ok"
 }
 ```
 
@@ -820,8 +876,12 @@ The following traces a `POST /users` request through a Phase 2 application with 
 Client
   │
   │  POST /users  { email: "not-an-email", name: "" }
+  │  X-Correlation-ID: a3f2c1d4-...   (optional — generated if absent)
   ▼
 @mantlejs/express  (Transport Layer)
+  │  • Reads (or generates) X-Correlation-ID
+  │  • Sets X-Correlation-ID response header
+  │  • Calls withContext({ correlationId }, next) — context propagates through entire request
   │  • Matches route to service: 'users' → create method
   │  • Parses body, maps req → ServiceParams
   │  • Sets params.provider = 'rest'
@@ -834,8 +894,12 @@ Hook Pipeline — BEFORE
   │       throws Unprocessable({ errors: [{ field: '/email', ... }, { field: '/name', ... }] })
   ▼
 Hook Pipeline — ERROR (short-circuit — service never called)
+  │  • logRequest()          stops timer, logs debug record:
+  │       { correlationId: 'a3f2c1d4-...', component: 'mantle:request',
+  │         method: 'create', path: 'users', durationMs: 1, status: 'error' }
   │  • logError()            logs warn-level record:
-  │       { component: 'mantle:error', method: 'create', code: 422, name: 'Unprocessable' }
+  │       { correlationId: 'a3f2c1d4-...', component: 'mantle:error',
+  │         method: 'create', code: 422, name: 'Unprocessable' }
   ▼
 @mantlejs/express error handler
   │  • Serializes via MantleError.toJSON()
@@ -864,7 +928,8 @@ Hook Pipeline — AFTER
   │  • resolver<User>({ password: () => undefined })
   │       strips password field
   │  • logRequest()   stops timer, logs debug record:
-  │       { component: 'mantle:request', durationMs: 14, status: 'ok' }
+  │       { correlationId: 'a3f2c1d4-...', component: 'mantle:request',
+  │         durationMs: 14, status: 'ok' }
   ▼
 @mantlejs/express
   │  • HTTP 201 Created

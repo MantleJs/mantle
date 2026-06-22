@@ -111,6 +111,22 @@ LOG_LEVEL=info npm start    # info + warn + error  (production default)
 LOG_LEVEL=warn npm start    # warn + error only
 ```
 
+### `@mantlejs/core` — Request Context (additive)
+
+An `AsyncLocalStorage`-based request context is added to core. Uses Node.js built-ins — zero new dependencies.
+
+```typescript
+interface RequestContext {
+  correlationId: string;
+  [key: string]: unknown;
+}
+
+function withContext<T>(context: RequestContext, fn: () => T): T;
+function getContext(): RequestContext | undefined;
+```
+
+`withContext` runs `fn` inside an `AsyncLocalStorage` scope; all async operations spawned within `fn` inherit the context. The `express()` plugin uses `withContext` automatically — one `correlationId` per HTTP request, read from the `X-Correlation-ID` header or generated as a UUID. `getContext()` returns `undefined` outside a scope (e.g. direct internal service calls). Hooks and adapters can call `getContext()` to read the correlation ID without it being threaded explicitly through every function signature.
+
 ---
 
 ### `@mantlejs/logger`
@@ -127,7 +143,7 @@ Accepts a pino instance (or any object satisfying the `Logger` interface) and re
 function logger(adapter: Logger): MantlePlugin;
 ```
 
-The pino adapter ships as a named export and handles pino's argument-order difference internally (`logger.info(obj, msg)` vs the interface's `logger.info(msg, obj)`):
+The pino adapter ships as a named export and handles pino's argument-order difference internally (`logger.info(obj, msg)` vs the interface's `logger.info(msg, obj)`). It also automatically merges the current `RequestContext` (including `correlationId`) into every log record via `getContext()` — no manual threading required.
 
 ```typescript
 import pino from 'pino';
@@ -150,31 +166,35 @@ Any object with `debug`, `info`, `warn`, and `error` methods matching the interf
 
 #### `logRequest()` hook
 
-Before/after hook pair. Logs one record per service call at the end of the pipeline, including duration.
+Logs one record per service call including duration. Register the **same returned function** in `before.all`, `after.all`, **and** `error.all`. The before phase records the start time; the after or error phase emits the record with elapsed duration and status (`'ok'` or `'error'`).
 
 ```typescript
 function logRequest(options?: LogRequestOptions): HookFunction;
 
 interface LogRequestOptions {
-  /** Log level for successful calls. Default: 'debug' */
+  /** Log level for calls. Default: 'debug' */
   level?: 'debug' | 'info';
   /** Include params in log record. Default: false — may contain sensitive data */
   includeParams?: boolean;
 }
 ```
 
-Emitted record shape:
+Emitted record shape (success):
 
 ```json
 {
+  "correlationId": "a3f2c1d4-...",
   "component": "mantle:request",
-  "method": "create",
+  "method": "get",
   "path": "users",
   "provider": "rest",
+  "id": "42",
   "durationMs": 12,
   "status": "ok"
 }
 ```
+
+On error, `status` is `"error"`, the message is `"Service call failed"`, and `id` is included when present. `correlationId` is only present when using `pinoAdapter` inside an Express request.
 
 #### `logError()` hook
 
@@ -214,9 +234,12 @@ import { logger, pinoAdapter, logRequest, logError } from '@mantlejs/logger';
 
 app.configure(logger(pinoAdapter(pino({ level: process.env.LOG_LEVEL ?? 'info' }))));
 
+const requestLogger = logRequest();
+
 app.service('users').hooks({
-  before: { all: [logRequest()] },
-  error: { all: [logError()] },
+  before: { all: [requestLogger] },
+  after:  { all: [requestLogger] },
+  error:  { all: [requestLogger, logError()] },
 });
 ```
 
@@ -932,3 +955,4 @@ Phase 2 upholds all Phase 1 principles and adds:
 | 11 | Cloud storage adapter naming? | **Separate installable packages:** `@mantlejs/upload-s3`, `@mantlejs/upload-gcs`. Users only install what they need. |
 | 12 | Config file format? | **JSON only** for Phase 2. Simple to parse, no additional dependencies. YAML or JS config files can be added in a later phase. |
 | 13 | Config validation at startup? | **Optional TypeBox schema.** If provided, invalid config throws `GeneralError` before the server starts — fail fast, fail loud. |
+| 14 | Correlation ID threading? | **`AsyncLocalStorage` in `@mantlejs/core`** (`withContext` / `getContext`). Express middleware injects `correlationId` per request; `pinoAdapter` merges it into every record automatically. Hooks can read `getContext()` directly. No function-signature threading required. |
