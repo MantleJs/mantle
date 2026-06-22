@@ -1,7 +1,7 @@
 import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
 import type { Application } from "express";
-import { mantle } from "@mantlejs/core";
+import { mantle, getContext } from "@mantlejs/core";
 import { BadRequest, NotFound } from "@mantlejs/core";
 import type { ServiceParams } from "@mantlejs/core";
 import { express } from "./express.js";
@@ -129,6 +129,64 @@ describe("express adapter", () => {
       expect(res.status).toBe(200);
       const body = (await res.json()) as User;
       expect(body.id).toBe("42");
+    });
+  });
+
+  describe("correlation ID", () => {
+    it("sets x-correlation-id response header on every request", async () => {
+      const app = mantle().configure(express());
+      app.use("users", new TestUserService());
+      const expressApp = app.get<Application>("express");
+      const { port, stop } = await startServer(expressApp);
+      try {
+        const res = await fetch(`http://localhost:${port}/users`);
+        expect(res.headers.get("x-correlation-id")).toBeTruthy();
+      } finally {
+        await stop();
+      }
+    });
+
+    it("echoes a client-supplied x-correlation-id header", async () => {
+      const app = mantle().configure(express());
+      app.use("users", new TestUserService());
+      const expressApp = app.get<Application>("express");
+      const { port, stop } = await startServer(expressApp);
+      try {
+        const res = await fetch(`http://localhost:${port}/users`, {
+          headers: { "x-correlation-id": "my-trace-id" },
+        });
+        expect(res.headers.get("x-correlation-id")).toBe("my-trace-id");
+      } finally {
+        await stop();
+      }
+    });
+
+    it("makes the correlationId available via getContext() inside hooks", async () => {
+      let capturedCorrelationId: string | undefined;
+
+      const app = mantle().configure(express());
+      app.use("users", new TestUserService());
+      app.service("users").hooks({
+        before: {
+          find: [
+            (ctx) => {
+              capturedCorrelationId = getContext()?.correlationId;
+              return ctx;
+            },
+          ],
+        },
+      });
+
+      const expressApp = app.get<Application>("express");
+      const { port, stop } = await startServer(expressApp);
+      try {
+        await fetch(`http://localhost:${port}/users`, {
+          headers: { "x-correlation-id": "hook-trace-id" },
+        });
+        expect(capturedCorrelationId).toBe("hook-trace-id");
+      } finally {
+        await stop();
+      }
     });
   });
 

@@ -1,5 +1,7 @@
+import { randomUUID } from "crypto";
 import expressLib, { type Application, type RequestHandler } from "express";
 import type { MantleApplication, MantlePlugin, ServiceOptions } from "@mantlejs/core";
+import { withContext } from "@mantlejs/core";
 import { mountServiceRoutes } from "./routes.js";
 import { errorHandler } from "./error-handler.js";
 
@@ -7,6 +9,11 @@ export function express(existingApp?: Application): MantlePlugin {
   return (app: MantleApplication): void => {
     const expressApp: Application = existingApp ?? expressLib();
     expressApp.use(expressLib.json());
+    expressApp.use((req, res, next) => {
+      const correlationId = (req.headers["x-correlation-id"] as string | undefined) ?? randomUUID();
+      res.setHeader("x-correlation-id", correlationId);
+      withContext({ correlationId }, next);
+    });
     app.set("express", expressApp);
 
     let errorHandlerAttached = false;
