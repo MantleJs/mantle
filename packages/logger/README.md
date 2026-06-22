@@ -174,7 +174,14 @@ function logRequest(options?: LogRequestOptions): HookFunction;
 interface LogRequestOptions {
   /** Log level for calls. Default: 'debug' */
   level?: "debug" | "info";
-  /** Include params in the log record. Default: false — may contain sensitive data */
+  /**
+   * Include params in the log record. Default: false.
+   *
+   * WARNING: params can contain sensitive data — query strings, auth tokens,
+   * pagination secrets, or any value a hook has attached. Only enable this
+   * in development, or pair it with pino's `redact` option to strip known
+   * sensitive paths before they reach the transport.
+   */
   includeParams?: boolean;
 }
 ```
@@ -255,6 +262,54 @@ app.service("users").hooks({
   "stack": "..."
 }
 ```
+
+---
+
+## PII and sensitive data
+
+Mantle's default log records are intentionally narrow — only service metadata (`method`, `path`, `provider`, `id`, `durationMs`, `status`) and error details reach the log output. The fields most likely to carry PII are **never logged by default**:
+
+| Field | Logged? | Notes |
+|---|---|---|
+| `ctx.data` (request body) | No | Passwords, email addresses, payment info |
+| `ctx.result` (response body) | No | Full entity records |
+| `ctx.params` | No (opt-in) | Query strings, auth tokens — see `includeParams` warning above |
+| `correlationId` | Yes | A UUID — not PII |
+| `ctx.id` | Yes | A resource identifier — usually not PII |
+
+### Redacting fields with pino
+
+If you use `pinoAdapter`, configure field redaction on the pino instance via pino's built-in [`redact`](https://getpino.io/#/docs/redaction) option. It uses `fast-redact` with JSONPath patterns and runs before serialisation:
+
+```typescript
+import pino from "pino";
+import { logger, pinoAdapter } from "@mantlejs/logger";
+
+app.configure(
+  logger(
+    pinoAdapter(
+      pino({
+        level: process.env.LOG_LEVEL ?? "info",
+        redact: {
+          paths: [
+            "user.email",
+            "user.password",
+            "params.query.token",
+            "*.creditCard",
+          ],
+          censor: "[REDACTED]",
+        },
+      }),
+    ),
+  ),
+);
+```
+
+This is the recommended approach — pino's redaction is fast, well-tested, and applies globally to every record without any changes to Mantle hooks or the `Logger` interface.
+
+### Redacting with winston or a custom logger
+
+Configure redaction at the transport or formatter level in your logger of choice. Mantle does not add a redaction layer on top of the underlying logger.
 
 ---
 
