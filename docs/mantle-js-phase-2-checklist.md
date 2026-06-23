@@ -13,7 +13,7 @@ Work through these in order. Each item maps to a package spec in the Phase 2 PRD
 - [x] **3. Implement `@mantlejs/schema`**
   New package. Re-export TypeBox (`Type`, `Static`, `TSchema`). Implement `validate()` hook with field-level `Unprocessable` errors. Implement `resolver()` hook supporting single records and arrays; returning `undefined` from a field resolver removes that field.
 
-- [ ] **4. Implement `@mantlejs/memory`**
+- [x] **4. Implement `@mantlejs/memory`**
   New package. `MemoryRepository<T>` backed by a `Map`. Must support all `QueryParams` operators with the same semantics as `KnexRepository`. Include `seed()`, `clear()`, and readonly `store` test helpers. Auto UUID via `crypto.randomUUID()`, auto timestamps.
 
 - [ ] **5. Implement `@mantlejs/config`**

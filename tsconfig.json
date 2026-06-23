@@ -26,6 +26,9 @@
     },
     {
       "path": "./packages/schema"
+    },
+    {
+      "path": "./packages/memory"
     }
   ]
 }
