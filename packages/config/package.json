@@ -1,0 +1,45 @@
+{
+  "name": "@mantlejs/config",
+  "version": "0.0.1",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    "./package.json": "./package.json",
+    ".": {
+      "@mantle/source": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "!**/*.tsbuildinfo"
+  ],
+  "nx": {
+    "name": "config"
+  },
+  "dependencies": {
+    "ajv": "^8.17.0",
+    "tslib": "^2.3.0"
+  },
+  "description": "Environment-aware configuration loading with optional schema validation for Mantle JS",
+  "license": "MIT",
+  "keywords": [
+    "mantle",
+    "config",
+    "configuration",
+    "typescript"
+  ],
+  "peerDependencies": {
+    "@mantlejs/core": "^0.0.1",
+    "@sinclair/typebox": "^0.34.0"
+  },
+  "peerDependenciesMeta": {
+    "@sinclair/typebox": {
+      "optional": true
+    }
+  }
+}

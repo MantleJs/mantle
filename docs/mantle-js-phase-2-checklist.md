@@ -16,7 +16,7 @@ Work through these in order. Each item maps to a package spec in the Phase 2 PRD
 - [x] **4. Implement `@mantlejs/memory`**
   New package. `MemoryRepository<T>` backed by a `Map`. Must support all `QueryParams` operators with the same semantics as `KnexRepository`. Include `seed()`, `clear()`, and readonly `store` test helpers. Auto UUID via `crypto.randomUUID()`, auto timestamps.
 
-- [ ] **5. Implement `@mantlejs/config`**
+- [x] **5. Implement `@mantlejs/config`**
   New package. `config()` plugin loads `config/default.json`, merges `config/{NODE_ENV}.json`, then applies `MANTLE_*` env var overrides (double underscore for nested keys). Optional TypeBox schema validates at startup — throws `GeneralError` on failure. Sets `app.set('config', merged)` and individual top-level keys.
 
 - [ ] **6. Implement `@mantlejs/auth-google`**
