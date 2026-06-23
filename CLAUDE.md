@@ -294,6 +294,7 @@ NX_DAEMON=false npx nx g @nx/js:library   --name=<name> --directory=packages/<na
 
 - For scaffolding tasks (creating apps, libs, project structure, setup), ALWAYS invoke the `nx-generate` skill FIRST before exploring or calling MCP tools
 - After generating a new package, ALWAYS replace the Nx-generated `README.md` with a full package README following the template in `packages/auth/README.md`. Sections: package name + one-line description, Installation, Concepts, Quick start, API (with options table), Types, Development, Publishing.
+- After generating a new package, ALWAYS add it to the Packages table in the root `README.md`.
 
 ## When to use nx_docs
 

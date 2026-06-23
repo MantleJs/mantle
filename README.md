@@ -126,11 +126,11 @@ NX_DAEMON=false npx nx g @nx/js:library \
 
 ## Tech Choices
 
-| Decision         | Choice                     | Reason                                                 |
-| ---------------- | -------------------------- | ------------------------------------------------------ |
-| Monorepo         | Nx (TS preset, npm)        | Task pipeline, module boundary enforcement             |
-| DB adapter       | Knex.js                    | Query builder not ORM — keeps infra layer thin         |
-| Password hashing | @node-rs/argon2 (Argon2id) | OWASP recommended; no 72-char bcrypt limit             |
-| Testing          | Vitest                     | Faster than Jest, native ESM, Jest-compatible API      |
-| Transport        | Express                    | Most familiar; AI-legible                              |
-| Bundler          | tsc                        | Emits .d.ts natively — critical for TS-first libraries |
+| Decision              | Choice                          | Reason                                                 |
+| --------------------- | ------------------------------- | ------------------------------------------------------ |
+| Monorepo              | Nx (TS preset, npm)             | Task pipeline, module boundary enforcement             |
+| SQL adapter (current) | @mantlejs/knex via Knex.js      | Query builder not ORM — keeps infra layer thin; additional adapters (e.g. Prisma) can be added |
+| Password hashing      | @node-rs/argon2 (Argon2id)      | OWASP recommended; no 72-char bcrypt limit             |
+| Testing               | Vitest                          | Faster than Jest, native ESM, Jest-compatible API      |
+| HTTP transport (P1)   | @mantlejs/express via Express   | Phase 1 adapter; transport layer is pluggable          |
+| Bundler               | tsc                             | Emits .d.ts natively — critical for TS-first libraries |
