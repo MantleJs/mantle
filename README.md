@@ -51,6 +51,8 @@ Dependencies always point inward. Nothing in Domain or Application layers knows 
 | `@mantlejs/knex`       | SQL adapter via Knex.js (PostgreSQL, MySQL/MariaDB, SQLite3, MSSQL)        |
 | `@mantlejs/auth`       | JWT engine + strategy runner                                               |
 | `@mantlejs/auth-local` | Local email+password strategy (Argon2id)                                   |
+| `@mantlejs/auth-oauth` | Shared OAuth 2.0 base — state, PKCE, find-or-create, route registration    |
+| `@mantlejs/auth-google`| Google Sign-In strategy (authorization code + PKCE, no Passport.js)       |
 | `@mantlejs/upload`     | File upload via busboy, local disk storage                                 |
 | `@mantlejs/logger`     | Structured logging — pino adapter, `logRequest` / `logError` hooks, correlation ID |
 | `@mantlejs/schema`     | TypeBox schema validation (`validate`) and field resolution (`resolver`) hooks |

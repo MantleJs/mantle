@@ -51,6 +51,8 @@ mantle/
 │   ├── knex/           @mantlejs/knex        SQL adapter via Knex.js (pg, mysql2, sqlite3…)
 │   ├── auth/           @mantlejs/auth        JWT engine + strategy runner
 │   ├── auth-local/     @mantlejs/auth-local  Local email+password strategy (Argon2id)
+│   ├── auth-oauth/     @mantlejs/auth-oauth  Shared OAuth 2.0 base (state, PKCE, find-or-create)
+│   ├── auth-google/    @mantlejs/auth-google Google Sign-In strategy (PKCE, no Passport.js)
 │   └── upload/         @mantlejs/upload      File upload via busboy, local disk storage
 ├── docs/               scaffold.sh, PRD, TDD
 └── CLAUDE.md           This file
@@ -58,14 +60,17 @@ mantle/
 
 ### Package Dependency Rules (enforced by @nx/enforce-module-boundaries)
 
-| Package              | May depend on                  |
-| -------------------- | ------------------------------ |
-| @mantlejs/core       | nothing                        |
-| @mantlejs/express    | @mantlejs/core                 |
-| @mantlejs/knex       | @mantlejs/core                 |
-| @mantlejs/auth       | @mantlejs/core                 |
-| @mantlejs/auth-local | @mantlejs/core, @mantlejs/auth |
-| @mantlejs/upload     | @mantlejs/core                 |
+| Package               | May depend on                               |
+| --------------------- | ------------------------------------------- |
+| @mantlejs/core        | nothing                                     |
+| @mantlejs/express     | @mantlejs/core                              |
+| @mantlejs/knex        | @mantlejs/core                              |
+| @mantlejs/auth        | @mantlejs/core                              |
+| @mantlejs/auth-local  | @mantlejs/core, @mantlejs/auth              |
+| @mantlejs/auth-oauth  | @mantlejs/core, @mantlejs/auth              |
+| @mantlejs/auth-google | @mantlejs/core, @mantlejs/auth-oauth        |
+| @mantlejs/auth-github | @mantlejs/core, @mantlejs/auth-oauth        |
+| @mantlejs/upload      | @mantlejs/core                              |
 
 ---
 

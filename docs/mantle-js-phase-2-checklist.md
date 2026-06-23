@@ -19,7 +19,7 @@ Work through these in order. Each item maps to a package spec in the Phase 2 PRD
 - [x] **5. Implement `@mantlejs/config`**
   New package. `config()` plugin loads `config/default.json`, merges `config/{NODE_ENV}.json`, then applies `MANTLE_*` env var overrides (double underscore for nested keys). Optional TypeBox schema validates at startup — throws `GeneralError` on failure. Sets `app.set('config', merged)` and individual top-level keys.
 
-- [ ] **6. Implement `@mantlejs/auth-google`**
+- [x] **6. Implement `@mantlejs/auth-google`**
   New package. `googleStrategy()` plugin. Registers `GET /auth/google` (redirect) and `GET /auth/google/callback` (code exchange, profile fetch, find-or-create user, issue Mantle JWT). Use PKCE. No Passport.js. Returns `{ accessToken, refreshToken, user }`.
 
 - [ ] **7. Implement `@mantlejs/auth-github`**
