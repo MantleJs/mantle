@@ -295,6 +295,11 @@ NX_DAEMON=false npx nx g @nx/js:library   --name=<name> --directory=packages/<na
 - For Nx plugin best practices, check `node_modules/@nx/<plugin>/PLUGIN.md`. Not all plugins have this file - proceed without it if unavailable.
 - NEVER guess CLI flags - always check nx_docs or `--help` first when unsure
 
+## Docs
+
+- `docs/planning/` — PRDs, TDDs, phase checklists
+- `docs/decisions/` — ADRs and design rationale; follow `adr-001-*.md` as the naming and format template
+
 ## Scaffolding & Generators
 
 - For scaffolding tasks (creating apps, libs, project structure, setup), ALWAYS invoke the `nx-generate` skill FIRST before exploring or calling MCP tools
