@@ -1,0 +1,39 @@
+{
+  "name": "@mantlejs/auth-github",
+  "version": "0.0.1",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    "./package.json": "./package.json",
+    ".": {
+      "@mantle/source": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "!**/*.tsbuildinfo"
+  ],
+  "nx": {
+    "name": "auth-github"
+  },
+  "description": "GitHub OAuth 2.0 strategy for Mantle JS",
+  "license": "MIT",
+  "keywords": [
+    "mantle",
+    "auth",
+    "github",
+    "oauth2"
+  ],
+  "dependencies": {
+    "tslib": "^2.3.0"
+  },
+  "peerDependencies": {
+    "@mantlejs/core": "^0.0.1",
+    "@mantlejs/auth-oauth": "^0.0.1"
+  }
+}

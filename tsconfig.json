@@ -38,6 +38,9 @@
     },
     {
       "path": "./packages/auth-google"
+    },
+    {
+      "path": "./packages/auth-github"
     }
   ]
 }

@@ -22,7 +22,7 @@ Work through these in order. Each item maps to a package spec in the Phase 2 PRD
 - [x] **6. Implement `@mantlejs/auth-google`**
   New package. `googleStrategy()` plugin. Registers `GET /auth/google` (redirect) and `GET /auth/google/callback` (code exchange, profile fetch, find-or-create user, issue Mantle JWT). Use PKCE. No Passport.js. Returns `{ accessToken, refreshToken, user }`.
 
-- [ ] **7. Implement `@mantlejs/auth-github`**
+- [x] **7. Implement `@mantlejs/auth-github`**
   New package. `githubStrategy()` plugin. Registers `GET /auth/github` and `GET /auth/github/callback`. Fetches profile from `api.github.com/user` and emails from `api.github.com/user/emails` if needed. Find-or-create user, issue Mantle JWT. No Passport.js.
 
 - [ ] **8. Implement `@mantlejs/socketio`**

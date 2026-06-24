@@ -15,21 +15,21 @@ Other frameworks (NestJS, AdonisJS, Hapi) either impose too much framework opini
 Mantle takes direct inspiration from FeathersJS's ergonomics — the plugin model, adapters, hooks-style middleware — but reimagines the core around a **layered architecture** where:
 
 - Domain logic is independent of infrastructure
-- Services define *contracts*, not *implementations*
+- Services define _contracts_, not _implementations_
 - Adapters and transports are swappable without touching business logic
 - The framework is predictable enough to be scaffolded and consumed by AI agents
 
 ### Mantle vs. FeathersJS
 
-| Concern | FeathersJS | Mantle JS |
-|---|---|---|
-| Service definition | Class implementing data + logic | Interface (contract) only |
-| Data access | Inside the service via adapter | Repository in Infrastructure layer |
-| Business logic | Mixed into service methods | Isolated in Application / Domain |
-| Hooks | Transport-aware | Transport-agnostic |
-| Swapping databases | Requires service changes | Swap adapter only |
-| Testability | Requires mocking transport | Domain testable with no mocks |
-| AI scaffoldability | Moderate | High (clear boundaries) |
+| Concern            | FeathersJS                      | Mantle JS                          |
+| ------------------ | ------------------------------- | ---------------------------------- |
+| Service definition | Class implementing data + logic | Interface (contract) only          |
+| Data access        | Inside the service via adapter  | Repository in Infrastructure layer |
+| Business logic     | Mixed into service methods      | Isolated in Application / Domain   |
+| Hooks              | Transport-aware                 | Transport-agnostic                 |
+| Swapping databases | Requires service changes        | Swap adapter only                  |
+| Testability        | Requires mocking transport      | Domain testable with no mocks      |
+| AI scaffoldability | Moderate                        | High (clear boundaries)            |
 
 ## Architecture
 
@@ -44,18 +44,19 @@ Dependencies always point inward. Nothing in Domain or Application layers knows 
 
 ## Packages
 
-| Package                | Description                                                                |
-| ---------------------- | -------------------------------------------------------------------------- |
-| `@mantlejs/core`       | Framework kernel — Service, Repository, hooks, errors. Zero external deps. |
-| `@mantlejs/express`    | Express HTTP transport adapter                                             |
-| `@mantlejs/knex`       | SQL adapter via Knex.js (PostgreSQL, MySQL/MariaDB, SQLite3, MSSQL)        |
-| `@mantlejs/auth`       | JWT engine + strategy runner                                               |
-| `@mantlejs/auth-local` | Local email+password strategy (Argon2id)                                   |
-| `@mantlejs/auth-oauth` | Shared OAuth 2.0 base — state, PKCE, find-or-create, route registration    |
-| `@mantlejs/auth-google`| Google Sign-In strategy (authorization code + PKCE, no Passport.js)       |
-| `@mantlejs/upload`     | File upload via busboy, local disk storage                                 |
-| `@mantlejs/logger`     | Structured logging — pino adapter, `logRequest` / `logError` hooks, correlation ID |
-| `@mantlejs/schema`     | TypeBox schema validation (`validate`) and field resolution (`resolver`) hooks |
+| Package                 | Description                                                                        |
+| ----------------------- | ---------------------------------------------------------------------------------- |
+| `@mantlejs/core`        | Framework kernel — Service, Repository, hooks, errors. Zero external deps.         |
+| `@mantlejs/express`     | Express HTTP transport adapter                                                     |
+| `@mantlejs/knex`        | SQL adapter via Knex.js (PostgreSQL, MySQL/MariaDB, SQLite3, MSSQL)                |
+| `@mantlejs/auth`        | JWT engine + strategy runner                                                       |
+| `@mantlejs/auth-local`  | Local email+password strategy (Argon2id)                                           |
+| `@mantlejs/auth-oauth`  | Shared OAuth 2.0 base — state, PKCE, find-or-create, route registration            |
+| `@mantlejs/auth-google` | Google Sign-In strategy (authorization code + PKCE, no Passport.js)                |
+| `@mantlejs/auth-github` | GitHub Sign-In strategy (authorization code flow, no Passport.js)                  |
+| `@mantlejs/upload`      | File upload via busboy, local disk storage                                         |
+| `@mantlejs/logger`      | Structured logging — pino adapter, `logRequest` / `logError` hooks, correlation ID |
+| `@mantlejs/schema`      | TypeBox schema validation (`validate`) and field resolution (`resolver`) hooks     |
 
 ## Quick Start
 
@@ -128,11 +129,11 @@ NX_DAEMON=false npx nx g @nx/js:library \
 
 ## Tech Choices
 
-| Decision              | Choice                          | Reason                                                 |
-| --------------------- | ------------------------------- | ------------------------------------------------------ |
-| Monorepo              | Nx (TS preset, npm)             | Task pipeline, module boundary enforcement             |
-| SQL adapter (current) | @mantlejs/knex via Knex.js      | Query builder not ORM — keeps infra layer thin; additional adapters (e.g. Prisma) can be added |
-| Password hashing      | @node-rs/argon2 (Argon2id)      | OWASP recommended; no 72-char bcrypt limit             |
-| Testing               | Vitest                          | Faster than Jest, native ESM, Jest-compatible API      |
-| HTTP transport (P1)   | @mantlejs/express via Express   | Phase 1 adapter; transport layer is pluggable          |
-| Bundler               | tsc                             | Emits .d.ts natively — critical for TS-first libraries |
+| Decision              | Choice                        | Reason                                                                                         |
+| --------------------- | ----------------------------- | ---------------------------------------------------------------------------------------------- |
+| Monorepo              | Nx (TS preset, npm)           | Task pipeline, module boundary enforcement                                                     |
+| SQL adapter (current) | @mantlejs/knex via Knex.js    | Query builder not ORM — keeps infra layer thin; additional adapters (e.g. Prisma) can be added |
+| Password hashing      | @node-rs/argon2 (Argon2id)    | OWASP recommended; no 72-char bcrypt limit                                                     |
+| Testing               | Vitest                        | Faster than Jest, native ESM, Jest-compatible API                                              |
+| HTTP transport (P1)   | @mantlejs/express via Express | Phase 1 adapter; transport layer is pluggable                                                  |
+| Bundler               | tsc                           | Emits .d.ts natively — critical for TS-first libraries                                         |
