@@ -25,7 +25,7 @@ Work through these in order. Each item maps to a package spec in the Phase 2 PRD
 - [x] **7. Implement `@mantlejs/auth-github`**
   New package. `githubStrategy()` plugin. Registers `GET /auth/github` and `GET /auth/github/callback`. Fetches profile from `api.github.com/user` and emails from `api.github.com/user/emails` if needed. Find-or-create user, issue Mantle JWT. No Passport.js.
 
-- [ ] **8. Implement `@mantlejs/socketio`**
+- [x] **8. Implement `@mantlejs/socketio`**
   New package. `socketio()` plugin attaches a `socket.io` Server to the Express HTTP server. Wire socket events (`find`, `get`, `create`, `update`, `patch`, `remove`) through the full hook pipeline. Set `params.provider = 'socket.io'`. Emit `<service> created/updated/patched/removed` events to all connected clients after successful mutations. Must be configured after `express()`.
 
 - [ ] **9. Implement `@mantlejs/upload-s3`**

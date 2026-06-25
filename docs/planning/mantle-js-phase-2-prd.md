@@ -111,6 +111,42 @@ LOG_LEVEL=info npm start    # info + warn + error  (production default)
 LOG_LEVEL=warn npm start    # warn + error only
 ```
 
+### `@mantlejs/core` — Application event bus (additive)
+
+A lightweight event bus is added to `MantleApplication`. Uses Node.js `EventEmitter` internally — zero new dependencies.
+
+```typescript
+interface MantleApplication {
+  // ...existing...
+  on(event: string, listener: (...args: unknown[]) => void): this;
+  off(event: string, listener: (...args: unknown[]) => void): this;
+  emit(event: string, ...args: unknown[]): void;
+}
+```
+
+After every successful service mutation (`create`, `update`, `patch`, `remove`), core emits a `'service:event'` on the application, regardless of which transport triggered the call:
+
+```typescript
+app.emit('service:event', path, eventName, result, params);
+// e.g. app.emit('service:event', 'users', 'created', newUser, { provider: 'rest', ... })
+```
+
+`@mantlejs/socketio` subscribes to this once and fans out to connected socket clients, giving REST mutations automatic real-time broadcast with no extra wiring.
+
+`ServiceHandle` also exposes `readonly methods: string[]` — the list of methods (standard and custom) allowed on that service. Transports use this for routing decisions.
+
+### `@mantlejs/core` — `ServiceParams` additions (additive)
+
+Two new optional fields on `ServiceParams`, both recognised by `@mantlejs/socketio`:
+
+```typescript
+interface ServiceParams {
+  // ...existing...
+  connection?: Record<string, unknown>; // per-socket persistent state
+  rooms?: string | string[];            // if set, broadcast only to these socket.io rooms
+}
+```
+
 ### `@mantlejs/core` — Request Context (additive)
 
 An `AsyncLocalStorage`-based request context is added to core. Uses Node.js built-ins — zero new dependencies.
@@ -646,7 +682,7 @@ interface SocketioOptions {
 
 #### Service method calls over sockets
 
-Clients call service methods by emitting named events:
+Clients call service methods by emitting named events. Standard and custom methods share the same protocol:
 
 ```
 socket.emit('<method>', '<service>', <data|id|null>, <params>, callback)
@@ -660,10 +696,13 @@ socket.emit('<method>', '<service>', <data|id|null>, <params>, callback)
 | `'update'` | `service.update(id, data, params)` |
 | `'patch'` | `service.patch(id, data, params)` |
 | `'remove'` | `service.remove(id, params)` |
+| `'<customMethod>'` | `service.dispatch(method, data, undefined, params)` |
+
+Custom methods must be declared in `app.use()` options and are routed via `ServiceHandle.dispatch()`.
 
 #### Service events (server → client)
 
-After successful mutating operations, services emit events all connected clients receive:
+After a successful mutating operation — via **any transport** (REST or socket) — all connected socket clients receive the event:
 
 | Service method | Emitted event |
 |---|---|
@@ -676,6 +715,48 @@ After successful mutating operations, services emit events all connected clients
 // Client
 socket.on('users created', (user) => {
   console.log('New user:', user);
+});
+```
+
+This means a `POST /users` over REST also triggers `users created` on all socket clients — no separate event wiring needed.
+
+#### Selective broadcast via `params.rooms`
+
+Before hooks can scope an event to specific socket.io rooms by setting `params.rooms`:
+
+```typescript
+app.service('messages').hooks({
+  before: {
+    create: [
+      (ctx) => {
+        ctx.params.rooms = ['admins', `user:${ctx.params.user?.id}`];
+        return ctx;
+      },
+    ],
+  },
+});
+```
+
+If `params.rooms` is set, the event is emitted via `io.to(rooms).emit(...)` instead of `io.emit(...)`. If unset, all clients receive the event.
+
+#### Per-socket connection state
+
+Each socket connection gets a persistent `connection` object that lives for the duration of the connection. It is available to hooks as `params.connection`:
+
+```typescript
+app.service('messages').hooks({
+  before: {
+    all: [
+      async (ctx) => {
+        // Store auth result on first call, reuse on subsequent calls
+        if (!ctx.params.connection?.user) {
+          ctx.params.connection = { ...ctx.params.connection, user: await verifyToken(ctx) };
+        }
+        ctx.params.user = ctx.params.connection.user as Record<string, unknown>;
+        return ctx;
+      },
+    ],
+  },
 });
 ```
 
@@ -696,8 +777,6 @@ app.service('messages').hooks({
   },
 });
 ```
-
-> **Phase 2 scope note:** All socket events are broadcast to all connected clients. Targeted delivery to specific users or rooms (channels) is deferred to Phase 3 (`@mantlejs/channels`).
 
 #### Typical setup
 

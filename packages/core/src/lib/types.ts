@@ -19,6 +19,10 @@ export interface ServiceParams {
   user?: Record<string, unknown>;
   provider?: string;
   headers?: Record<string, string>;
+  /** Per-socket connection state. Set by the socket.io transport and persists across calls from the same socket. */
+  connection?: Record<string, unknown>;
+  /** Rooms to broadcast mutation events to. If set by a before hook, the socket.io transport will broadcast only to these rooms instead of all clients. */
+  rooms?: string | string[];
   [key: string]: unknown;
 }
 
@@ -93,6 +97,7 @@ export interface ServiceHandle<T> extends Service<T> {
   hooks(config: HookConfig<T>): this;
   dispatch(method: string, data?: Partial<T>, id?: Id, params?: ServiceParams): Promise<T | T[] | Paginated<T>>;
   readonly schema?: unknown;
+  readonly methods: string[];
 }
 
 export interface MantleApplication {
@@ -102,4 +107,7 @@ export interface MantleApplication {
   set(key: string, value: unknown): this;
   get<T = unknown>(key: string): T;
   teardown(): Promise<void>;
+  on(event: string, listener: (...args: unknown[]) => void): this;
+  off(event: string, listener: (...args: unknown[]) => void): this;
+  emit(event: string, ...args: unknown[]): void;
 }

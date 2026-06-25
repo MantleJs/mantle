@@ -157,12 +157,48 @@ interface ServiceOptions {
 }
 ```
 
-### `ServiceHandle<T>` — `schema` property (additive)
+### `ServiceHandle<T>` — `schema` and `methods` properties (additive)
 
 ```typescript
 interface ServiceHandle<T> extends Service<T> {
   hooks(config: HookConfig<T>): this;
-  schema?: TSchema;  // [NEW P2] — set when schema is passed to app.use()
+  schema?: TSchema;     // [NEW P2] — set when schema is passed to app.use()
+  readonly methods: string[];  // [NEW P2] — allowed methods (standard + custom)
+}
+```
+
+### `MantleApplication` — event bus (additive)
+
+Added to the public API surface of `@mantlejs/core`. Uses Node.js `EventEmitter` internally — zero new dependencies.
+
+```typescript
+interface MantleApplication {
+  // ...existing...
+  on(event: string, listener: (...args: unknown[]) => void): this;
+  off(event: string, listener: (...args: unknown[]) => void): this;
+  emit(event: string, ...args: unknown[]): void;
+}
+```
+
+After every successful service mutation (`create`, `update`, `patch`, `remove`), core emits a `'service:event'` on the application — regardless of which transport triggered the call:
+
+```typescript
+// Emitted internally by ServiceHandleImpl after each successful mutation
+app.emit('service:event', path, eventName, result, params);
+// e.g. app.emit('service:event', 'users', 'created', newUser, { provider: 'rest', ... })
+```
+
+Transports subscribe once and fan out to their clients. This is what enables REST mutations to automatically trigger socket broadcasts with no extra wiring.
+
+### `ServiceParams` — `connection` and `rooms` fields (additive)
+
+```typescript
+interface ServiceParams {
+  // ...existing...
+  /** Per-socket persistent state. Set by the socket.io transport; persists across calls from the same connection. */
+  connection?: Record<string, unknown>;
+  /** Rooms to broadcast mutation events to. If set, the socket.io transport broadcasts only to these rooms. */
+  rooms?: string | string[];
 }
 ```
 
@@ -677,34 +713,31 @@ The underlying `socket.io` Server instance is accessible via `app.get('socketio'
 
 #### Client → server (service method calls)
 
+All calls — standard and custom — use the same pattern. Implemented internally via `socket.onAny()`.
+
 ```typescript
 // Signature
 socket.emit(method, servicePath, ...args, callback)
 
-// find
-socket.emit('find', 'users', params, (error, result) => { ... });
+// Standard methods
+socket.emit('find',   'users', params,         (error, result) => { ... });
+socket.emit('get',    'users', id, params,      (error, result) => { ... });
+socket.emit('create', 'users', data, params,    (error, result) => { ... });
+socket.emit('update', 'users', id, data, params,(error, result) => { ... });
+socket.emit('patch',  'users', id, data, params,(error, result) => { ... });
+socket.emit('remove', 'users', id, params,      (error, result) => { ... });
 
-// get
-socket.emit('get', 'users', id, params, (error, result) => { ... });
-
-// create
-socket.emit('create', 'users', data, params, (error, result) => { ... });
-
-// update
-socket.emit('update', 'users', id, data, params, (error, result) => { ... });
-
-// patch
-socket.emit('patch', 'users', id, data, params, (error, result) => { ... });
-
-// remove
-socket.emit('remove', 'users', id, params, (error, result) => { ... });
+// Custom method (declared in app.use options.methods) — same shape as create
+socket.emit('charge', 'payments', data, params, (error, result) => { ... });
 ```
 
-Callbacks follow Node.js error-first convention: `(error: MantleError | null, result: T | null)`.
+Callbacks follow Node.js error-first convention: `(error: SerializedMantleError | null, result: T | null)`.
+
+Custom methods are routed via `ServiceHandle.dispatch(method, data, undefined, params)`. Methods not in the service's declared `methods` list are rejected with a `GeneralError`.
 
 #### Server → client (service events)
 
-Emitted automatically after successful mutating operations, to all connected clients:
+Emitted automatically after successful mutating operations. **Fires for any transport** (REST or socket) via the `'service:event'` app bus:
 
 ```typescript
 // Event name format: '<servicePath> <eventName>'
@@ -713,6 +746,27 @@ socket.on('users updated',  (data: User) => { ... });
 socket.on('users patched',  (data: User) => { ... });
 socket.on('users removed',  (data: User) => { ... });
 ```
+
+A REST `POST /users` triggers `users created` on all socket clients automatically.
+
+#### Selective broadcast via `params.rooms`
+
+If a before hook sets `params.rooms`, the event is emitted to those socket.io rooms only:
+
+```typescript
+// (error, result) => io.to(params.rooms).emit('users created', result)
+// Otherwise: io.emit('users created', result)
+```
+
+#### Per-connection state
+
+Each socket gets a persistent `connection` object available to hooks as `params.connection`:
+
+```typescript
+params.connection  // Record<string, unknown>, lives for the socket's lifetime
+```
+
+Hooks can store auth state, preferences, or any per-user data on this object and access it on subsequent calls without re-fetching.
 
 ### `params.provider` for socket calls
 
@@ -724,7 +778,7 @@ Hooks can use `params.provider` to apply different logic for REST vs socket call
 
 ### Error serialization over sockets
 
-Socket.io errors are serialized using `MantleError.toJSON()`:
+Socket.io errors are serialized using `MantleError.toJSON()`. Plain `Error` instances are wrapped in `GeneralError` before serializing:
 
 ```typescript
 {
@@ -942,7 +996,7 @@ Client
 
 ### Socket.io Real-Time Event Lifecycle
 
-The following traces a Socket.io `create` call and the resulting broadcast event.
+The following traces a Socket.io `create` call and the resulting broadcast event. The broadcast flows through the core event bus, not directly from the socket handler — which is why REST mutations also trigger socket events.
 
 ```
 Socket.io Client A                    Socket.io Client B (listener)
@@ -951,8 +1005,9 @@ Socket.io Client A                    Socket.io Client B (listener)
   │    { text: 'Hello' }, {}, callback)      │
   ▼                                         │
 @mantlejs/socketio  (Transport Layer)        │
-  │  • Parses socket event arguments         │
+  │  • socket.onAny() handler fires          │
   │  • Sets params.provider = 'socket.io'   │
+  │  • Attaches params.connection (per-socket state)
   ▼                                         │
 Hook Pipeline — BEFORE                       │
   │  • authenticate('jwt')                   │
@@ -966,11 +1021,21 @@ Repository.save(data) → Message entity       │
 Hook Pipeline — AFTER                        │
   │  • (any after hooks)                     │
   ▼                                         │
-@mantlejs/socketio                           │
-  │  • Calls callback(null, message)  →→→  Client A receives result
-  │  • Emits 'messages created', message →→ Client B receives event
-  │                                         ▼
-  │                              socket.on('messages created', (msg) => ...)
+@mantlejs/core — ServiceHandleImpl           │
+  │  • app.emit('service:event',             │
+  │      'messages', 'created', result, params)
+  ▼                                         │
+@mantlejs/socketio — app event listener      │
+  │  • checks params.rooms                  │
+  │  • if set: io.to(rooms).emit(...)        │
+  │  • else:   io.emit('messages created', result) →→ Client B receives event
+  ▼                                         ▼
+@mantlejs/socketio — socket handler          │
+  │  • callback(null, message)  →→→→→→→→  Client A receives acknowledgement
 ```
 
-**Key difference from REST:** The socket transport calls the Acknowledgement callback for the caller's result AND emits a named event to all connected clients. The same hook pipeline runs for both.
+**Key design properties:**
+- The socket handler calls `callback` with the result (acknowledgement for Client A).
+- The broadcast to all other clients (Client B) flows through `app.emit('service:event', ...)` in core, not from the socket handler directly.
+- This means a REST `POST /messages` follows the same path from `Service.create(data, params)` onward — the socket broadcast happens automatically.
+- `params.rooms` (set by a before hook) scopes the broadcast to specific socket.io rooms instead of all clients.

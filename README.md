@@ -44,19 +44,20 @@ Dependencies always point inward. Nothing in Domain or Application layers knows 
 
 ## Packages
 
-| Package                 | Description                                                                        |
-| ----------------------- | ---------------------------------------------------------------------------------- |
-| `@mantlejs/core`        | Framework kernel — Service, Repository, hooks, errors. Zero external deps.         |
-| `@mantlejs/express`     | Express HTTP transport adapter                                                     |
-| `@mantlejs/knex`        | SQL adapter via Knex.js (PostgreSQL, MySQL/MariaDB, SQLite3, MSSQL)                |
-| `@mantlejs/auth`        | JWT engine + strategy runner                                                       |
-| `@mantlejs/auth-local`  | Local email+password strategy (Argon2id)                                           |
-| `@mantlejs/auth-oauth`  | Shared OAuth 2.0 base — state, PKCE, find-or-create, route registration            |
-| `@mantlejs/auth-google` | Google Sign-In strategy (authorization code + PKCE, no Passport.js)                |
-| `@mantlejs/auth-github` | GitHub Sign-In strategy (authorization code flow, no Passport.js)                  |
-| `@mantlejs/upload`      | File upload via busboy, local disk storage                                         |
-| `@mantlejs/logger`      | Structured logging — pino adapter, `logRequest` / `logError` hooks, correlation ID |
-| `@mantlejs/schema`      | TypeBox schema validation (`validate`) and field resolution (`resolver`) hooks     |
+| Package                 | Description                                                                           |
+| ----------------------- | ------------------------------------------------------------------------------------- |
+| `@mantlejs/core`        | Framework kernel — Service, Repository, hooks, errors. Zero external deps.            |
+| `@mantlejs/express`     | Express HTTP transport adapter                                                        |
+| `@mantlejs/knex`        | SQL adapter via Knex.js (PostgreSQL, MySQL/MariaDB, SQLite3, MSSQL)                   |
+| `@mantlejs/auth`        | JWT engine + strategy runner                                                          |
+| `@mantlejs/auth-local`  | Local email+password strategy (Argon2id)                                              |
+| `@mantlejs/auth-oauth`  | Shared OAuth 2.0 base — state, PKCE, find-or-create, route registration               |
+| `@mantlejs/auth-google` | Google Sign-In strategy (authorization code + PKCE, no Passport.js)                   |
+| `@mantlejs/auth-github` | GitHub Sign-In strategy (authorization code flow, no Passport.js)                     |
+| `@mantlejs/upload`      | File upload via busboy, local disk storage                                            |
+| `@mantlejs/logger`      | Structured logging — pino adapter, `logRequest` / `logError` hooks, correlation ID    |
+| `@mantlejs/schema`      | TypeBox schema validation (`validate`) and field resolution (`resolver`) hooks        |
+| `@mantlejs/socketio`    | Socket.IO transport adapter — real-time WebSocket events via the Mantle hook pipeline |
 
 ## Quick Start
 

@@ -41,6 +41,9 @@
     },
     {
       "path": "./packages/auth-github"
+    },
+    {
+      "path": "./packages/socketio"
     }
   ]
 }

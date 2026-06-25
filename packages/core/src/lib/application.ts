@@ -1,3 +1,4 @@
+import { EventEmitter } from "events";
 import { BadRequest, GeneralError, MethodNotAllowed, NotFound } from "./errors.js";
 import type {
   HookConfig,
@@ -24,6 +25,13 @@ type ResolvedServiceOptions = {
 const DEFAULT_METHODS = ["find", "get", "create", "update", "patch", "remove"];
 const DEFAULT_EVENTS = ["created", "updated", "patched", "removed"];
 
+const SERVICE_EVENTS: Partial<Record<string, string>> = {
+  create: "created",
+  update: "updated",
+  patch: "patched",
+  remove: "removed",
+};
+
 async function runHookChain<T>(hooks: HookFunction<T>[], ctx: HookContext<T>): Promise<HookContext<T>> {
   let current = ctx;
   for (const hook of hooks) {
@@ -43,6 +51,10 @@ class ServiceHandleImpl<T> implements ServiceHandle<T> {
     private readonly options: ResolvedServiceOptions,
   ) {
     this.schema = options.schema;
+  }
+
+  get methods(): string[] {
+    return this.options.methods;
   }
 
   hooks(config: HookConfig<T>): this {
@@ -139,6 +151,11 @@ class ServiceHandleImpl<T> implements ServiceHandle<T> {
 
       ctx = await runHookChain(this.getPhaseHooks("after", method), ctx);
 
+      const serviceEventName = SERVICE_EVENTS[method];
+      if (serviceEventName) {
+        this.app.emit("service:event", this.path, serviceEventName, ctx.result, ctx.params);
+      }
+
       return ctx.result as T | T[] | Paginated<T>;
     } catch (error) {
       ctx.error = error instanceof Error ? error : new GeneralError(String(error));
@@ -181,9 +198,24 @@ export class MantleApplicationImpl implements MantleApplication {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private readonly _services = new Map<string, ServiceHandleImpl<any>>();
   private readonly _settings = new Map<string, unknown>();
+  private readonly _emitter = new EventEmitter();
 
   constructor(private readonly _options: MantleOptions = {}) {
     void this._options;
+  }
+
+  on(event: string, listener: (...args: unknown[]) => void): this {
+    this._emitter.on(event, listener as (...args: unknown[]) => void);
+    return this;
+  }
+
+  off(event: string, listener: (...args: unknown[]) => void): this {
+    this._emitter.off(event, listener as (...args: unknown[]) => void);
+    return this;
+  }
+
+  emit(event: string, ...args: unknown[]): void {
+    this._emitter.emit(event, ...args);
   }
 
   use<T = unknown>(path: string, service: Partial<Service<T>>, options: ServiceOptions = {}): this {

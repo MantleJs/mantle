@@ -300,6 +300,10 @@ NX_DAEMON=false npx nx g @nx/js:library   --name=<name> --directory=packages/<na
 - `docs/planning/` — PRDs, TDDs, phase checklists
 - `docs/decisions/` — ADRs and design rationale; follow `adr-001-*.md` as the naming and format template
 
+## FeathersJS comparisons
+
+When the user asks to compare a Mantle package or feature with FeathersJS, ALWAYS write the comparison to a markdown file in `docs/decisions/` (e.g. `docs/decisions/socketio-comparison.md`, `docs/decisions/auth-comparison.md`) in addition to any inline response. Use the existing files in `docs/decisions/` as format reference.
+
 ## Scaffolding & Generators
 
 - For scaffolding tasks (creating apps, libs, project structure, setup), ALWAYS invoke the `nx-generate` skill FIRST before exploring or calling MCP tools

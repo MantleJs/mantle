@@ -391,3 +391,106 @@ describe("ServiceOptions — schema", () => {
     expect(app.service("users").schema).toBeUndefined();
   });
 });
+
+describe("ServiceHandle — methods", () => {
+  it("exposes the default six methods", () => {
+    const app = mantle();
+    app.use("users", makeUserService());
+    expect(app.service("users").methods).toEqual(["find", "get", "create", "update", "patch", "remove"]);
+  });
+
+  it("exposes custom methods when provided", () => {
+    const app = mantle();
+    app.use("users", makeUserService(), { methods: ["find", "charge"] });
+    expect(app.service("users").methods).toEqual(["find", "charge"]);
+  });
+});
+
+describe("MantleApplication — event bus", () => {
+  it("on/emit allows plugins to subscribe and receive events", () => {
+    const app = mantle();
+    const received: unknown[] = [];
+    app.on("my:event", (a, b) => received.push(a, b));
+    app.emit("my:event", "hello", 42);
+    expect(received).toEqual(["hello", 42]);
+  });
+
+  it("off removes a listener", () => {
+    const app = mantle();
+    const received: unknown[] = [];
+    const listener = (v: unknown) => received.push(v);
+    app.on("test", listener);
+    app.emit("test", 1);
+    app.off("test", listener);
+    app.emit("test", 2);
+    expect(received).toEqual([1]);
+  });
+
+  it("on returns the app for chaining", () => {
+    const app = mantle();
+    expect(app.on("x", () => undefined)).toBe(app);
+  });
+});
+
+describe("Service events", () => {
+  it("emits 'service:event' on the app after create", async () => {
+    const app = mantle();
+    app.use("users", makeUserService());
+    const events: unknown[] = [];
+    app.on("service:event", (...args) => events.push(args));
+    await app.service<User>("users").create({ name: "Alice" });
+    expect(events).toHaveLength(1);
+    expect(events[0]).toEqual([
+      "users",
+      "created",
+      expect.objectContaining({ name: "Alice" }),
+      expect.any(Object),
+    ]);
+  });
+
+  it("emits 'service:event' after update, patch, remove", async () => {
+    const app = mantle();
+    app.use("users", makeUserService());
+    const eventNames: string[] = [];
+    app.on("service:event", (_path, event) => eventNames.push(event as string));
+    await app.service<User>("users").update(1, { name: "Bob" });
+    await app.service<User>("users").patch(1, { name: "Carol" });
+    await app.service<User>("users").remove(1);
+    expect(eventNames).toEqual(["updated", "patched", "removed"]);
+  });
+
+  it("does NOT emit 'service:event' for find or get", async () => {
+    const app = mantle();
+    app.use("users", makeUserService());
+    const events: unknown[] = [];
+    app.on("service:event", (...args) => events.push(args));
+    await app.service<User>("users").find();
+    await app.service<User>("users").get(1);
+    expect(events).toHaveLength(0);
+  });
+
+  it("does NOT emit 'service:event' when the service method throws", async () => {
+    const app = mantle();
+    app.use("users", {
+      async create(): Promise<User> {
+        throw new BadRequest("fail");
+      },
+    });
+    const events: unknown[] = [];
+    app.on("service:event", (...args) => events.push(args));
+    await expect(app.service<User>("users").create({})).rejects.toThrow();
+    expect(events).toHaveLength(0);
+  });
+
+  it("includes params in the 'service:event' payload", async () => {
+    const app = mantle();
+    app.use("users", makeUserService());
+    let capturedParams: ServiceParams | undefined;
+    app.on("service:event", (_path, _event, _result, params) => {
+      capturedParams = params as ServiceParams;
+    });
+    await app.service<User>("users").create({ name: "Alice" }, { provider: "rest", rooms: ["admins"] });
+    expect(capturedParams?.provider).toBe("rest");
+    expect(capturedParams?.rooms).toEqual(["admins"]);
+  });
+});

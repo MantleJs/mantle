@@ -12,7 +12,7 @@ describe("withContext / getContext", () => {
   });
 
   it("does not leak context after the scope exits", () => {
-    withContext({ correlationId: "abc-123" }, () => {});
+    withContext({ correlationId: "abc-123" }, () => undefined);
     expect(getContext()).toBeUndefined();
   });
 
