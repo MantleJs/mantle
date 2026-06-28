@@ -2,8 +2,8 @@ import { Ajv, type ValidateFunction } from "ajv";
 import * as ajvFormatsNS from "ajv-formats";
 import { Value } from "@sinclair/typebox/value";
 import type { TSchema } from "@sinclair/typebox";
-import { Unprocessable } from "@mantlejs/core";
-import type { HookFunction } from "@mantlejs/core";
+import { Unprocessable } from "@mantlejs/mantle";
+import type { HookFunction } from "@mantlejs/mantle";
 
 // ajv-formats ships without an "exports" field so TypeScript's moduleResolution:nodenext
 // cannot resolve its default callable from the module namespace type. Cast explicitly.

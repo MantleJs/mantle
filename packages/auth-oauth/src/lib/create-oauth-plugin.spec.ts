@@ -1,6 +1,6 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import type { MantleApplication } from "@mantlejs/core";
-import { NotAuthenticated } from "@mantlejs/core";
+import type { MantleApplication } from "@mantlejs/mantle";
+import { NotAuthenticated } from "@mantlejs/mantle";
 import type { AuthEngine } from "@mantlejs/auth";
 import type { OAuthProvider } from "./types.js";
 

@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type { Knex } from "knex";
-import type { MantleApplication } from "@mantlejs/core";
-import { BadRequest, Conflict, Forbidden, GeneralError, NotFound, Unavailable, Unprocessable } from "@mantlejs/core";
+import type { MantleApplication } from "@mantlejs/mantle";
+import { BadRequest, Conflict, Forbidden, GeneralError, NotFound, Unavailable, Unprocessable } from "@mantlejs/mantle";
 import { KnexRepository } from "./knex-repository.js";
 
 interface User extends Record<string, unknown> {

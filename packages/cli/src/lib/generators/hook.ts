@@ -20,7 +20,7 @@ export async function generateHook(name: string, options: HookGeneratorOptions):
 }
 
 function hookTemplate(camel: string, pascal: string): string {
-  return `import type { HookContext, HookFunction } from "@mantlejs/core";
+  return `import type { HookContext, HookFunction } from "@mantlejs/mantle";
 
 export interface ${pascal}Options {
   // add options here
@@ -37,7 +37,7 @@ export function ${camel}(options: ${pascal}Options = {}): HookFunction {
 
 function hookSpecTemplate(camel: string, kebab: string): string {
   return `import { describe, it, expect } from "vitest";
-import type { HookContext } from "@mantlejs/core";
+import type { HookContext } from "@mantlejs/mantle";
 import { ${camel} } from "./${kebab}.hook.js";
 
 const makeContext = (overrides: Partial<HookContext> = {}): HookContext =>

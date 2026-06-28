@@ -1,5 +1,5 @@
-import type { HookContext, HookFunction } from "@mantlejs/core";
-import { NotAuthenticated } from "@mantlejs/core";
+import type { HookContext, HookFunction } from "@mantlejs/mantle";
+import { NotAuthenticated } from "@mantlejs/mantle";
 import type { AuthEngine, JwtPayload } from "./types.js";
 
 export function authenticate(strategy: string): HookFunction {

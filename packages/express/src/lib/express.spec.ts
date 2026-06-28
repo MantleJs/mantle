@@ -1,9 +1,9 @@
 import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
 import type { Application } from "express";
-import { mantle, getContext } from "@mantlejs/core";
-import { BadRequest, NotFound } from "@mantlejs/core";
-import type { ServiceParams } from "@mantlejs/core";
+import { mantle, getContext } from "@mantlejs/mantle";
+import { BadRequest, NotFound } from "@mantlejs/mantle";
+import type { ServiceParams } from "@mantlejs/mantle";
 import { express } from "./express.js";
 
 async function startServer(expressApp: Application): Promise<{ port: number; stop: () => Promise<void> }> {

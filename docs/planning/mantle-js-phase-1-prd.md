@@ -180,7 +180,7 @@ Mantle separates these concerns using a **layered architecture** informed by bot
 The top-level Mantle instance. Responsible for registering services, configuring transports, and bootstrapping the application.
 
 ```typescript
-import { mantle } from '@mantlejs/core';
+import { mantle } from '@mantlejs/mantle';
 import express from '@mantlejs/express';
 
 const app = mantle().configure(express());
@@ -274,7 +274,7 @@ Deliver a functional, installable, documented, open-source framework that a deve
 
 ### Deliverables
 
-#### @mantlejs/core
+#### @mantlejs/mantle
 
 The framework kernel. Provides:
 
@@ -456,7 +456,7 @@ A Phase 1 release is considered complete when a developer can:
 ```text
 mantle/
 ├── packages/
-│   ├── core/              # @mantlejs/core
+│   ├── core/              # @mantlejs/mantle
 │   │   ├── src/
 │   │   ├── project.json
 │   │   └── package.json
@@ -491,7 +491,7 @@ mantle/
 ├── .github/
 │   └── workflows/
 ├── nx.json
-├── tsconfig.base.json     # Shared TS path aliases (e.g. @mantlejs/core)
+├── tsconfig.base.json     # Shared TS path aliases (e.g. @mantlejs/mantle)
 ├── package.json
 └── README.md
 ```

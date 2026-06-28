@@ -39,7 +39,7 @@ Each socket gets a **connection object** — a plain `Record<string, unknown>` t
 ## Quick start
 
 ```typescript
-import { mantle } from "@mantlejs/core";
+import { mantle } from "@mantlejs/mantle";
 import { express } from "@mantlejs/express";
 import { socketio } from "@mantlejs/socketio";
 
@@ -71,7 +71,7 @@ socket.on("messages created", (message: unknown) => {
 ## Channels quick start
 
 ```typescript
-import { mantle } from "@mantlejs/core";
+import { mantle } from "@mantlejs/mantle";
 import { express } from "@mantlejs/express";
 import { socketio } from "@mantlejs/socketio";
 
@@ -252,7 +252,7 @@ The `connection` object is the same reference passed to publishers via the chann
 
 ```typescript
 import type { SocketioOptions } from "@mantlejs/socketio";
-import type { MantleChannel, ChannelPublisher, PublishContext } from "@mantlejs/core";
+import type { MantleChannel, ChannelPublisher, PublishContext } from "@mantlejs/mantle";
 ```
 
 | Type                        | Description                                                                      |

@@ -1,6 +1,6 @@
 import jwt from "jsonwebtoken";
-import type { MantleApplication, MantlePlugin, ServiceParams } from "@mantlejs/core";
-import { BadRequest } from "@mantlejs/core";
+import type { MantleApplication, MantlePlugin, ServiceParams } from "@mantlejs/mantle";
+import { BadRequest } from "@mantlejs/mantle";
 import type { AuthConfig, AuthEngine, AuthResult, AuthStrategy, JwtPayload } from "./types.js";
 
 export function auth(config: AuthConfig): MantlePlugin {

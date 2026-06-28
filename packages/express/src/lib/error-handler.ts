@@ -1,5 +1,5 @@
 import type { NextFunction, Request, Response } from "express";
-import { MantleError } from "@mantlejs/core";
+import { MantleError } from "@mantlejs/mantle";
 
 export function errorHandler() {
   return (err: unknown, _req: Request, res: Response, _next: NextFunction): void => {

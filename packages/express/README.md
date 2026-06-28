@@ -12,7 +12,7 @@ npm install --save-dev @types/express
 ## Quick start
 
 ```typescript
-import { mantle } from "@mantlejs/core";
+import { mantle } from "@mantlejs/mantle";
 import { express } from "@mantlejs/express";
 
 const app = mantle().configure(express());

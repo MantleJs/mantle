@@ -4,7 +4,7 @@ Work through these in order. Each item maps to a package spec in the Phase 2 PRD
 
 ---
 
-- [x] **1. Add Logger interface to `@mantlejs/core`**
+- [x] **1. Add Logger interface to `@mantlejs/mantle`**
   Add the `Logger` interface to core's public API. Add `schema` field to `ServiceOptions` and `ServiceHandle`. No implementation — zero new dependencies. Wire all existing internal log points to `app.get('logger')?.debug/info/warn/error(msg, { component: 'mantle:*' })`.
 
 - [x] **2. Implement `@mantlejs/logger`**

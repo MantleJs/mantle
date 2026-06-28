@@ -1,4 +1,4 @@
-import type { MantleApplication, Paginated } from "@mantlejs/core";
+import type { MantleApplication, Paginated } from "@mantlejs/mantle";
 import type { OAuthProfile } from "./types.js";
 
 type UserLike = Record<string, unknown>;

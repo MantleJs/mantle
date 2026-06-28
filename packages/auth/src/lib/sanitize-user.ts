@@ -1,4 +1,4 @@
-import type { HookContext, HookFunction } from "@mantlejs/core";
+import type { HookContext, HookFunction } from "@mantlejs/mantle";
 
 const DEFAULT_SENSITIVE_FIELDS = ["password", "passwordHash", "password_hash"];
 

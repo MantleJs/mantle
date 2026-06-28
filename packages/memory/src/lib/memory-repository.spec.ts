@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { MemoryRepository } from "./memory-repository.js";
-import { NotFound } from "@mantlejs/core";
+import { NotFound } from "@mantlejs/mantle";
 
 interface User {
   id: string;

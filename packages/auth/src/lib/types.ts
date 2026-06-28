@@ -1,4 +1,4 @@
-import type { ServiceParams } from "@mantlejs/core";
+import type { ServiceParams } from "@mantlejs/mantle";
 
 export interface AuthConfig {
   secret: string;

@@ -1,8 +1,8 @@
 import busboy from "busboy";
 import type { IncomingMessage } from "node:http";
 import type { Readable } from "node:stream";
-import type { HookContext, HookFunction } from "@mantlejs/core";
-import { BadRequest } from "@mantlejs/core";
+import type { HookContext, HookFunction } from "@mantlejs/mantle";
+import { BadRequest } from "@mantlejs/mantle";
 import type { HandleUploadOptions, UploadedFile, UploadEngine, UploadFileInfo } from "./types.js";
 
 export function handleUpload(field: string, options: HandleUploadOptions = {}): HookFunction {

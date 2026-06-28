@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import jwt from "jsonwebtoken";
-import type { MantleApplication, HookContext } from "@mantlejs/core";
-import { BadRequest, NotAuthenticated } from "@mantlejs/core";
+import type { MantleApplication, HookContext } from "@mantlejs/mantle";
+import { BadRequest, NotAuthenticated } from "@mantlejs/mantle";
 import { auth } from "./auth.js";
 import { authenticate } from "./authenticate.js";
 import { sanitizeUser } from "./sanitize-user.js";

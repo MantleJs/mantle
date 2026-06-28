@@ -46,7 +46,7 @@ Infrastructure        KnexRepository — implements Domain interfaces (outer lay
 ```
 mantle/
 ├── packages/
-│   ├── core/           @mantlejs/core        Framework kernel, zero external deps
+│   ├── mantle/         @mantlejs/mantle      Framework kernel, zero external deps
 │   ├── express/        @mantlejs/express     Express HTTP transport adapter
 │   ├── knex/           @mantlejs/knex        SQL adapter via Knex.js (pg, mysql2, sqlite3…)
 │   ├── auth/           @mantlejs/auth        JWT engine + strategy runner
@@ -64,21 +64,21 @@ mantle/
 
 | Package               | May depend on                               |
 | --------------------- | ------------------------------------------- |
-| @mantlejs/core        | nothing                                     |
-| @mantlejs/express     | @mantlejs/core                              |
-| @mantlejs/knex        | @mantlejs/core                              |
-| @mantlejs/auth        | @mantlejs/core                              |
-| @mantlejs/auth-local  | @mantlejs/core, @mantlejs/auth              |
-| @mantlejs/auth-oauth  | @mantlejs/core, @mantlejs/auth              |
-| @mantlejs/auth-google | @mantlejs/core, @mantlejs/auth-oauth        |
-| @mantlejs/auth-github | @mantlejs/core, @mantlejs/auth-oauth        |
-| @mantlejs/upload      | @mantlejs/core                              |
-| @mantlejs/upload-s3   | @mantlejs/core, @mantlejs/upload            |
-| @mantlejs/upload-gcs  | @mantlejs/core, @mantlejs/upload            |
+| @mantlejs/mantle        | nothing                                     |
+| @mantlejs/express     | @mantlejs/mantle                              |
+| @mantlejs/knex        | @mantlejs/mantle                              |
+| @mantlejs/auth        | @mantlejs/mantle                              |
+| @mantlejs/auth-local  | @mantlejs/mantle, @mantlejs/auth              |
+| @mantlejs/auth-oauth  | @mantlejs/mantle, @mantlejs/auth              |
+| @mantlejs/auth-google | @mantlejs/mantle, @mantlejs/auth-oauth        |
+| @mantlejs/auth-github | @mantlejs/mantle, @mantlejs/auth-oauth        |
+| @mantlejs/upload      | @mantlejs/mantle                              |
+| @mantlejs/upload-s3   | @mantlejs/mantle, @mantlejs/upload            |
+| @mantlejs/upload-gcs  | @mantlejs/mantle, @mantlejs/upload            |
 
 ---
 
-## Key Interfaces (all in @mantlejs/core)
+## Key Interfaces (all in @mantlejs/mantle)
 
 ### Service<T>
 
@@ -176,7 +176,7 @@ throw new GeneralError("Something broke"); // 500
 ## Typical Usage Pattern
 
 ```typescript
-import { mantle } from "@mantlejs/core";
+import { mantle } from "@mantlejs/mantle";
 import { express } from "@mantlejs/express";
 import { knex } from "@mantlejs/knex";
 import { auth, authenticate, sanitizeUser } from "@mantlejs/auth";

@@ -1,5 +1,5 @@
 import { hash } from "@node-rs/argon2";
-import type { HookContext, HookFunction } from "@mantlejs/core";
+import type { HookContext, HookFunction } from "@mantlejs/mantle";
 
 export function hashPassword(field = "password"): HookFunction {
   return async (context: HookContext): Promise<HookContext> => {

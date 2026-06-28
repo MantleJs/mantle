@@ -1,8 +1,8 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { Ajv } from "ajv";
-import { GeneralError } from "@mantlejs/core";
-import type { MantlePlugin } from "@mantlejs/core";
+import { GeneralError } from "@mantlejs/mantle";
+import type { MantlePlugin } from "@mantlejs/mantle";
 import type { TSchema } from "@sinclair/typebox";
 
 export interface ConfigOptions {

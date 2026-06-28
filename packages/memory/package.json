@@ -25,7 +25,7 @@
     "tslib": "^2.3.0"
   },
   "peerDependencies": {
-    "@mantlejs/core": "^0.0.1"
+    "@mantlejs/mantle": "^0.0.1"
   },
   "description": "In-memory Repository<T> implementation for testing and prototyping with Mantle JS",
   "license": "MIT",

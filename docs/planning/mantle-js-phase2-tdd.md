@@ -12,7 +12,7 @@
 
 1. [Scope of This Document](#scope-of-this-document)
 2. [Package Dependency Graph](#package-dependency-graph)
-3. [Core Additions — `@mantlejs/core`](#core-additions--mantlejscore)
+3. [Core Additions — `@mantlejs/mantle`](#core-additions--mantlejscore)
 4. [Public API Surface — `@mantlejs/logger`](#public-api-surface--mantlejslogger)
 5. [Public API Surface — `@mantlejs/schema`](#public-api-surface--mantlejsschema)
 6. [Public API Surface — `@mantlejs/memory`](#public-api-surface--mantlejsmemory)
@@ -44,29 +44,29 @@ Internal implementation details are deferred to the full TDD, produced as implem
 ### Dependency Rules (updated for Phase 2)
 
 - Dependencies always point **inward** — outer packages depend on inner packages, never the reverse
-- `@mantlejs/core` retains **zero** external runtime dependencies
-- `@mantlejs/upload-s3` and `@mantlejs/upload-gcs` depend on `@mantlejs/upload`, not directly on `@mantlejs/core`
+- `@mantlejs/mantle` retains **zero** external runtime dependencies
+- `@mantlejs/upload-s3` and `@mantlejs/upload-gcs` depend on `@mantlejs/upload`, not directly on `@mantlejs/mantle`
 - `@mantlejs/cli` is a code generator with no runtime imports from any Mantle package
 
 ### Full Graph (Phase 1 + Phase 2)
 
 ```text
-@mantlejs/core                        (no external deps)
+@mantlejs/mantle                        (no external deps)
 │
-├── @mantlejs/express                 depends on: @mantlejs/core, express
-├── @mantlejs/knex                    depends on: @mantlejs/core, knex
-├── @mantlejs/auth                    depends on: @mantlejs/core, jsonwebtoken
-│   ├── @mantlejs/auth-local          depends on: @mantlejs/core, @mantlejs/auth, @node-rs/argon2
-│   ├── @mantlejs/auth-google         depends on: @mantlejs/core, @mantlejs/auth       [NEW P2]
-│   └── @mantlejs/auth-github         depends on: @mantlejs/core, @mantlejs/auth       [NEW P2]
-├── @mantlejs/upload                  depends on: @mantlejs/core, busboy
+├── @mantlejs/express                 depends on: @mantlejs/mantle, express
+├── @mantlejs/knex                    depends on: @mantlejs/mantle, knex
+├── @mantlejs/auth                    depends on: @mantlejs/mantle, jsonwebtoken
+│   ├── @mantlejs/auth-local          depends on: @mantlejs/mantle, @mantlejs/auth, @node-rs/argon2
+│   ├── @mantlejs/auth-google         depends on: @mantlejs/mantle, @mantlejs/auth       [NEW P2]
+│   └── @mantlejs/auth-github         depends on: @mantlejs/mantle, @mantlejs/auth       [NEW P2]
+├── @mantlejs/upload                  depends on: @mantlejs/mantle, busboy
 │   ├── @mantlejs/upload-s3           depends on: @mantlejs/upload, @aws-sdk/client-s3 [NEW P2]
 │   └── @mantlejs/upload-gcs          depends on: @mantlejs/upload, @google-cloud/storage [NEW P2]
-├── @mantlejs/logger                  depends on: @mantlejs/core, pino                 [NEW P2]
-├── @mantlejs/schema                  depends on: @mantlejs/core, @sinclair/typebox    [NEW P2]
-├── @mantlejs/memory                  depends on: @mantlejs/core                       [NEW P2]
-├── @mantlejs/config                  depends on: @mantlejs/core, @sinclair/typebox*   [NEW P2]
-└── @mantlejs/socketio                depends on: @mantlejs/core, socket.io            [NEW P2]
+├── @mantlejs/logger                  depends on: @mantlejs/mantle, pino                 [NEW P2]
+├── @mantlejs/schema                  depends on: @mantlejs/mantle, @sinclair/typebox    [NEW P2]
+├── @mantlejs/memory                  depends on: @mantlejs/mantle                       [NEW P2]
+├── @mantlejs/config                  depends on: @mantlejs/mantle, @sinclair/typebox*   [NEW P2]
+└── @mantlejs/socketio                depends on: @mantlejs/mantle, socket.io            [NEW P2]
 
 @mantlejs/cli                         (no runtime deps — code generator only)          [NEW P2]
 
@@ -96,11 +96,11 @@ Internal implementation details are deferred to the full TDD, produced as implem
 
 ---
 
-## Core Additions — `@mantlejs/core`
+## Core Additions — `@mantlejs/mantle`
 
 ### `Logger` interface
 
-Added to the public API surface of `@mantlejs/core`. No implementation is shipped. Zero new dependencies.
+Added to the public API surface of `@mantlejs/mantle`. No implementation is shipped. Zero new dependencies.
 
 ```typescript
 interface Logger {
@@ -124,7 +124,7 @@ The `component` field is a string in the format `mantle:<package>` (e.g. `mantle
 
 ### `RequestContext` — `AsyncLocalStorage`-based request context
 
-Added to the public API surface of `@mantlejs/core`. Uses Node.js built-in `AsyncLocalStorage` — zero new dependencies.
+Added to the public API surface of `@mantlejs/mantle`. Uses Node.js built-in `AsyncLocalStorage` — zero new dependencies.
 
 ```typescript
 export interface RequestContext {
@@ -169,7 +169,7 @@ interface ServiceHandle<T> extends Service<T> {
 
 ### `MantleApplication` — event bus (additive)
 
-Added to the public API surface of `@mantlejs/core`. Uses Node.js `EventEmitter` internally — zero new dependencies.
+Added to the public API surface of `@mantlejs/mantle`. Uses Node.js `EventEmitter` internally — zero new dependencies.
 
 ```typescript
 interface MantleApplication {
@@ -274,7 +274,7 @@ Registers the adapter on the app via `app.set('logger', adapter)`. Must be calle
 function pinoAdapter(pinoInstance: pino.Logger): Logger;
 ```
 
-Wraps a pino logger to satisfy the `Logger` interface. Translates the interface's `(msg, context?)` argument order to pino's `(context, msg)` form for structured logging. On every log call, reads `getContext()` from `@mantlejs/core` and merges the current `RequestContext` (including `correlationId`) into the pino object. Per-call context fields take precedence over request context fields.
+Wraps a pino logger to satisfy the `Logger` interface. Translates the interface's `(msg, context?)` argument order to pino's `(context, msg)` form for structured logging. On every log call, reads `getContext()` from `@mantlejs/mantle` and merges the current `RequestContext` (including `correlationId`) into the pino object. Per-call context fields take precedence over request context fields.
 
 ```typescript
 import pino from 'pino';
@@ -495,11 +495,11 @@ Existing field resolvers that do not use the fourth argument continue to work �
 
 ### Bringing your own validation package
 
-The hook pipeline is fully open — `validate()` and `resolver()` are plain `HookFunction` implementations with no required registration. Any developer can bypass `@mantlejs/schema` entirely and write hooks against any library. The only contract: throw `Unprocessable` (from `@mantlejs/core`) on failure so the Express error handler serializes the response consistently:
+The hook pipeline is fully open — `validate()` and `resolver()` are plain `HookFunction` implementations with no required registration. Any developer can bypass `@mantlejs/schema` entirely and write hooks against any library. The only contract: throw `Unprocessable` (from `@mantlejs/mantle`) on failure so the Express error handler serializes the response consistently:
 
 ```typescript
 import { z } from "zod";
-import { Unprocessable } from "@mantlejs/core";
+import { Unprocessable } from "@mantlejs/mantle";
 
 const UserZod = z.object({ email: z.string().email(), name: z.string().min(1) });
 
@@ -565,7 +565,7 @@ interface MemoryRepositoryOptions {
 
 ### QueryParams operator support
 
-All `QueryParams` operators defined in `@mantlejs/core` are implemented in-memory using the same semantics as `KnexRepository`. A test using `MemoryRepository` can be swapped for a `KnexRepository` in production with no query changes.
+All `QueryParams` operators defined in `@mantlejs/mantle` are implemented in-memory using the same semantics as `KnexRepository`. A test using `MemoryRepository` can be swapped for a `KnexRepository` in production with no query changes.
 
 Supported: equality, null, `$gt`, `$gte`, `$lt`, `$lte`, `$ne`, `$in`, `$nin`, `$like`, `$notlike`, `$ilike`, `$or`, `$and`, `limit`, `skip`, `sort`, `select`.
 
@@ -1088,7 +1088,7 @@ Repository.save(data) → Message entity       │
 Hook Pipeline — AFTER                        │
   │  • (any after hooks)                     │
   ▼                                         │
-@mantlejs/core — ServiceHandleImpl           │
+@mantlejs/mantle — ServiceHandleImpl           │
   │  • app.emit('service:event',             │
   │      'messages', 'created', result, params)
   ▼                                         │

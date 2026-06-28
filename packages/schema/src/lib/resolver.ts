@@ -1,4 +1,4 @@
-import type { HookContext, HookFunction, Paginated } from "@mantlejs/core";
+import type { HookContext, HookFunction, Paginated } from "@mantlejs/mantle";
 
 export type FieldResolver<T, K extends keyof T, C = undefined> = (
   value: T[K] | undefined,

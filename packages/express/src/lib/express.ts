@@ -1,7 +1,7 @@
 import { randomUUID } from "crypto";
 import expressLib, { type Application, type RequestHandler } from "express";
-import type { MantleApplication, MantlePlugin, ServiceOptions } from "@mantlejs/core";
-import { withContext } from "@mantlejs/core";
+import type { MantleApplication, MantlePlugin, ServiceOptions } from "@mantlejs/mantle";
+import { withContext } from "@mantlejs/mantle";
 import { mountServiceRoutes } from "./routes.js";
 import { errorHandler } from "./error-handler.js";
 

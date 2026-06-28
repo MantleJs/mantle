@@ -18,7 +18,7 @@ npm install @mantlejs/logger pino
 
 ### The Logger interface
 
-`@mantlejs/core` defines a minimal `Logger` interface with four methods: `debug`, `info`, `warn`, and `error`. Every method accepts a message string and an optional context object:
+`@mantlejs/mantle` defines a minimal `Logger` interface with four methods: `debug`, `info`, `warn`, and `error`. Every method accepts a message string and an optional context object:
 
 ```typescript
 interface Logger {
@@ -49,7 +49,7 @@ All records emitted by Mantle packages include a `component` field (`mantle:core
 
 When you use `pinoAdapter` with the `express()` transport, every log record emitted during a request automatically includes a `correlationId` field. No manual threading required.
 
-The `express()` plugin reads the `X-Correlation-ID` request header (or generates a UUID) and stores it in `@mantlejs/core`'s `AsyncLocalStorage` context via `withContext`. `pinoAdapter` calls `getContext()` on every log call and merges the result into the pino object.
+The `express()` plugin reads the `X-Correlation-ID` request header (or generates a UUID) and stores it in `@mantlejs/mantle`'s `AsyncLocalStorage` context via `withContext`. `pinoAdapter` calls `getContext()` on every log call and merges the result into the pino object.
 
 ```json
 {
@@ -68,7 +68,7 @@ The `X-Correlation-ID` is echoed back in the response header so callers can corr
 Hooks and other code can read the correlation ID directly:
 
 ```typescript
-import { getContext } from "@mantlejs/core";
+import { getContext } from "@mantlejs/mantle";
 
 const hook = (ctx) => {
   const { correlationId } = getContext() ?? {};
@@ -103,7 +103,7 @@ pino({ level: 'info' }, pino.multistream([
 
 ```typescript
 import pino from "pino";
-import { mantle } from "@mantlejs/core";
+import { mantle } from "@mantlejs/mantle";
 import { express } from "@mantlejs/express";
 import { logger, pinoAdapter, logRequest, logError } from "@mantlejs/logger";
 
@@ -147,7 +147,7 @@ app.configure(logger(pinoAdapter(pino({ level: "info" }))));
 
 Wraps a pino logger to satisfy the `Logger` interface. Pino uses `(object, message)` argument order; the `Logger` interface uses `(message, object)`. The adapter flips this internally.
 
-On every log call the adapter reads `getContext()` from `@mantlejs/core` and merges the current `RequestContext` (including `correlationId`) into the pino object. Per-call context fields take precedence over request context fields. When called outside an Express request (e.g. a startup log), no context is present and the field is simply omitted.
+On every log call the adapter reads `getContext()` from `@mantlejs/mantle` and merges the current `RequestContext` (including `correlationId`) into the pino object. Per-call context fields take precedence over request context fields. When called outside an Express request (e.g. a startup log), no context is present and the field is simply omitted.
 
 ```typescript
 function pinoAdapter(pino: PinoLike): Logger;
@@ -351,12 +351,12 @@ app.set("logger", {
 
 ```typescript
 import type { PinoLike, LogRequestOptions, LogErrorOptions } from "@mantlejs/logger";
-import type { Logger } from "@mantlejs/core";
+import type { Logger } from "@mantlejs/mantle";
 ```
 
 | Type | Description |
 |---|---|
-| `Logger` | Core interface — re-exported from `@mantlejs/core` |
+| `Logger` | Core interface — re-exported from `@mantlejs/mantle` |
 | `PinoLike` | Duck-type accepted by `pinoAdapter()` |
 | `LogRequestOptions` | Options for `logRequest()` |
 | `LogErrorOptions` | Options for `logError()` |

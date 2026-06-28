@@ -33,7 +33,7 @@
     "tslib": "^2.3.0"
   },
   "peerDependencies": {
-    "@mantlejs/core": "^0.0.1",
+    "@mantlejs/mantle": "^0.0.1",
     "@mantlejs/auth-oauth": "^0.0.1"
   }
 }

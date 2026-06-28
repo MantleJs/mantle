@@ -34,7 +34,7 @@ A `before` hook that replaces a plain-text password field with its Argon2id hash
 ## Quick start
 
 ```typescript
-import { mantle } from "@mantlejs/core";
+import { mantle } from "@mantlejs/mantle";
 import { express } from "@mantlejs/express";
 import { knex } from "@mantlejs/knex";
 import { auth, authenticate, sanitizeUser } from "@mantlejs/auth";

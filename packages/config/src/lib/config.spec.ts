@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { mantle } from "@mantlejs/core";
+import { mantle } from "@mantlejs/mantle";
 import { config } from "./config.js";
 
 function writeJson(dir: string, name: string, data: unknown) {

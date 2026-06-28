@@ -1,8 +1,8 @@
 import { describe, it, expect } from "vitest";
 import { Type } from "@sinclair/typebox";
-import { mantle } from "@mantlejs/core";
-import { Unprocessable } from "@mantlejs/core";
-import type { HookContext, MantleApplication, Service, Paginated, ServiceParams } from "@mantlejs/core";
+import { mantle } from "@mantlejs/mantle";
+import { Unprocessable } from "@mantlejs/mantle";
+import type { HookContext, MantleApplication, Service, Paginated, ServiceParams } from "@mantlejs/mantle";
 import { validate, type ValidatorFn } from "./validate.js";
 import { resolver } from "./resolver.js";
 

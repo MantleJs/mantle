@@ -1,5 +1,5 @@
-import type { MantleApplication, MantlePlugin } from "@mantlejs/core";
-import { NotAuthenticated } from "@mantlejs/core";
+import type { MantleApplication, MantlePlugin } from "@mantlejs/mantle";
+import { NotAuthenticated } from "@mantlejs/mantle";
 import type { AuthEngine } from "@mantlejs/auth";
 import type { OAuthProvider, OAuthPluginConfig } from "./types.js";
 import { generateState, generateCodeVerifier, generateCodeChallenge } from "./pkce.js";

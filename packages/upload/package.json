@@ -33,7 +33,7 @@
     "busboy"
   ],
   "peerDependencies": {
-    "@mantlejs/core": "^0.1.0",
+    "@mantlejs/mantle": "^0.1.0",
     "busboy": "^1.0.0"
   }
 }

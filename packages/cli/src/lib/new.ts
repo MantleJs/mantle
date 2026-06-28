@@ -145,7 +145,7 @@ async function generateProjectFiles(
 }
 
 function appTemplate(options: Required<NewProjectOptions>): string {
-  const imports: string[] = [`import { mantle } from "@mantlejs/core";`, `import { express } from "@mantlejs/express";`];
+  const imports: string[] = [`import { mantle } from "@mantlejs/mantle";`, `import { express } from "@mantlejs/express";`];
   const configures: string[] = [`  .configure(express())`];
 
   if (options.database === "pg") {
@@ -205,7 +205,7 @@ function productionConfigTemplate(): string {
 
 function packageJsonTemplate(projectName: string, options: Required<NewProjectOptions>): string {
   const deps: Record<string, string> = {
-    "@mantlejs/core": "^0.0.1",
+    "@mantlejs/mantle": "^0.0.1",
     "@mantlejs/express": "^0.0.1",
     express: "^4.18.0",
   };

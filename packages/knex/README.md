@@ -19,7 +19,7 @@ npm install tedious      # MSSQL
 ## Quick start
 
 ```typescript
-import { mantle } from "@mantlejs/core";
+import { mantle } from "@mantlejs/mantle";
 import { knex, KnexRepository } from "@mantlejs/knex";
 
 const app = mantle().configure(

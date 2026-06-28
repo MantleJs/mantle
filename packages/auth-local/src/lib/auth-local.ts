@@ -1,6 +1,6 @@
 import { verify } from "@node-rs/argon2";
-import type { MantleApplication, MantlePlugin, Paginated } from "@mantlejs/core";
-import { NotAuthenticated } from "@mantlejs/core";
+import type { MantleApplication, MantlePlugin, Paginated } from "@mantlejs/mantle";
+import { NotAuthenticated } from "@mantlejs/mantle";
 import type { AuthEngine, AuthResult, AuthStrategy } from "@mantlejs/auth";
 
 export interface LocalStrategyConfig {

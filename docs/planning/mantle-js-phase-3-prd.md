@@ -72,7 +72,7 @@ Phase 3 package summary:
 
 Cross-instance service event replication. Ensures that a service mutation on any instance triggers socket broadcasts on **all** instances, while preserving the channels security model.
 
-**Dependencies:** `@mantlejs/core` (peer), adapter-specific packages (e.g. `ioredis` for `redisAdapter`)
+**Dependencies:** `@mantlejs/mantle` (peer), adapter-specific packages (e.g. `ioredis` for `redisAdapter`)
 
 **Requires:** `@mantlejs/socketio` with channels configured (Phase 2)
 
@@ -225,7 +225,7 @@ Official JS/TS client SDK. Communicates with a Mantle application over REST (via
 
 > Detailed specification to be written once Phase 3 implementation begins. The section below outlines scope and API direction only.
 
-**Dependencies:** `@mantlejs/core` (types only, optional peer), `socket.io-client`
+**Dependencies:** `@mantlejs/mantle` (types only, optional peer), `socket.io-client`
 
 #### Design goals
 
@@ -264,7 +264,7 @@ MongoDB adapter implementing `Repository<T>`. Targets MongoDB 6.x and the offici
 
 > Detailed specification to be written once Phase 3 implementation begins.
 
-**Dependencies:** `@mantlejs/core`, `mongodb`
+**Dependencies:** `@mantlejs/mantle`, `mongodb`
 
 #### Design goals
 
@@ -282,7 +282,7 @@ Koa HTTP transport adapter. Registers service routes on a Koa app and sets `para
 
 > Detailed specification to be written once Phase 3 implementation begins.
 
-**Dependencies:** `@mantlejs/core`, `koa`, `@koa/router`
+**Dependencies:** `@mantlejs/mantle`, `koa`, `@koa/router`
 
 ---
 
@@ -302,10 +302,10 @@ mantle/
 
 | Package | May depend on |
 |---|---|
-| `@mantlejs/sync` | `@mantlejs/core` |
-| `@mantlejs/client` | `@mantlejs/core` (types only, optional peer) |
-| `@mantlejs/mongodb` | `@mantlejs/core` |
-| `@mantlejs/koa` | `@mantlejs/core` |
+| `@mantlejs/sync` | `@mantlejs/mantle` |
+| `@mantlejs/client` | `@mantlejs/mantle` (types only, optional peer) |
+| `@mantlejs/mongodb` | `@mantlejs/mantle` |
+| `@mantlejs/koa` | `@mantlejs/mantle` |
 
 `@mantlejs/sync` must NOT depend on `@mantlejs/socketio`. It operates at the `'service:event'` bus level (core) and is transport-agnostic — a future SSE or Koa/WebSocket transport would benefit from sync without any changes to the sync package.
 
@@ -340,5 +340,5 @@ Phase 3 upholds all Phase 1 and Phase 2 principles and adds:
 | 2 | Guaranteed delivery for sync events? | **No.** `@mantlejs/sync` provides best-effort delivery via Redis pub/sub. Events missed during a Redis outage or reconnect window are not replayed. For guaranteed delivery, applications should use a persistent queue (Kafka, RabbitMQ) — a community adapter could implement `SyncAdapter` for this. |
 | 3 | Does sync affect local clients on the originating instance? | **No.** Local clients receive the event immediately via the direct `service:event` path. The sync message is ignored when it arrives back at the originating instance (origin ID check). |
 | 4 | Why `ioredis` over `redis` (node-redis)? | `ioredis` has better built-in reconnect handling and is the de-facto standard in the Node.js ecosystem for pub/sub use cases. Developers who already use `node-redis` can implement `SyncAdapter` themselves. |
-| 5 | Does `@mantlejs/sync` depend on `@mantlejs/socketio`? | **No.** `sync` operates at the `'service:event'` bus level in `@mantlejs/core`. It works with any transport that subscribes to `'service:event'`. A future Koa/WebSocket transport would benefit from sync with no changes. |
+| 5 | Does `@mantlejs/sync` depend on `@mantlejs/socketio`? | **No.** `sync` operates at the `'service:event'` bus level in `@mantlejs/mantle`. It works with any transport that subscribes to `'service:event'`. A future Koa/WebSocket transport would benefit from sync with no changes. |
 | 6 | MongoDB driver choice? | **Official `mongodb` driver** — no Mongoose. Aligns with the repository pattern: no ODM/ORM magic, no schema enforcement at the driver level. Developers define their entity shapes via TypeBox and handle validation in hooks. |

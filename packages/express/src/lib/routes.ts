@@ -1,5 +1,5 @@
 import type { Application, NextFunction, Request, Response } from "express";
-import type { MantleApplication, ServiceHandle, ServiceOptions, ServiceParams } from "@mantlejs/core";
+import type { MantleApplication, ServiceHandle, ServiceOptions, ServiceParams } from "@mantlejs/mantle";
 
 const STANDARD_METHODS = new Set(["find", "get", "create", "update", "patch", "remove"]);
 

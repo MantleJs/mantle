@@ -1,17 +1,17 @@
-# @mantlejs/core
+# @mantlejs/mantle
 
 The framework kernel for Mantle JS. Zero external dependencies. Defines all core interfaces, the application factory, and typed error classes used across every other package.
 
 ## Installation
 
 ```bash
-npm install @mantlejs/core
+npm install @mantlejs/mantle
 ```
 
 ## Quick start
 
 ```typescript
-import { mantle } from "@mantlejs/core";
+import { mantle } from "@mantlejs/mantle";
 
 const app = mantle();
 
@@ -249,5 +249,5 @@ cd packages/core
 npm publish --registry http://localhost:4873
 
 # Install from it in another project
-npm install @mantlejs/core --registry http://localhost:4873
+npm install @mantlejs/mantle --registry http://localhost:4873
 ```

@@ -34,7 +34,7 @@
     "argon2"
   ],
   "peerDependencies": {
-    "@mantlejs/core": "^0.0.1",
+    "@mantlejs/mantle": "^0.0.1",
     "@mantlejs/auth": "^0.0.1",
     "@node-rs/argon2": "^2.0.0"
   }

@@ -4,9 +4,6 @@
   "files": [],
   "references": [
     {
-      "path": "./packages/core"
-    },
-    {
       "path": "./packages/express"
     },
     {
@@ -53,6 +50,9 @@
     },
     {
       "path": "./packages/cli"
+    },
+    {
+      "path": "./packages/mantle"
     }
   ]
 }

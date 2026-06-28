@@ -21,8 +21,8 @@ export async function generateService(name: string, options: ServiceGeneratorOpt
 }
 
 function serviceTemplate(pascal: string, kebab: string): string {
-  return `import type { Service, ServiceParams, Id, Repository } from "@mantlejs/core";
-import { NotFound } from "@mantlejs/core";
+  return `import type { Service, ServiceParams, Id, Repository } from "@mantlejs/mantle";
+import { NotFound } from "@mantlejs/mantle";
 import type { ${pascal} } from "./${kebab}.schema.js";
 
 export class ${pascal}Service implements Service<${pascal}> {

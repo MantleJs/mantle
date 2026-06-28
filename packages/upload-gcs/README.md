@@ -27,7 +27,7 @@ The adapter pipes the incoming `Readable` stream directly into a GCS write strea
 ## Quick start
 
 ```typescript
-import { mantle } from "@mantlejs/core";
+import { mantle } from "@mantlejs/mantle";
 import { express } from "@mantlejs/express";
 import { upload } from "@mantlejs/upload";
 import { gcsStorage } from "@mantlejs/upload-gcs";

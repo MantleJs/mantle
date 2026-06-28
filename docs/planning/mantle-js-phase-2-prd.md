@@ -25,11 +25,11 @@
 
 Phase 1 gave developers a working REST API with PostgreSQL persistence and local password authentication. Phase 2 makes that API **production-ready, developer-friendly, and real-time capable**.
 
-Phase 2 delivers eight new packages and one additive change to `@mantlejs/core`:
+Phase 2 delivers eight new packages and one additive change to `@mantlejs/mantle`:
 
 | Package | Purpose |
 |---|---|
-| `@mantlejs/core` (updated) | Adds the `Logger` interface — zero deps, no implementation |
+| `@mantlejs/mantle` (updated) | Adds the `Logger` interface — zero deps, no implementation |
 | `@mantlejs/logger` | Pino adapter + `logRequest` / `logError` hook factories |
 | `@mantlejs/schema` | TypeBox-based schema definition, validation, and data resolution |
 | `@mantlejs/memory` | In-memory `Repository<T>` for unit testing and prototyping |
@@ -75,7 +75,7 @@ Phase 2 delivers eight new packages and one additive change to `@mantlejs/core`:
 
 ---
 
-### `@mantlejs/core` — Logger Interface (additive)
+### `@mantlejs/mantle` — Logger Interface (additive)
 
 A minimal `Logger` interface is added to core. It creates a stable contract for all Mantle packages — first-party and third-party — to emit diagnostic output without coupling to any specific logging library.
 
@@ -111,7 +111,7 @@ LOG_LEVEL=info npm start    # info + warn + error  (production default)
 LOG_LEVEL=warn npm start    # warn + error only
 ```
 
-### `@mantlejs/core` — Application event bus (additive)
+### `@mantlejs/mantle` — Application event bus (additive)
 
 A lightweight event bus is added to `MantleApplication`. Uses Node.js `EventEmitter` internally — zero new dependencies.
 
@@ -135,7 +135,7 @@ app.emit('service:event', path, eventName, result, params);
 
 `ServiceHandle` also exposes `readonly methods: string[]` — the list of methods (standard and custom) allowed on that service. Transports use this for routing decisions.
 
-### `@mantlejs/core` — `ServiceParams` additions (additive)
+### `@mantlejs/mantle` — `ServiceParams` additions (additive)
 
 Two new optional fields on `ServiceParams`, both recognised by `@mantlejs/socketio`:
 
@@ -147,7 +147,7 @@ interface ServiceParams {
 }
 ```
 
-### `@mantlejs/core` — Request Context (additive)
+### `@mantlejs/mantle` — Request Context (additive)
 
 An `AsyncLocalStorage`-based request context is added to core. Uses Node.js built-ins — zero new dependencies.
 
@@ -169,7 +169,7 @@ function getContext(): RequestContext | undefined;
 
 Pino adapter for the Mantle `Logger` interface plus two built-in hook factories for request and error logging.
 
-**Dependencies:** `@mantlejs/core`, `pino`
+**Dependencies:** `@mantlejs/mantle`, `pino`
 
 #### `logger()` plugin factory
 
@@ -305,7 +305,7 @@ pino({ level: 'info' }, pino.multistream([
 
 TypeBox schema definition, Ajv validation, and data resolution for Mantle services.
 
-**Dependencies:** `@mantlejs/core`, `@sinclair/typebox`, `ajv`, `ajv-formats`
+**Dependencies:** `@mantlejs/mantle`, `@sinclair/typebox`, `ajv`, `ajv-formats`
 
 **Why TypeBox?** A single schema definition generates both a TypeScript type and a JSON Schema object. No code generation step, no build pipeline, no external schema files — just TypeScript. Compatible with all JSON Schema validators and OpenAPI tooling.
 
@@ -450,9 +450,9 @@ app.service('users').schema; // → TSchema | undefined
 
 ### `@mantlejs/memory`
 
-In-memory `Repository<T>` implementation. Intended for unit tests and rapid prototyping. Ships as a standalone package to keep `@mantlejs/core` dependency-free and focused.
+In-memory `Repository<T>` implementation. Intended for unit tests and rapid prototyping. Ships as a standalone package to keep `@mantlejs/mantle` dependency-free and focused.
 
-**Dependencies:** `@mantlejs/core` only. Zero external runtime dependencies.
+**Dependencies:** `@mantlejs/mantle` only. Zero external runtime dependencies.
 
 ```typescript
 class MemoryRepository<T extends Record<string, unknown>> implements Repository<T> {
@@ -507,7 +507,7 @@ expect(user.name).toBe('Alice');
 
 Environment-aware configuration management. Loads JSON config files from a `config/` directory, merges them with environment-specific overrides, and optionally validates the result against a TypeBox schema at startup.
 
-**Dependencies:** `@mantlejs/core`, `@sinclair/typebox` (optional peer for schema validation)
+**Dependencies:** `@mantlejs/mantle`, `@sinclair/typebox` (optional peer for schema validation)
 
 #### `config()` plugin factory
 
@@ -581,7 +581,7 @@ app.configure(config({ schema: AppConfigSchema }));
 
 OAuth 2.0 Google Sign-In strategy for `@mantlejs/auth`. Implements the authorization code flow. No Passport.js dependency.
 
-**Dependencies:** `@mantlejs/core`, `@mantlejs/auth`
+**Dependencies:** `@mantlejs/mantle`, `@mantlejs/auth`
 
 ```typescript
 function googleStrategy(config: GoogleStrategyConfig): MantlePlugin;
@@ -635,7 +635,7 @@ On successful authentication, the response matches the local auth shape:
 
 OAuth 2.0 GitHub strategy. Follows the same pattern as `@mantlejs/auth-google`.
 
-**Dependencies:** `@mantlejs/core`, `@mantlejs/auth`
+**Dependencies:** `@mantlejs/mantle`, `@mantlejs/auth`
 
 ```typescript
 function githubStrategy(config: GithubStrategyConfig): MantlePlugin;
@@ -665,7 +665,7 @@ interface GithubStrategyConfig {
 
 Socket.io transport adapter. Runs on the same HTTP server as `@mantlejs/express`, giving services a real-time event channel alongside their REST API.
 
-**Dependencies:** `@mantlejs/core`, `socket.io`
+**Dependencies:** `@mantlejs/mantle`, `socket.io`
 
 ```typescript
 function socketio(options?: SocketioOptions): MantlePlugin;
@@ -1004,7 +1004,7 @@ The generated test file uses `@mantlejs/memory` so it runs without a database.
 ```text
 mantle/
 ├── packages/
-│   ├── core/              # @mantlejs/core        (Logger interface added)
+│   ├── core/              # @mantlejs/mantle        (Logger interface added)
 │   ├── express/           # @mantlejs/express      (unchanged)
 │   ├── knex/              # @mantlejs/knex         (unchanged)
 │   ├── auth/              # @mantlejs/auth         (unchanged)
@@ -1026,19 +1026,19 @@ mantle/
 
 | Package | May depend on |
 |---|---|
-| `@mantlejs/core` | nothing |
-| `@mantlejs/express` | `@mantlejs/core` |
-| `@mantlejs/knex` | `@mantlejs/core` |
-| `@mantlejs/auth` | `@mantlejs/core` |
-| `@mantlejs/auth-local` | `@mantlejs/core`, `@mantlejs/auth` |
-| `@mantlejs/upload` | `@mantlejs/core` |
-| `@mantlejs/logger` | `@mantlejs/core` |
-| `@mantlejs/schema` | `@mantlejs/core` |
-| `@mantlejs/memory` | `@mantlejs/core` |
-| `@mantlejs/config` | `@mantlejs/core` |
-| `@mantlejs/auth-google` | `@mantlejs/core`, `@mantlejs/auth` |
-| `@mantlejs/auth-github` | `@mantlejs/core`, `@mantlejs/auth` |
-| `@mantlejs/socketio` | `@mantlejs/core` |
+| `@mantlejs/mantle` | nothing |
+| `@mantlejs/express` | `@mantlejs/mantle` |
+| `@mantlejs/knex` | `@mantlejs/mantle` |
+| `@mantlejs/auth` | `@mantlejs/mantle` |
+| `@mantlejs/auth-local` | `@mantlejs/mantle`, `@mantlejs/auth` |
+| `@mantlejs/upload` | `@mantlejs/mantle` |
+| `@mantlejs/logger` | `@mantlejs/mantle` |
+| `@mantlejs/schema` | `@mantlejs/mantle` |
+| `@mantlejs/memory` | `@mantlejs/mantle` |
+| `@mantlejs/config` | `@mantlejs/mantle` |
+| `@mantlejs/auth-google` | `@mantlejs/mantle`, `@mantlejs/auth` |
+| `@mantlejs/auth-github` | `@mantlejs/mantle`, `@mantlejs/auth` |
+| `@mantlejs/socketio` | `@mantlejs/mantle` |
 | `@mantlejs/upload-s3` | `@mantlejs/upload` |
 | `@mantlejs/upload-gcs` | `@mantlejs/upload` |
 | `@mantlejs/cli` | nothing (code generator, no runtime imports) |
@@ -1088,4 +1088,4 @@ Phase 2 upholds all Phase 1 principles and adds:
 | 11 | Cloud storage adapter naming? | **Separate installable packages:** `@mantlejs/upload-s3`, `@mantlejs/upload-gcs`. Users only install what they need. |
 | 12 | Config file format? | **JSON only** for Phase 2. Simple to parse, no additional dependencies. YAML or JS config files can be added in a later phase. |
 | 13 | Config validation at startup? | **Optional TypeBox schema.** If provided, invalid config throws `GeneralError` before the server starts — fail fast, fail loud. |
-| 14 | Correlation ID threading? | **`AsyncLocalStorage` in `@mantlejs/core`** (`withContext` / `getContext`). Express middleware injects `correlationId` per request; `pinoAdapter` merges it into every record automatically. Hooks can read `getContext()` directly. No function-signature threading required. |
+| 14 | Correlation ID threading? | **`AsyncLocalStorage` in `@mantlejs/mantle`** (`withContext` / `getContext`). Express middleware injects `correlationId` per request; `pinoAdapter` merges it into every record automatically. Hooks can read `getContext()` directly. No function-signature threading required. |

@@ -98,7 +98,7 @@ Key properties:
 
 ### Mantle — channels + app event bus
 
-`@mantlejs/core` emits `'service:event'` on the application after every successful mutation, regardless of transport. `@mantlejs/socketio` implements a channels system on top of this bus.
+`@mantlejs/mantle` emits `'service:event'` on the application after every successful mutation, regardless of transport. `@mantlejs/socketio` implements a channels system on top of this bus.
 
 **Usage is identical in shape to FeathersJS:**
 

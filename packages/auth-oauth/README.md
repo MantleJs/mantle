@@ -45,8 +45,8 @@ On callback, the plugin calls `app.service(entity).find({ query: { [entityIdFiel
 ## Quick start (writing a new strategy)
 
 ```typescript
-import type { MantlePlugin } from "@mantlejs/core";
-import { GeneralError } from "@mantlejs/core";
+import type { MantlePlugin } from "@mantlejs/mantle";
+import { GeneralError } from "@mantlejs/mantle";
 import { createOAuthPlugin } from "@mantlejs/auth-oauth";
 import type { OAuthPluginConfig, OAuthProvider } from "@mantlejs/auth-oauth";
 

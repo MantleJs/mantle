@@ -1,5 +1,5 @@
-import type { Id, QueryParams, Repository } from "@mantlejs/core";
-import { NotFound } from "@mantlejs/core";
+import type { Id, QueryParams, Repository } from "@mantlejs/mantle";
+import { NotFound } from "@mantlejs/mantle";
 
 export interface MemoryRepositoryOptions {
   /** Primary key field name. Default: 'id' */

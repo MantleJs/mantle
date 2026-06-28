@@ -1,4 +1,4 @@
-import type { MantleApplication, MantlePlugin } from "@mantlejs/core";
+import type { MantleApplication, MantlePlugin } from "@mantlejs/mantle";
 import type { UploadConfig, UploadEngine } from "./types.js";
 import { diskStorage } from "./disk-storage.js";
 

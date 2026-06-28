@@ -16,7 +16,7 @@ npm install @mantlejs/memory
 
 ### MemoryRepository
 
-`MemoryRepository<T>` implements the `Repository<T>` interface from `@mantlejs/core`. It stores records in a `Map` keyed by ID, auto-generates UUIDs, and manages `createdAt`/`updatedAt` timestamps — the same behaviour your production `KnexRepository` provides.
+`MemoryRepository<T>` implements the `Repository<T>` interface from `@mantlejs/mantle`. It stores records in a `Map` keyed by ID, auto-generates UUIDs, and manages `createdAt`/`updatedAt` timestamps — the same behaviour your production `KnexRepository` provides.
 
 ### Test helpers
 
@@ -60,7 +60,7 @@ const active = await repo.findAll({ where: { name: { $like: "A%" } } });
 ### Injecting into a service
 
 ```typescript
-import { mantle } from "@mantlejs/core";
+import { mantle } from "@mantlejs/mantle";
 import { MemoryRepository } from "@mantlejs/memory";
 import { UserService } from "../src/user.service.js";
 

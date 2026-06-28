@@ -11,7 +11,7 @@
 
 1. [Scope of This Document](#scope-of-this-document)
 2. [Package Dependency Graph](#package-dependency-graph)
-3. [Public API Surface — @mantlejs/core](#public-api-surface--mantlejscore)
+3. [Public API Surface — @mantlejs/mantle](#public-api-surface--mantlejscore)
 4. [Public API Surface — @mantlejs/express](#public-api-surface--mantlejsexpress)
 5. [Public API Surface — @mantlejs/knex](#public-api-surface--mantlejsknex)
 6. [Public API Surface — @mantlejs/auth](#public-api-surface--mantlejsauth)
@@ -39,38 +39,38 @@ It does **not** cover internal implementation details, class internals, or infra
 ### Dependency Rules
 
 - Dependencies flow **outward to inward** — outer packages depend on inner packages, never the reverse
-- `@mantlejs/core` has **zero** external runtime dependencies
-- All other packages depend on `@mantlejs/core` and add their own peer/runtime dependencies
+- `@mantlejs/mantle` has **zero** external runtime dependencies
+- All other packages depend on `@mantlejs/mantle` and add their own peer/runtime dependencies
 - Auth packages depend on each other (`auth-local` depends on `auth`) but not on transport or database packages
 - Transport and database adapters are **independent of each other**
 
 ### Graph
 
 ```text
-@mantlejs/core
+@mantlejs/mantle
 │   (no external deps)
 │
 ├── @mantlejs/express
-│       depends on: @mantlejs/core, express
+│       depends on: @mantlejs/mantle, express
 │
 ├── @mantlejs/knex
-│       depends on: @mantlejs/core, knex
+│       depends on: @mantlejs/mantle, knex
 │
 ├── @mantlejs/auth
-│       depends on: @mantlejs/core, jsonwebtoken
+│       depends on: @mantlejs/mantle, jsonwebtoken
 │
 │   └── @mantlejs/auth-local
-│           depends on: @mantlejs/core, @mantlejs/auth, bcrypt
+│           depends on: @mantlejs/mantle, @mantlejs/auth, bcrypt
 │
 └── @mantlejs/upload
-        depends on: @mantlejs/core, busboy
+        depends on: @mantlejs/mantle, busboy
 ```
 
 ### Matrix View
 
 | Package | core | express | knex | auth | auth-local | upload |
 | --- | --- | --- | --- | --- | --- | --- |
-| `@mantlejs/core` | — | | | | | |
+| `@mantlejs/mantle` | — | | | | | |
 | `@mantlejs/express` | ✅ | — | | | | |
 | `@mantlejs/knex` | ✅ | | — | | | |
 | `@mantlejs/auth` | ✅ | | | — | | |
@@ -81,7 +81,7 @@ It does **not** cover internal implementation details, class internals, or infra
 
 ---
 
-## Public API Surface — @mantlejs/core
+## Public API Surface — @mantlejs/mantle
 
 ### `mantle()`
 
@@ -377,7 +377,7 @@ function rest(): MantlePlugin;
 ### Usage Pattern
 
 ```typescript
-import { mantle } from '@mantlejs/core';
+import { mantle } from '@mantlejs/mantle';
 import { express } from '@mantlejs/express';
 
 const app = mantle().configure(express());

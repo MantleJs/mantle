@@ -1,5 +1,5 @@
-import { getContext } from "@mantlejs/core";
-import type { Logger } from "@mantlejs/core";
+import { getContext } from "@mantlejs/mantle";
+import type { Logger } from "@mantlejs/mantle";
 
 /** Minimal duck-type for a pino logger. Accepts pino.Logger or any compatible object. */
 export interface PinoLike {

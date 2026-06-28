@@ -1,5 +1,5 @@
 import type { Knex } from "knex";
-import type { Id, QueryParams, Repository } from "@mantlejs/core";
+import type { Id, QueryParams, Repository } from "@mantlejs/mantle";
 import {
   BadRequest,
   Conflict,
@@ -8,8 +8,8 @@ import {
   NotFound,
   Unavailable,
   Unprocessable,
-} from "@mantlejs/core";
-import type { MantleApplication } from "@mantlejs/core";
+} from "@mantlejs/mantle";
+import type { MantleApplication } from "@mantlejs/mantle";
 import { knexify } from "./knexify.js";
 import type { WhereClause } from "./knexify.js";
 

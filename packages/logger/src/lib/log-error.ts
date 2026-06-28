@@ -1,5 +1,5 @@
-import { MantleError } from "@mantlejs/core";
-import type { HookFunction, Logger } from "@mantlejs/core";
+import { MantleError } from "@mantlejs/mantle";
+import type { HookFunction, Logger } from "@mantlejs/mantle";
 
 export interface LogErrorOptions {
   /** Log 4xx errors as 'warn', 5xx errors as 'error'. Default: true */

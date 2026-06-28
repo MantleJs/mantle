@@ -31,35 +31,35 @@ This TDD covers the public TypeScript API surface and key data flows for Phase 3
 ### Full Graph (Phase 1 + Phase 2 + Phase 3)
 
 ```text
-@mantlejs/core                        (no external deps)
+@mantlejs/mantle                        (no external deps)
 │
-├── @mantlejs/express                 depends on: @mantlejs/core, express
-├── @mantlejs/koa                     depends on: @mantlejs/core, koa, @koa/router  [NEW P3]
-├── @mantlejs/knex                    depends on: @mantlejs/core, knex
-├── @mantlejs/mongodb                 depends on: @mantlejs/core, mongodb           [NEW P3]
-├── @mantlejs/auth                    depends on: @mantlejs/core, jsonwebtoken
-│   ├── @mantlejs/auth-local          depends on: @mantlejs/core, @mantlejs/auth, @node-rs/argon2
-│   ├── @mantlejs/auth-google         depends on: @mantlejs/core, @mantlejs/auth
-│   └── @mantlejs/auth-github         depends on: @mantlejs/core, @mantlejs/auth
-├── @mantlejs/upload                  depends on: @mantlejs/core, busboy
+├── @mantlejs/express                 depends on: @mantlejs/mantle, express
+├── @mantlejs/koa                     depends on: @mantlejs/mantle, koa, @koa/router  [NEW P3]
+├── @mantlejs/knex                    depends on: @mantlejs/mantle, knex
+├── @mantlejs/mongodb                 depends on: @mantlejs/mantle, mongodb           [NEW P3]
+├── @mantlejs/auth                    depends on: @mantlejs/mantle, jsonwebtoken
+│   ├── @mantlejs/auth-local          depends on: @mantlejs/mantle, @mantlejs/auth, @node-rs/argon2
+│   ├── @mantlejs/auth-google         depends on: @mantlejs/mantle, @mantlejs/auth
+│   └── @mantlejs/auth-github         depends on: @mantlejs/mantle, @mantlejs/auth
+├── @mantlejs/upload                  depends on: @mantlejs/mantle, busboy
 │   ├── @mantlejs/upload-s3           depends on: @mantlejs/upload, @aws-sdk/client-s3
 │   └── @mantlejs/upload-gcs          depends on: @mantlejs/upload, @google-cloud/storage
-├── @mantlejs/logger                  depends on: @mantlejs/core, pino
-├── @mantlejs/schema                  depends on: @mantlejs/core, @sinclair/typebox
-├── @mantlejs/memory                  depends on: @mantlejs/core
-├── @mantlejs/config                  depends on: @mantlejs/core, @sinclair/typebox*
-├── @mantlejs/socketio                depends on: @mantlejs/core, socket.io
-└── @mantlejs/sync                    depends on: @mantlejs/core              [NEW P3]
+├── @mantlejs/logger                  depends on: @mantlejs/mantle, pino
+├── @mantlejs/schema                  depends on: @mantlejs/mantle, @sinclair/typebox
+├── @mantlejs/memory                  depends on: @mantlejs/mantle
+├── @mantlejs/config                  depends on: @mantlejs/mantle, @sinclair/typebox*
+├── @mantlejs/socketio                depends on: @mantlejs/mantle, socket.io
+└── @mantlejs/sync                    depends on: @mantlejs/mantle              [NEW P3]
                                       peer: ioredis (for redisAdapter)
 
 @mantlejs/client                      depends on: socket.io-client             [NEW P3]
-                                      optional peer: @mantlejs/core (types)
+                                      optional peer: @mantlejs/mantle (types)
 @mantlejs/cli                         (no runtime deps — code generator only)
 ```
 
 ### Dependency Rule: `@mantlejs/sync` must NOT import from `@mantlejs/socketio`
 
-`sync` operates at the `'service:event'` level defined by `@mantlejs/core`. It is transport-agnostic. The `socketio` transport and the `sync` package both independently subscribe to `'service:event'` — there is no coordination layer between them. This means a future `@mantlejs/koa`-based WebSocket transport would benefit from `@mantlejs/sync` with zero changes to either package.
+`sync` operates at the `'service:event'` level defined by `@mantlejs/mantle`. It is transport-agnostic. The `socketio` transport and the `sync` package both independently subscribe to `'service:event'` — there is no coordination layer between them. This means a future `@mantlejs/koa`-based WebSocket transport would benefit from `@mantlejs/sync` with zero changes to either package.
 
 ---
 
@@ -230,7 +230,7 @@ export interface MongoRepositoryOptions { ... }
 
 ### Key design points
 
-- Extends the `Repository<T>` interface from `@mantlejs/core` — same API as `KnexRepository`.
+- Extends the `Repository<T>` interface from `@mantlejs/mantle` — same API as `KnexRepository`.
 - `_id` is mapped to `id` on the way out (and vice versa on the way in). The public entity type always has `id: string`, never `_id`.
 - All `QueryParams` operators are mapped to MongoDB query operators (`$gt` → `$gt`, `$or` → `$or`, `$like` → `$regex`, etc.).
 - `withTransaction(fn)` uses MongoDB sessions and multi-document ACID transactions (requires MongoDB 4.0+ with replica set).
@@ -287,7 +287,7 @@ Instance A: @mantlejs/express
   → UserService.create()
   → Repository.save() → DB
   ▼
-Instance A: @mantlejs/core (ServiceHandleImpl)
+Instance A: @mantlejs/mantle (ServiceHandleImpl)
   → app.emit('service:event', 'messages', 'created', result, params)
                     │
           ┌─────────┴──────────────┐

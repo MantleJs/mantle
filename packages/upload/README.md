@@ -31,7 +31,7 @@ The `@mantlejs/express` transport puts the raw `IncomingMessage` at `params.requ
 ## Quick start
 
 ```typescript
-import { mantle } from "@mantlejs/core";
+import { mantle } from "@mantlejs/mantle";
 import { express } from "@mantlejs/express";
 import { upload, diskStorage, handleUpload } from "@mantlejs/upload";
 

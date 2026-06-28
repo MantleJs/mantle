@@ -46,7 +46,7 @@ Dependencies always point inward. Nothing in Domain or Application layers knows 
 
 | Package                 | Description                                                                           |
 | ----------------------- | ------------------------------------------------------------------------------------- |
-| `@mantlejs/core`        | Framework kernel — Service, Repository, hooks, errors. Zero external deps.            |
+| `@mantlejs/mantle`        | Framework kernel — Service, Repository, hooks, errors. Zero external deps.            |
 | `@mantlejs/express`     | Express HTTP transport adapter                                                        |
 | `@mantlejs/knex`        | SQL adapter via Knex.js (PostgreSQL, MySQL/MariaDB, SQLite3, MSSQL)                   |
 | `@mantlejs/auth`        | JWT engine + strategy runner                                                          |
@@ -65,7 +65,7 @@ Dependencies always point inward. Nothing in Domain or Application layers knows 
 ## Quick Start
 
 ```typescript
-import { mantle } from "@mantlejs/core";
+import { mantle } from "@mantlejs/mantle";
 import { express } from "@mantlejs/express";
 import { knex } from "@mantlejs/knex";
 import { auth, authenticate, sanitizeUser } from "@mantlejs/auth";

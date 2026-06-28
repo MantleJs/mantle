@@ -1,5 +1,5 @@
-import { mantle, BadRequest, NotFound, withContext } from "@mantlejs/core";
-import type { HookContext, Logger, MantleApplication, Service } from "@mantlejs/core";
+import { mantle, BadRequest, NotFound, withContext } from "@mantlejs/mantle";
+import type { HookContext, Logger, MantleApplication, Service } from "@mantlejs/mantle";
 import { logger, pinoAdapter, logRequest, logError } from "../../src/index.js";
 import type { PinoLike } from "../../src/index.js";
 

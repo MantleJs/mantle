@@ -1,5 +1,5 @@
 {
-  "name": "@mantlejs/core",
+  "name": "@mantlejs/mantle",
   "version": "0.0.1",
   "type": "module",
   "main": "./dist/index.js",
@@ -19,7 +19,7 @@
     "!**/*.tsbuildinfo"
   ],
   "nx": {
-    "name": "core"
+    "name": "mantle"
   },
   "dependencies": {
     "tslib": "^2.3.0"

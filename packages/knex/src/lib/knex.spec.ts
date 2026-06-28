@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { MantleApplication } from "@mantlejs/core";
+import type { MantleApplication } from "@mantlejs/mantle";
 
 const { mockKnexFn, mockKnexInstance } = vi.hoisted(() => {
   const instance = { destroy: vi.fn().mockResolvedValue(undefined) };

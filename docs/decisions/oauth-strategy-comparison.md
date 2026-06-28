@@ -77,7 +77,7 @@ export const authentication = (app: Application) => {
 
 ```typescript
 // server.ts
-import { mantle } from "@mantlejs/core";
+import { mantle } from "@mantlejs/mantle";
 import { express } from "@mantlejs/express";
 import { auth } from "@mantlejs/auth";
 import { githubStrategy } from "@mantlejs/auth-github";
@@ -173,7 +173,7 @@ export const authentication = (app: Application) => {
 
 ```typescript
 // server.ts
-import { mantle } from "@mantlejs/core";
+import { mantle } from "@mantlejs/mantle";
 import { express } from "@mantlejs/express";
 import { auth } from "@mantlejs/auth";
 import { googleStrategy } from "@mantlejs/auth-google";
@@ -301,7 +301,7 @@ The entire GitHub OAuth flow — URL construction, code exchange, profile fetch,
 
 ### Clean dependency graph
 
-The `@nx/enforce-module-boundaries` rule enforces that `@mantlejs/auth-github` may only depend on `@mantlejs/core` and `@mantlejs/auth-oauth`. This is expressible in a per-package rule precisely because each provider is its own package. A single monolithic `@mantlejs/auth-oauth` for all providers would not allow this level of granularity.
+The `@nx/enforce-module-boundaries` rule enforces that `@mantlejs/auth-github` may only depend on `@mantlejs/mantle` and `@mantlejs/auth-oauth`. This is expressible in a per-package rule precisely because each provider is its own package. A single monolithic `@mantlejs/auth-oauth` for all providers would not allow this level of granularity.
 
 ### Precedent in the ecosystem
 

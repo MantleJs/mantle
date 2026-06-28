@@ -1,6 +1,6 @@
 import type { Server as HttpServer } from "http";
 import { Server, type ServerOptions, type Socket } from "socket.io";
-import { GeneralError, MantleError } from "@mantlejs/core";
+import { GeneralError, MantleError } from "@mantlejs/mantle";
 import type {
   ChannelPublisher,
   Id,
@@ -9,7 +9,7 @@ import type {
   MantlePlugin,
   PublishContext,
   ServiceParams,
-} from "@mantlejs/core";
+} from "@mantlejs/mantle";
 
 export interface SocketioOptions {
   serverOptions?: Partial<ServerOptions>;

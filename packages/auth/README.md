@@ -37,7 +37,7 @@ Hooks registered with `authenticate('jwt')` automatically skip when the call has
 ## Quick start
 
 ```typescript
-import { mantle } from "@mantlejs/core";
+import { mantle } from "@mantlejs/mantle";
 import { express } from "@mantlejs/express";
 import { auth, authenticate, sanitizeUser } from "@mantlejs/auth";
 import { localStrategy, hashPassword } from "@mantlejs/auth-local";
@@ -257,7 +257,7 @@ import type {
 ## Writing a custom strategy
 
 ```typescript
-import type { MantlePlugin } from "@mantlejs/core";
+import type { MantlePlugin } from "@mantlejs/mantle";
 import type { AuthEngine, AuthStrategy } from "@mantlejs/auth";
 
 export function magicLinkStrategy(): MantlePlugin {

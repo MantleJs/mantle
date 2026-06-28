@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { mantle, GeneralError, NotFound } from "@mantlejs/core";
-import type { MantleChannel } from "@mantlejs/core";
+import { mantle, GeneralError, NotFound } from "@mantlejs/mantle";
+import type { MantleChannel } from "@mantlejs/mantle";
 
 // ─── Mock socket.io ────────────────────────────────────────────────────────────
 

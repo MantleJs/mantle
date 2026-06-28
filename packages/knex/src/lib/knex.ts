@@ -1,6 +1,6 @@
 import knexLib from "knex";
 import type { Knex } from "knex";
-import type { MantleApplication, MantlePlugin } from "@mantlejs/core";
+import type { MantleApplication, MantlePlugin } from "@mantlejs/mantle";
 
 export interface KnexConfig {
   /** Knex client identifier: 'pg', 'mysql2', 'sqlite3', 'mssql', 'oracledb', etc. */

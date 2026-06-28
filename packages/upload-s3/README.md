@@ -27,7 +27,7 @@ The adapter uses `@aws-sdk/lib-storage` `Upload`, which automatically handles mu
 ## Quick start
 
 ```typescript
-import { mantle } from "@mantlejs/core";
+import { mantle } from "@mantlejs/mantle";
 import { express } from "@mantlejs/express";
 import { upload } from "@mantlejs/upload";
 import { s3Storage } from "@mantlejs/upload-s3";

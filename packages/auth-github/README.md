@@ -27,7 +27,7 @@ On callback the plugin searches the configured user service for a record where `
 ## Quick start
 
 ```typescript
-import { mantle } from "@mantlejs/core";
+import { mantle } from "@mantlejs/mantle";
 import { express } from "@mantlejs/express";
 import { auth } from "@mantlejs/auth";
 import { githubStrategy } from "@mantlejs/auth-github";

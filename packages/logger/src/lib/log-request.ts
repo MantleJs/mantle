@@ -1,4 +1,4 @@
-import type { HookFunction, Logger } from "@mantlejs/core";
+import type { HookFunction, Logger } from "@mantlejs/mantle";
 
 export interface LogRequestOptions {
   /** Log level for successful calls. Default: 'debug' */

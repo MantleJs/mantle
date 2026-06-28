@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { GeneralError } from "@mantlejs/core";
+import { GeneralError } from "@mantlejs/mantle";
 
 // ─── Mock createOAuthPlugin so we can verify it is called correctly ───────────
 

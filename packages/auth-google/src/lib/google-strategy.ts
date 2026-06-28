@@ -1,5 +1,5 @@
-import type { MantlePlugin } from "@mantlejs/core";
-import { GeneralError } from "@mantlejs/core";
+import type { MantlePlugin } from "@mantlejs/mantle";
+import { GeneralError } from "@mantlejs/mantle";
 // eslint-disable-next-line @nx/enforce-module-boundaries -- spec uses await import() for vi.mock which makes Nx treat auth-oauth as lazy-loaded
 import { createOAuthPlugin } from "@mantlejs/auth-oauth";
 import type { OAuthPluginConfig, OAuthProvider, AuthUrlParams, CodeExchangeParams, OAuthProfile } from "@mantlejs/auth-oauth";

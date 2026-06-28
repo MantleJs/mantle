@@ -75,7 +75,7 @@ config/
 ```
 
 ```typescript
-import { mantle } from "@mantlejs/core";
+import { mantle } from "@mantlejs/mantle";
 import { express } from "@mantlejs/express";
 import { config } from "@mantlejs/config";
 import { Type } from "@sinclair/typebox";

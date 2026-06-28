@@ -9,7 +9,14 @@
     "types": ["node"]
   },
   "include": ["src/**/*.ts"],
-  "references": [{ "path": "../core/tsconfig.lib.json" }, { "path": "../auth-oauth/tsconfig.lib.json" }],
+  "references": [
+    {
+      "path": "../auth-oauth/tsconfig.lib.json"
+    },
+    {
+      "path": "../mantle/tsconfig.lib.json"
+    }
+  ],
   "exclude": [
     "vite.config.ts",
     "vite.config.mts",
