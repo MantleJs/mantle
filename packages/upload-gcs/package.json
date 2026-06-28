@@ -1,0 +1,43 @@
+{
+  "name": "@mantlejs/upload-gcs",
+  "version": "0.0.1",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    "./package.json": "./package.json",
+    ".": {
+      "@mantle/source": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "!**/*.tsbuildinfo"
+  ],
+  "nx": {
+    "name": "upload-gcs"
+  },
+  "dependencies": {
+    "tslib": "^2.3.0"
+  },
+  "description": "Google Cloud Storage adapter for @mantlejs/upload",
+  "license": "MIT",
+  "keywords": [
+    "mantle",
+    "upload",
+    "gcs",
+    "google-cloud",
+    "storage"
+  ],
+  "peerDependencies": {
+    "@mantlejs/upload": "^0.0.1",
+    "@google-cloud/storage": "^7.0.0"
+  },
+  "devDependencies": {
+    "@google-cloud/storage": "^7.0.0"
+  }
+}

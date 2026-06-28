@@ -54,7 +54,8 @@ mantle/
 │   ├── auth-oauth/     @mantlejs/auth-oauth  Shared OAuth 2.0 base (state, PKCE, find-or-create)
 │   ├── auth-google/    @mantlejs/auth-google Google Sign-In strategy (PKCE, no Passport.js)
 │   ├── upload/         @mantlejs/upload      File upload via busboy, local disk storage
-│   └── upload-s3/      @mantlejs/upload-s3   AWS S3 storage adapter for @mantlejs/upload
+│   ├── upload-s3/      @mantlejs/upload-s3   AWS S3 storage adapter for @mantlejs/upload
+│   └── upload-gcs/     @mantlejs/upload-gcs  Google Cloud Storage adapter for @mantlejs/upload
 ├── docs/               scaffold.sh, PRD, TDD
 └── CLAUDE.md           This file
 ```
@@ -73,6 +74,7 @@ mantle/
 | @mantlejs/auth-github | @mantlejs/core, @mantlejs/auth-oauth        |
 | @mantlejs/upload      | @mantlejs/core                              |
 | @mantlejs/upload-s3   | @mantlejs/core, @mantlejs/upload            |
+| @mantlejs/upload-gcs  | @mantlejs/core, @mantlejs/upload            |
 
 ---
 

@@ -1,0 +1,44 @@
+{
+  "name": "@mantlejs/cli",
+  "version": "0.0.1",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "bin": {
+    "mantle": "./dist/bin/mantle.js"
+  },
+  "exports": {
+    "./package.json": "./package.json",
+    ".": {
+      "@mantle/source": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "!**/*.tsbuildinfo"
+  ],
+  "nx": {
+    "name": "cli"
+  },
+  "dependencies": {
+    "tslib": "^2.3.0",
+    "commander": "^12.1.0",
+    "prompts": "^2.4.2"
+  },
+  "devDependencies": {
+    "@types/prompts": "^2.4.9"
+  },
+  "description": "Command-line interface for Mantle JS — scaffold projects, services, repositories, and hooks",
+  "license": "MIT",
+  "keywords": [
+    "mantle",
+    "cli",
+    "scaffolding",
+    "codegen",
+    "typescript"
+  ]
+}

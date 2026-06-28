@@ -31,10 +31,10 @@ Work through these in order. Each item maps to a package spec in the Phase 2 PRD
 - [x] **9. Implement `@mantlejs/upload-s3`**
   New package. `s3Storage()` returns a `StorageAdapter` for `@mantlejs/upload`. Use `@aws-sdk/lib-storage` `Upload` for multipart support. Support explicit credentials or AWS SDK default credential chain. `UploadedFile.path` is the full HTTPS S3 URL after upload.
 
-- [ ] **10. Implement `@mantlejs/upload-gcs`**
+- [x] **10. Implement `@mantlejs/upload-gcs`**
   New package. `gcsStorage()` returns a `StorageAdapter` for `@mantlejs/upload`. Use `@google-cloud/storage`. Support Application Default Credentials or explicit `keyFilename`. `UploadedFile.path` is HTTPS URL when `public: true`, `gs://` URI when `public: false`.
 
-- [ ] **11. Implement `@mantlejs/cli`**
+- [x] **11. Implement `@mantlejs/cli`**
   New package. `mantle` binary with `new <project-name>` (scaffold full project, prompts for transport / database / auth / package manager) and `generate <generator> <name>` (alias `g`). Generators: `service`, `hook`, `repository`. Generated service tests use `@mantlejs/memory`. No runtime imports from other Mantle packages.
 
 ---
