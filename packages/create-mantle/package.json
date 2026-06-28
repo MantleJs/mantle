@@ -1,0 +1,40 @@
+{
+  "name": "create-mantle",
+  "version": "0.0.1",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "bin": {
+    "create-mantle": "./dist/bin/create-mantle.js"
+  },
+  "exports": {
+    "./package.json": "./package.json",
+    ".": {
+      "@mantle/source": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "!**/*.tsbuildinfo"
+  ],
+  "nx": {
+    "name": "create-mantle"
+  },
+  "dependencies": {
+    "tslib": "^2.3.0",
+    "@mantlejs/cli": "*"
+  },
+  "description": "Project initializer for Mantle JS — scaffold a new Mantle application via npm create mantle",
+  "license": "MIT",
+  "keywords": [
+    "mantle",
+    "create",
+    "scaffold",
+    "initializer",
+    "typescript"
+  ]
+}

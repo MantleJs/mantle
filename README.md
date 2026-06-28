@@ -61,6 +61,7 @@ Dependencies always point inward. Nothing in Domain or Application layers knows 
 | `@mantlejs/logger`      | Structured logging — pino adapter, `logRequest` / `logError` hooks, correlation ID    |
 | `@mantlejs/schema`      | TypeBox schema validation (`validate`) and field resolution (`resolver`) hooks        |
 | `@mantlejs/socketio`    | Socket.IO transport adapter — real-time WebSocket events via the Mantle hook pipeline |
+| `create-mantle`         | Project initializer — scaffold a new Mantle application via `npm create mantle`       |
 
 ## Quick Start
 

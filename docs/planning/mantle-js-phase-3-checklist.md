@@ -4,10 +4,10 @@ Work through these in order. Each item maps to a package spec in the Phase 3 PRD
 
 ---
 
-- [ ] **1. Add `VectorRepository<T>` and `GraphRepository<T>` to `@mantlejs/mantle`**
+- [x] **1. Add `VectorRepository<T>` and `GraphRepository<T>` to `@mantlejs/mantle`**
   Add two new interface extensions to the public API of `@mantlejs/mantle`. `VectorRepository<T>` extends `Repository<T>` with `findSimilar(vector, topK, params?)`, `upsertVector(id, vector, data)`, and `deleteVector(id)`. `GraphRepository<T>` is a standalone interface (does NOT extend `Repository<T>`) with `createNode`, `findNodeById`, `findNodes`, `createRelationship`, `traverse`, `deleteNode`, and `cypher`. No implementation ships in `@mantlejs/mantle` — zero new dependencies. Export both interfaces from `src/index.ts`.
 
-- [ ] **2. Implement `create-mantle`**
+- [x] **2. Implement `create-mantle`**
   New unscoped package (`create-mantle`, not `@mantlejs/create-mantle`) published to npm so `npm create mantle my-api` resolves correctly. The package is a minimal bin entry point that imports `newProject()` from `@mantlejs/cli` and forwards `process.argv` to it. No template logic is duplicated — all scaffolding lives in `@mantlejs/cli`. The `bin` field points to `dist/bin/create-mantle.js`. Add `create-mantle` to the packages table in the root `README.md`.
 
 - [ ] **3. Implement `@mantlejs/cli` — Phase 3 additions**
