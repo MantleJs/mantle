@@ -55,6 +55,7 @@ Dependencies always point inward. Nothing in Domain or Application layers knows 
 | `@mantlejs/auth-google` | Google Sign-In strategy (authorization code + PKCE, no Passport.js)                   |
 | `@mantlejs/auth-github` | GitHub Sign-In strategy (authorization code flow, no Passport.js)                     |
 | `@mantlejs/upload`      | File upload via busboy, local disk storage                                            |
+| `@mantlejs/upload-s3`   | AWS S3 storage adapter for `@mantlejs/upload` (supports MinIO, R2, and other S3-compatible stores) |
 | `@mantlejs/logger`      | Structured logging — pino adapter, `logRequest` / `logError` hooks, correlation ID    |
 | `@mantlejs/schema`      | TypeBox schema validation (`validate`) and field resolution (`resolver`) hooks        |
 | `@mantlejs/socketio`    | Socket.IO transport adapter — real-time WebSocket events via the Mantle hook pipeline |

@@ -1,0 +1,45 @@
+{
+  "name": "@mantlejs/upload-s3",
+  "version": "0.0.1",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    "./package.json": "./package.json",
+    ".": {
+      "@mantle/source": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "!**/*.tsbuildinfo"
+  ],
+  "nx": {
+    "name": "upload-s3"
+  },
+  "dependencies": {
+    "tslib": "^2.3.0"
+  },
+  "description": "AWS S3 storage adapter for @mantlejs/upload",
+  "license": "MIT",
+  "keywords": [
+    "mantle",
+    "upload",
+    "s3",
+    "aws",
+    "storage"
+  ],
+  "peerDependencies": {
+    "@mantlejs/upload": "^0.0.1",
+    "@aws-sdk/client-s3": "^3.0.0",
+    "@aws-sdk/lib-storage": "^3.0.0"
+  },
+  "devDependencies": {
+    "@aws-sdk/client-s3": "^3.0.0",
+    "@aws-sdk/lib-storage": "^3.0.0"
+  }
+}

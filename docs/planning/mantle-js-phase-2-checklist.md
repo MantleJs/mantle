@@ -28,7 +28,7 @@ Work through these in order. Each item maps to a package spec in the Phase 2 PRD
 - [x] **8. Implement `@mantlejs/socketio`**
   New package. `socketio()` plugin attaches a `socket.io` Server to the Express HTTP server. Wire socket events (`find`, `get`, `create`, `update`, `patch`, `remove`) through the full hook pipeline. Set `params.provider = 'socket.io'`. Emit `<service> created/updated/patched/removed` events to all connected clients after successful mutations. Must be configured after `express()`.
 
-- [ ] **9. Implement `@mantlejs/upload-s3`**
+- [x] **9. Implement `@mantlejs/upload-s3`**
   New package. `s3Storage()` returns a `StorageAdapter` for `@mantlejs/upload`. Use `@aws-sdk/lib-storage` `Upload` for multipart support. Support explicit credentials or AWS SDK default credential chain. `UploadedFile.path` is the full HTTPS S3 URL after upload.
 
 - [ ] **10. Implement `@mantlejs/upload-gcs`**
