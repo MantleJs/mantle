@@ -62,7 +62,7 @@ Phase 2 delivers eight new packages and one additive change to `@mantlejs/core`:
 - No raw WebSocket or SSE transport (Socket.io only for real-time)
 - No Koa HTTP adapter (Phase 3)
 - No client SDKs for React, Vue, iOS, Android (Phase 3)
-- No Socket.io channels or rooms for targeted event delivery (Phase 3)
+- No cross-instance event replication (`@mantlejs/sync` — Phase 3)
 - No MongoDB or Prisma adapters (Phase 3)
 - No multi-tenancy primitives (Phase 4)
 - No OpenAPI/Swagger auto-generation (Phase 4)
@@ -720,24 +720,78 @@ socket.on('users created', (user) => {
 
 This means a `POST /users` over REST also triggers `users created` on all socket clients — no separate event wiring needed.
 
-#### Selective broadcast via `params.rooms`
+#### Channel-based broadcasting (opt-in security)
 
-Before hooks can scope an event to specific socket.io rooms by setting `params.rooms`:
+`@mantlejs/socketio` implements a channel system for controlling which socket clients receive service events. By default, **no events are broadcast** unless a publisher is declared — this is an opt-in security model.
+
+**Joining channels:** When a socket connects, the app emits a `'connection'` event. Use this to place the connection in channels:
 
 ```typescript
-app.service('messages').hooks({
-  before: {
-    create: [
-      (ctx) => {
-        ctx.params.rooms = ['admins', `user:${ctx.params.user?.id}`];
-        return ctx;
-      },
-    ],
-  },
+app.on('connection', (connection) => {
+  app.channel('anonymous').join(connection);
 });
 ```
 
-If `params.rooms` is set, the event is emitted via `io.to(rooms).emit(...)` instead of `io.emit(...)`. If unset, all clients receive the event.
+**Publishers:** Declare which channel(s) receive events per service (or globally):
+
+```typescript
+// Per-service publisher
+app.service('messages').publish((data, ctx) => {
+  return app.channel('authenticated');
+});
+
+// Global fallback — used when no per-service publisher is set
+app.publish((data, ctx) => {
+  return app.channel('authenticated');
+});
+```
+
+If neither is set, the event is silently dropped — clients receive nothing. Per-service publishers take precedence over the global fallback.
+
+**Filtering:** Publishers can return a filtered view of a channel — useful for per-user or per-tenant data isolation:
+
+```typescript
+app.service('users').publish((data, ctx) => {
+  return app.channel('authenticated').filter((d, connection) => {
+    return (connection.user as User)?.id === (d as User).id;
+  });
+});
+```
+
+**Combined channels:** Publishers can return multiple channels or use `app.channel([...])` for the union:
+
+```typescript
+app.service('messages').publish((data, ctx) => {
+  return [app.channel('admins'), app.channel(`org:${(data as Message).orgId}`)];
+});
+```
+
+**Channel lifecycle events:**
+
+| Event | When emitted |
+|---|---|
+| `app.on('connection', cb)` | A new socket connects — use to join channels |
+| `app.on('disconnect', cb)` | A socket disconnects — channel membership cleaned up automatically |
+
+**MantleChannel interface:**
+
+```typescript
+interface MantleChannel {
+  readonly connections: Record<string, unknown>[];
+  join(connection: Record<string, unknown>): this;
+  leave(connection: Record<string, unknown>): this;
+  filter(fn: (data: unknown, connection: Record<string, unknown>) => boolean): MantleChannel;
+}
+```
+
+**ChannelPublisher type:**
+
+```typescript
+type ChannelPublisher<T = unknown> = (
+  data: T | T[] | Paginated<T>,
+  context: { app: MantleApplication; path: string; params: ServiceParams },
+) => MantleChannel | MantleChannel[] | null | undefined | void;
+```
 
 #### Per-socket connection state
 
@@ -1030,7 +1084,7 @@ Phase 2 upholds all Phase 1 principles and adds:
 | 7 | Resolver pattern? | Simplified field-map resolver hook (`resolver<T>(map)`). Returning `undefined` removes the field. No separate data/result/query resolver classes as in FeathersJS. |
 | 8 | Memory repo in core or separate? | **Separate `@mantlejs/memory`.** Core stays as the zero-dep kernel. |
 | 9 | OAuth implementation? | **Direct OAuth 2.0 flow** per provider — no Passport.js dependency. Each strategy package owns its flow. |
-| 10 | Socket.io channels/rooms? | **Deferred to Phase 3** (`@mantlejs/channels`). Phase 2 broadcasts all events to all connected clients. |
+| 10 | Socket.io channels? | **Implemented in Phase 2** in `@mantlejs/socketio`. Opt-in security model: no publisher = no broadcast. Uses `app.channel()`, `service.publish()`, and `app.publish()`. Filtered views via `channel.filter()`. Connection lifecycle via `app.on('connection'/'disconnect', ...)`. Cross-instance replication via `@mantlejs/sync` is Phase 3. |
 | 11 | Cloud storage adapter naming? | **Separate installable packages:** `@mantlejs/upload-s3`, `@mantlejs/upload-gcs`. Users only install what they need. |
 | 12 | Config file format? | **JSON only** for Phase 2. Simple to parse, no additional dependencies. YAML or JS config files can be added in a later phase. |
 | 13 | Config validation at startup? | **Optional TypeBox schema.** If provided, invalid config throws `GeneralError` before the server starts — fail fast, fail loud. |

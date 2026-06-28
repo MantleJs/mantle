@@ -1,5 +1,23 @@
 export type Id = string | number;
 
+export interface MantleChannel {
+  readonly connections: Record<string, unknown>[];
+  join(connection: Record<string, unknown>): this;
+  leave(connection: Record<string, unknown>): this;
+  filter(fn: (data: unknown, connection: Record<string, unknown>) => boolean): MantleChannel;
+}
+
+export interface PublishContext {
+  app: MantleApplication;
+  path: string;
+  params: ServiceParams;
+}
+
+export type ChannelPublisher<T = unknown> = (
+  data: T | T[] | Paginated<T>,
+  context: PublishContext,
+) => MantleChannel | MantleChannel[] | null | undefined | void;
+
 export interface Logger {
   debug(msg: string, context?: Record<string, unknown>): void;
   info(msg: string, context?: Record<string, unknown>): void;
@@ -98,6 +116,8 @@ export interface ServiceHandle<T> extends Service<T> {
   dispatch(method: string, data?: Partial<T>, id?: Id, params?: ServiceParams): Promise<T | T[] | Paginated<T>>;
   readonly schema?: unknown;
   readonly methods: string[];
+  publish(publisher: ChannelPublisher<T>): this;
+  readonly publisher?: ChannelPublisher<unknown>;
 }
 
 export interface MantleApplication {
@@ -110,4 +130,6 @@ export interface MantleApplication {
   on(event: string, listener: (...args: unknown[]) => void): this;
   off(event: string, listener: (...args: unknown[]) => void): this;
   emit(event: string, ...args: unknown[]): void;
+  channel(name: string | string[]): MantleChannel;
+  publish<T = unknown>(publisher: ChannelPublisher<T>): this;
 }

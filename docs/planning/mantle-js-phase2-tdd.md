@@ -190,15 +190,59 @@ app.emit('service:event', path, eventName, result, params);
 
 Transports subscribe once and fan out to their clients. This is what enables REST mutations to automatically trigger socket broadcasts with no extra wiring.
 
-### `ServiceParams` — `connection` and `rooms` fields (additive)
+### `ServiceParams` — `connection` field (additive)
 
 ```typescript
 interface ServiceParams {
   // ...existing...
   /** Per-socket persistent state. Set by the socket.io transport; persists across calls from the same connection. */
   connection?: Record<string, unknown>;
-  /** Rooms to broadcast mutation events to. If set, the socket.io transport broadcasts only to these rooms. */
-  rooms?: string | string[];
+}
+```
+
+### Channel types (additive)
+
+```typescript
+interface MantleChannel {
+  readonly connections: Record<string, unknown>[];
+  join(connection: Record<string, unknown>): this;
+  leave(connection: Record<string, unknown>): this;
+  filter(fn: (data: unknown, connection: Record<string, unknown>) => boolean): MantleChannel;
+}
+
+interface PublishContext {
+  app: MantleApplication;
+  path: string;
+  params: ServiceParams;
+}
+
+type ChannelPublisher<T = unknown> = (
+  data: T | T[] | Paginated<T>,
+  context: PublishContext,
+) => MantleChannel | MantleChannel[] | null | undefined | void;
+```
+
+### `MantleApplication` — channel methods (additive)
+
+```typescript
+interface MantleApplication {
+  // ...existing...
+  channel(name: string | string[]): MantleChannel;
+  publish<T = unknown>(publisher: ChannelPublisher<T>): this;
+}
+```
+
+`channel()` throws `GeneralError` if called before `socketio()` is configured. The socketio plugin installs the channel registry via `app.set('__channelFactory', factory)`.
+
+`app.channel(['a', 'b'])` returns a `CombinedChannel` — the deduplicated union of both channels' connections.
+
+### `ServiceHandle<T>` — channel publisher (additive)
+
+```typescript
+interface ServiceHandle<T> extends Service<T> {
+  // ...existing...
+  publish(publisher: ChannelPublisher<T>): this;
+  readonly publisher?: ChannelPublisher<unknown>;
 }
 ```
 
@@ -749,14 +793,37 @@ socket.on('users removed',  (data: User) => { ... });
 
 A REST `POST /users` triggers `users created` on all socket clients automatically.
 
-#### Selective broadcast via `params.rooms`
+#### Channel-based broadcasting
 
-If a before hook sets `params.rooms`, the event is emitted to those socket.io rooms only:
+Broadcasting is **opt-in**: if no publisher is configured for a service (and no global publisher), service events are silently dropped — no clients receive them.
+
+Resolution order when a `'service:event'` fires:
+1. Look up `app.service(path).publisher` — per-service publisher
+2. Fall back to `app.get('__globalPublisher')` — global publisher
+3. If neither: drop (no broadcast)
+
+The publisher is called with `(result, { app, path, params })` and returns one or more `MantleChannel` instances. The socketio plugin iterates each channel's `connections`, applies any `filter()` predicate, deduplicates by socket ID, and calls `socket.emit(eventName, result)` on each matching live socket.
+
+**Channel implementations in `@mantlejs/socketio`:**
+
+| Class | Purpose |
+|---|---|
+| `Channel` | Named, mutable set of connections |
+| `FilteredChannel` | Wraps a channel, applies predicate at broadcast time |
+| `CombinedChannel` | Union of multiple channels (returned by `app.channel([...])`) |
+| `ChannelRegistry` | Holds all named channels; installed on app via `__channelFactory` |
+
+Connection objects include a `__socketId` field (set by the plugin) used to look up the live socket via `io.sockets.sockets.get(socketId)`.
+
+**App-level connection events:**
 
 ```typescript
-// (error, result) => io.to(params.rooms).emit('users created', result)
-// Otherwise: io.emit('users created', result)
+// Emitted by the socketio plugin on every socket connect/disconnect
+app.emit('connection', connection);   // connection: Record<string, unknown>
+app.emit('disconnect', connection);
 ```
+
+On disconnect, `ChannelRegistry.removeConnection(connection)` is called automatically, removing the connection from every named channel.
 
 #### Per-connection state
 
@@ -1026,9 +1093,15 @@ Hook Pipeline — AFTER                        │
   │      'messages', 'created', result, params)
   ▼                                         │
 @mantlejs/socketio — app event listener      │
-  │  • checks params.rooms                  │
-  │  • if set: io.to(rooms).emit(...)        │
-  │  • else:   io.emit('messages created', result) →→ Client B receives event
+  │  • resolves publisher:                  │
+  │      1. service.publisher (per-service) │
+  │      2. app.__globalPublisher (fallback)│
+  │      3. neither → drop (opt-in)         │
+  │  • publisher(result, ctx) → channel(s)  │
+  │  • for each connection in channel:      │
+  │      apply filter predicate if any      │
+  │      io.sockets.sockets.get(socketId)   │
+  │      .emit('messages created', result) →→ Client B receives event
   ▼                                         ▼
 @mantlejs/socketio — socket handler          │
   │  • callback(null, message)  →→→→→→→→  Client A receives acknowledgement
@@ -1036,6 +1109,7 @@ Hook Pipeline — AFTER                        │
 
 **Key design properties:**
 - The socket handler calls `callback` with the result (acknowledgement for Client A).
-- The broadcast to all other clients (Client B) flows through `app.emit('service:event', ...)` in core, not from the socket handler directly.
-- This means a REST `POST /messages` follows the same path from `Service.create(data, params)` onward — the socket broadcast happens automatically.
-- `params.rooms` (set by a before hook) scopes the broadcast to specific socket.io rooms instead of all clients.
+- The broadcast to all other clients (Client B) flows through `app.emit('service:event', ...)` in core and the channel publisher system in socketio — not from the socket handler directly.
+- This means a REST `POST /messages` follows the same path from `Service.create(data, params)` onward — the socket broadcast happens automatically through channels.
+- Broadcasting is opt-in: if no publisher is declared, service events are silently dropped. This is the primary security mechanism — clients only receive what the publisher explicitly returns.
+- On disconnect, connections are automatically removed from all named channels.

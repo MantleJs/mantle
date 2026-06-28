@@ -432,6 +432,48 @@ describe("MantleApplication — event bus", () => {
   });
 });
 
+describe("MantleApplication — channels", () => {
+  it("channel() throws GeneralError when socketio is not configured", () => {
+    const app = mantle();
+    expect(() => app.channel("test")).toThrow("Channels are not configured");
+  });
+
+  it("publish() stores the global publisher", () => {
+    const app = mantle();
+    const publisher = () => undefined;
+    app.publish(publisher);
+    expect(app.get("__globalPublisher")).toBe(publisher);
+  });
+
+  it("publish() is chainable", () => {
+    const app = mantle();
+    expect(app.publish(() => undefined)).toBe(app);
+  });
+});
+
+describe("ServiceHandle — channels", () => {
+  it("publisher is undefined by default", () => {
+    const app = mantle();
+    app.use("users", makeUserService());
+    expect(app.service("users").publisher).toBeUndefined();
+  });
+
+  it("publish() stores the publisher on the service handle", () => {
+    const app = mantle();
+    app.use("users", makeUserService());
+    const publisher = () => undefined;
+    app.service("users").publish(publisher);
+    expect(app.service("users").publisher).toBe(publisher);
+  });
+
+  it("publish() is chainable", () => {
+    const app = mantle();
+    app.use("users", makeUserService());
+    const handle = app.service("users");
+    expect(handle.publish(() => undefined)).toBe(handle);
+  });
+});
+
 describe("Service events", () => {
   it("emits 'service:event' on the app after create", async () => {
     const app = mantle();

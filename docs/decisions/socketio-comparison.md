@@ -12,9 +12,10 @@ Comparison of `@mantlejs/socketio` against `@feathersjs/socketio`, covering wire
 | `params.provider` value | `"socket.io"` | `"socketio"` |
 | Wire protocol | method-as-event + service path arg | `path::method` event name |
 | REST → socket event broadcast | ✅ via app `'service:event'` bus | ✅ via channels |
-| Selective broadcast | ✅ `params.rooms` (socket.io rooms) | ✅ full channels API |
+| Channels (opt-in security) | ✅ `app.channel()`, `service.publish()`, `channel.filter()` | ✅ full channels API |
 | Per-connection state | ✅ `params.connection` | ✅ connection object |
 | Custom methods over socket | ✅ via `service.dispatch()` | ✅ |
+| Cross-instance replication | `@mantlejs/sync` (Phase 3) | `@feathersjs/sync` |
 | Error serialization | `MantleError.toJSON()` | `FeathersError.toJSON()` |
 
 ---
@@ -43,7 +44,33 @@ socket.emit('find', 'messages', params, callback)
 socket.emit('get', 'messages', id, params, callback)
 ```
 
-This is more idiomatic socket.io (event = verb, like HTTP method = verb), but means clients cannot selectively subscribe to events for a single service without filtering by the first argument.
+This mirrors the REST mental model — method is the action, path is the resource — which makes the protocol feel familiar to developers coming from HTTP:
+
+| Transport | Action | Resource |
+|---|---|---|
+| REST | `POST` | `/messages` |
+| Socket (Mantle) | `'create'` | `'messages'` (first arg) |
+| Socket (Feathers) | `'messages::create'` | — (fused together) |
+
+The tradeoff is client-side subscription ergonomics. In socket.io, clients subscribe by event name: `socket.on('eventName', handler)`. With FeathersJS's `path::method` protocol, the service is part of the name so subscriptions are precise:
+
+```js
+// FeathersJS — declarative, no filtering logic needed
+socket.on('messages::create', handler);  // only fires for messages
+socket.on('users::create', handler);     // only fires for users
+```
+
+With Mantle, `create` fires for every service, so the client must inspect the first argument:
+
+```js
+// Mantle — handler receives creates from all services
+socket.on('create', (servicePath, data, params, callback) => {
+  if (servicePath !== 'messages') return;  // manual filter required
+  // handle messages create
+});
+```
+
+As the number of services grows, clients either need one large handler with branching logic or must build their own routing layer on top. The Mantle approach optimises for server simplicity and REST familiarity; FeathersJS's naming is more ergonomic for clients that subscribe selectively to specific services.
 
 ---
 
@@ -65,41 +92,69 @@ app.service('messages').publish((data, context) => {
 
 Key properties:
 - A REST `POST /messages` **also** emits `messages created` to all subscribed socket clients.
-- Channels let you broadcast selectively to named groups (authenticated users, admins, specific rooms).
+- Channels let you broadcast selectively to named groups (authenticated users, admins, org-scoped rooms).
 - On socket disconnect, channel membership is cleaned up automatically.
+- Default-deny: if no publisher is declared, events are silently suppressed.
 
-### Mantle — app event bus + `params.rooms`
+### Mantle — channels + app event bus
 
-`@mantlejs/core` emits `'service:event'` on the application after every successful mutation, regardless of transport. `@mantlejs/socketio` subscribes once at startup:
+`@mantlejs/core` emits `'service:event'` on the application after every successful mutation, regardless of transport. `@mantlejs/socketio` implements a channels system on top of this bus.
+
+**Usage is identical in shape to FeathersJS:**
 
 ```typescript
-// Inside wireSocketEvents — one subscription handles all services and transports
+// Join connections to channels at connect time
+app.on('connection', (connection) => {
+  app.channel('anonymous').join(connection);
+});
+
+// Per-service publisher
+app.service('messages').publish((data, ctx) => {
+  return app.channel('authenticated');
+});
+
+// Global fallback publisher
+app.publish((data, ctx) => {
+  return app.channel('anonymous');
+});
+```
+
+**Default-deny:** If no publisher is declared for a service (and no global publisher), the service event is silently dropped — clients receive nothing. This matches FeathersJS's security posture.
+
+**Filtered channels:** Strip fields or limit delivery per-connection:
+
+```typescript
+app.service('users').publish((data, ctx) => {
+  return app.channel('authenticated').filter((d, connection) => {
+    return (connection.user as User)?.id === (d as User).id;
+  });
+});
+```
+
+**Combined channels:** Return multiple channels or use the array form:
+
+```typescript
+app.service('messages').publish((data, ctx) => {
+  return [app.channel('admins'), app.channel(`org:${(data as Message).orgId}`)];
+  // or: return app.channel(['admins', `org:${orgId}`]);
+});
+```
+
+**How broadcasting works internally:**
+
+```typescript
+// Inside wireSocketEvents — subscribes once, handles all services and transports
 app.on('service:event', (path, event, result, params) => {
-  const rooms = params.rooms;
-  if (rooms) {
-    io.to(rooms).emit(`${path} ${event}`, result);
-  } else {
-    io.emit(`${path} ${event}`, result);
-  }
+  const publisher = service.publisher ?? app.get('__globalPublisher');
+  if (!publisher) return;  // opt-in: no publisher = no broadcast
+
+  const channels = toArray(publisher(result, { app, path, params }));
+  // For each connection in channels: apply filter, deduplicate, socket.emit()
+  broadcastToChannels(io, channels, `${path} ${event}`, result);
 });
 ```
 
-A REST `POST /messages` now triggers `messages created` on socket clients automatically. Selective broadcast uses socket.io rooms via `params.rooms` set by a before hook:
-
-```typescript
-app.service('messages').hooks({
-  before: {
-    create: [
-      (ctx) => {
-        ctx.params.rooms = [`channel:${ctx.params.user?.org}`];
-        return ctx;
-      },
-    ],
-  },
-});
-```
-
-**Remaining difference:** FeathersJS channels support dynamic per-connection membership (join/leave groups); Mantle uses socket.io rooms directly. For many use cases — tenant isolation, per-user subscriptions — rooms are sufficient. A higher-level channel abstraction could wrap them later.
+**Key difference from FeathersJS:** FeathersJS channels can also participate in multi-instance setups via `@feathersjs/sync` — events are published to a message broker and re-filtered on each instance. Mantle's equivalent is `@mantlejs/sync` (Phase 3), which operates at the same `'service:event'` bus level and preserves per-instance channel filtering.
 
 ---
 
@@ -168,10 +223,10 @@ Methods not in the declared list are rejected with a `GeneralError`. `ServiceHan
 
 ## What Mantle does better
 
-- **Simpler mental model** — `params.rooms` maps directly to socket.io concepts developers already know; no separate channels API to learn.
-- **Cross-transport events without configuration** — `'service:event'` fires automatically for every transport; no per-service `publish()` callback required.
+- **Cross-transport events without configuration** — `'service:event'` fires automatically for every transport; the channels system picks it up. A REST mutation automatically reaches socket clients with no extra wiring.
 - **Event naming** — Method names as socket events (`create`, `find`, ...) mirrors REST verbs and is more aligned with standard socket.io conventions.
 - **Zero framework coupling** — The hook pipeline is identical for REST and socket calls.
+- **Transport-agnostic sync** — `@mantlejs/sync` (Phase 3) operates at the `'service:event'` bus level, not the socket.io layer — a future Koa/WebSocket transport benefits automatically.
 
 ---
 
@@ -179,8 +234,8 @@ Methods not in the declared list are rejected with a `GeneralError`. `ServiceHan
 
 | Dimension | Mantle approach | FeathersJS approach |
 |---|---|---|
-| Selective broadcast | socket.io rooms via `params.rooms` | named channels with join/leave membership |
+| Wire protocol | `'create', 'messages', data, params, cb` | `'messages::create', data, params, cb` |
 | Connection persistence | `params.connection` (plain object, per socket) | `params.connection` (managed, per-socket) |
-| Channel fan-out config | before hooks set `params.rooms` | per-service `publish()` callback |
+| Cross-instance replication | `@mantlejs/sync` (Phase 3) | `@feathersjs/sync` (available now) |
 
-The FeathersJS channel API is more expressive for applications that need dynamic group membership (users joining and leaving topic channels at runtime). The Mantle approach with `params.rooms` handles the common cases (tenant scoping, per-user delivery) with less API surface.
+The Mantle channels API (`app.channel()`, `service.publish()`, `channel.filter()`) is now feature-complete. The primary remaining gap is `@mantlejs/sync` — available in Phase 3 — for multi-instance deployments.

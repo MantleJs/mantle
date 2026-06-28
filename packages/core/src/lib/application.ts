@@ -1,12 +1,14 @@
 import { EventEmitter } from "events";
 import { BadRequest, GeneralError, MethodNotAllowed, NotFound } from "./errors.js";
 import type {
+  ChannelPublisher,
   HookConfig,
   HookContext,
   HookFunction,
   Id,
   Logger,
   MantleApplication,
+  MantleChannel,
   MantleOptions,
   MantlePlugin,
   Paginated,
@@ -42,6 +44,7 @@ async function runHookChain<T>(hooks: HookFunction<T>[], ctx: HookContext<T>): P
 
 class ServiceHandleImpl<T> implements ServiceHandle<T> {
   private hookConfig: HookConfig<T> = {};
+  private _publisher?: ChannelPublisher<unknown>;
   readonly schema: unknown;
 
   constructor(
@@ -55,6 +58,15 @@ class ServiceHandleImpl<T> implements ServiceHandle<T> {
 
   get methods(): string[] {
     return this.options.methods;
+  }
+
+  get publisher(): ChannelPublisher<unknown> | undefined {
+    return this._publisher;
+  }
+
+  publish(publisher: ChannelPublisher<T>): this {
+    this._publisher = publisher as ChannelPublisher<unknown>;
+    return this;
   }
 
   hooks(config: HookConfig<T>): this {
@@ -216,6 +228,17 @@ export class MantleApplicationImpl implements MantleApplication {
 
   emit(event: string, ...args: unknown[]): void {
     this._emitter.emit(event, ...args);
+  }
+
+  channel(name: string | string[]): MantleChannel {
+    const factory = this.get<((name: string | string[]) => MantleChannel) | undefined>("__channelFactory");
+    if (!factory) throw new GeneralError("Channels are not configured — use app.configure(socketio()) first");
+    return factory(name);
+  }
+
+  publish<T = unknown>(publisher: ChannelPublisher<T>): this {
+    this._settings.set("__globalPublisher", publisher as ChannelPublisher<unknown>);
+    return this;
   }
 
   use<T = unknown>(path: string, service: Partial<Service<T>>, options: ServiceOptions = {}): this {

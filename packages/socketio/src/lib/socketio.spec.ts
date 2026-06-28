@@ -1,13 +1,17 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { mantle, GeneralError, NotFound } from "@mantlejs/core";
+import type { MantleChannel } from "@mantlejs/core";
 
 // ─── Mock socket.io ────────────────────────────────────────────────────────────
 
-const { mockIoEmit, mockIoOn, mockIo } = vi.hoisted(() => {
-  const mockIoEmit = vi.fn();
+const { mockIoOn, mockIo, mockSocketsMap } = vi.hoisted(() => {
   const mockIoOn = vi.fn();
-  const mockIo = { on: mockIoOn, emit: mockIoEmit, to: vi.fn() };
-  return { mockIoEmit, mockIoOn, mockIo };
+  const mockSocketsMap = new Map<string, { emit: ReturnType<typeof vi.fn>; id: string }>();
+  const mockIo = {
+    on: mockIoOn,
+    sockets: { sockets: mockSocketsMap },
+  };
+  return { mockIoOn, mockIo, mockSocketsMap };
 });
 
 vi.mock("socket.io", () => ({
@@ -41,22 +45,24 @@ function captureConnectionHandler(): (socket: ReturnType<typeof makeSocket>) => 
 }
 
 function makeSocket(id = "socket-1") {
-  const handlers: Record<string, (...args: unknown[]) => Promise<void>> = {};
+  const handlers: Record<string, (...args: unknown[]) => void> = {};
   let anyHandler: ((...args: unknown[]) => Promise<void>) | undefined;
-  return {
+  const socket = {
     id,
-    on: vi.fn().mockImplementation((event: string, handler: (...args: unknown[]) => Promise<void>) => {
+    on: vi.fn().mockImplementation((event: string, handler: (...args: unknown[]) => void) => {
       handlers[event] = handler;
     }),
     onAny: vi.fn().mockImplementation((handler: (...args: unknown[]) => Promise<void>) => {
       anyHandler = handler;
     }),
+    emit: vi.fn(),
     handlers,
     get anyHandler() {
       return anyHandler;
     },
-    emit: vi.fn(),
   };
+  mockSocketsMap.set(id, socket);
+  return socket;
 }
 
 function makeService(overrides: Record<string, unknown> = {}) {
@@ -76,7 +82,7 @@ function makeService(overrides: Record<string, unknown> = {}) {
 describe("socketio() — plugin setup", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockIo.to = vi.fn().mockReturnValue({ emit: mockIoEmit });
+    mockSocketsMap.clear();
   });
 
   it("throws GeneralError if express() was not configured first", () => {
@@ -145,6 +151,13 @@ describe("socketio() — plugin setup", () => {
     const result = callListen(app);
     expect(result).toBe(mockHttpServer);
   });
+
+  it("installs channel factory so app.channel() works after configure", () => {
+    const app = makeApp();
+    app.configure(socketio());
+    callListen(app);
+    expect(() => app.channel("test")).not.toThrow();
+  });
 });
 
 // ─── Standard method handlers ─────────────────────────────────────────────────
@@ -155,7 +168,7 @@ describe("socketio() — standard service methods", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mockIo.to = vi.fn().mockReturnValue({ emit: mockIoEmit });
+    mockSocketsMap.clear();
     app = makeApp();
     app.configure(socketio());
     callListen(app);
@@ -168,10 +181,7 @@ describe("socketio() — standard service methods", () => {
     expect(socket.onAny).toHaveBeenCalledWith(expect.any(Function));
   });
 
-  const invoke = (method: string, ...args: unknown[]) =>
-    socket.anyHandler!(method, ...args);
-
-  // ─── find ─────────────────────────────────────────────────────────────────
+  const invoke = (method: string, ...args: unknown[]) => socket.anyHandler!(method, ...args);
 
   it("find: calls service.find with provider=socket.io", async () => {
     const svc = makeService();
@@ -192,8 +202,6 @@ describe("socketio() — standard service methods", () => {
     );
   });
 
-  // ─── get ──────────────────────────────────────────────────────────────────
-
   it("get: passes id to service.get", async () => {
     const svc = makeService();
     app.use("messages", svc as never);
@@ -202,8 +210,6 @@ describe("socketio() — standard service methods", () => {
     expect(svc.get).toHaveBeenCalledWith("42", expect.objectContaining({ provider: "socket.io" }));
     expect(cb).toHaveBeenCalledWith(null, { id: "1" });
   });
-
-  // ─── create ───────────────────────────────────────────────────────────────
 
   it("create: passes data to service.create", async () => {
     const svc = makeService();
@@ -214,8 +220,6 @@ describe("socketio() — standard service methods", () => {
     expect(cb).toHaveBeenCalledWith(null, { id: "1", name: "Alice" });
   });
 
-  // ─── update ───────────────────────────────────────────────────────────────
-
   it("update: passes id and data to service.update", async () => {
     const svc = makeService();
     app.use("messages", svc as never);
@@ -224,8 +228,6 @@ describe("socketio() — standard service methods", () => {
     expect(svc.update).toHaveBeenCalledWith("1", { text: "Edited" }, expect.objectContaining({ provider: "socket.io" }));
   });
 
-  // ─── patch ────────────────────────────────────────────────────────────────
-
   it("patch: passes id and data to service.patch", async () => {
     const svc = makeService();
     app.use("messages", svc as never);
@@ -233,8 +235,6 @@ describe("socketio() — standard service methods", () => {
     await invoke("patch", "messages", "1", { text: "Patched" }, {}, cb);
     expect(svc.patch).toHaveBeenCalledWith("1", { text: "Patched" }, expect.objectContaining({ provider: "socket.io" }));
   });
-
-  // ─── remove ───────────────────────────────────────────────────────────────
 
   it("remove: passes id to service.remove", async () => {
     const svc = makeService();
@@ -247,110 +247,315 @@ describe("socketio() — standard service methods", () => {
   it("ignores events that have no callback as last arg", async () => {
     const svc = makeService();
     app.use("messages", svc as never);
-    await invoke("find", "messages", {});  // no callback
+    await invoke("find", "messages", {});
     expect(svc.find).not.toHaveBeenCalled();
   });
 });
 
-// ─── Cross-transport broadcasting ─────────────────────────────────────────────
+// ─── Channel API ──────────────────────────────────────────────────────────────
 
-describe("socketio() — cross-transport broadcasting", () => {
+describe("socketio() — Channel", () => {
   let app: ReturnType<typeof mantle>;
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mockIo.to = vi.fn().mockReturnValue({ emit: mockIoEmit });
+    mockSocketsMap.clear();
     app = makeApp();
     app.configure(socketio());
     callListen(app);
   });
 
-  it("broadcasts 'messages created' when create is called via any transport", async () => {
-    const svc = makeService();
-    app.use("messages", svc as never);
-    await app.service("messages").create({ text: "Hello" }, { provider: "rest" });
-    expect(mockIoEmit).toHaveBeenCalledWith("messages created", expect.objectContaining({ name: "Alice" }));
+  it("join adds a connection to the channel", () => {
+    const conn = { userId: "1" };
+    app.channel("authenticated").join(conn);
+    expect(app.channel("authenticated").connections).toContain(conn);
   });
 
-  it("broadcasts 'messages updated' after update", async () => {
-    const svc = makeService();
-    app.use("messages", svc as never);
-    await app.service("messages").update("1", { text: "Edited" });
-    expect(mockIoEmit).toHaveBeenCalledWith("messages updated", expect.any(Object));
+  it("join deduplicates — same connection is not added twice", () => {
+    const conn = { userId: "1" };
+    app.channel("authenticated").join(conn).join(conn);
+    expect(app.channel("authenticated").connections).toHaveLength(1);
   });
 
-  it("broadcasts 'messages patched' after patch", async () => {
-    const svc = makeService();
-    app.use("messages", svc as never);
-    await app.service("messages").patch("1", { text: "Patched" });
-    expect(mockIoEmit).toHaveBeenCalledWith("messages patched", expect.any(Object));
+  it("leave removes a connection from the channel", () => {
+    const conn = { userId: "1" };
+    app.channel("authenticated").join(conn);
+    app.channel("authenticated").leave(conn);
+    expect(app.channel("authenticated").connections).toHaveLength(0);
   });
 
-  it("broadcasts 'messages removed' after remove", async () => {
-    const svc = makeService();
-    app.use("messages", svc as never);
-    await app.service("messages").remove("1");
-    expect(mockIoEmit).toHaveBeenCalledWith("messages removed", expect.any(Object));
+  it("leave on an absent connection is a no-op", () => {
+    expect(() => app.channel("authenticated").leave({ userId: "ghost" })).not.toThrow();
   });
 
-  it("does NOT broadcast after find or get", async () => {
-    const svc = makeService();
-    app.use("messages", svc as never);
-    await app.service("messages").find();
-    await app.service("messages").get("1");
-    expect(mockIoEmit).not.toHaveBeenCalled();
+  it("filter returns a channel whose shouldSend applies the predicate", () => {
+    const conn = { role: "admin" };
+    const ch = app.channel("all").join(conn);
+    const filtered = ch.filter((_, c) => (c as { role?: string }).role === "admin") as MantleChannel & {
+      shouldSend: (d: unknown, c: Record<string, unknown>) => boolean;
+    };
+    expect(filtered.shouldSend(null, conn)).toBe(true);
+    expect(filtered.shouldSend(null, { role: "user" })).toBe(false);
   });
 
-  it("does NOT broadcast when service throws", async () => {
-    app.use(
-      "messages",
-      { create: vi.fn().mockRejectedValue(new Error("fail")) } as never,
-    );
-    await expect(app.service("messages").create({})).rejects.toThrow();
-    expect(mockIoEmit).not.toHaveBeenCalled();
+  it("chained filter composes predicates (both must pass)", () => {
+    const ch = app
+      .channel("all")
+      .filter((_, c) => (c as Record<string, unknown>)["a"] === true)
+      .filter((_, c) => (c as Record<string, unknown>)["b"] === true) as MantleChannel & {
+      shouldSend: (d: unknown, c: Record<string, unknown>) => boolean;
+    };
+    expect(ch.shouldSend(null, { a: true, b: true })).toBe(true);
+    expect(ch.shouldSend(null, { a: true, b: false })).toBe(false);
+    expect(ch.shouldSend(null, { a: false, b: true })).toBe(false);
+  });
+
+  it("channel(array) returns a combined channel with the union of connections", () => {
+    const connA = { id: "a" };
+    const connB = { id: "b" };
+    app.channel("admins").join(connA);
+    app.channel("moderators").join(connB);
+    const combined = app.channel(["admins", "moderators"]);
+    expect(combined.connections).toHaveLength(2);
+    expect(combined.connections).toContain(connA);
+    expect(combined.connections).toContain(connB);
+  });
+
+  it("channel(array) deduplicates connections present in multiple channels", () => {
+    const conn = { id: "shared" };
+    app.channel("a").join(conn);
+    app.channel("b").join(conn);
+    const combined = app.channel(["a", "b"]);
+    expect(combined.connections).toHaveLength(1);
   });
 });
 
-// ─── Selective broadcast (rooms) ──────────────────────────────────────────────
+// ─── App connection/disconnect events ────────────────────────────────────────
 
-describe("socketio() — selective broadcast via params.rooms", () => {
+describe("socketio() — app connection events", () => {
   let app: ReturnType<typeof mantle>;
 
   beforeEach(() => {
     vi.clearAllMocks();
-    const toResult = { emit: vi.fn() };
-    mockIo.to = vi.fn().mockReturnValue(toResult);
+    mockSocketsMap.clear();
     app = makeApp();
     app.configure(socketio());
     callListen(app);
   });
 
-  it("broadcasts to specific rooms when params.rooms is set by a before hook", async () => {
-    const svc = makeService();
-    app.use("messages", svc as never);
-    app.service("messages").hooks({
-      before: {
-        create: [
-          (ctx) => {
-            ctx.params.rooms = ["admins", "moderators"];
-            return ctx;
-          },
-        ],
-      },
-    });
-
-    await app.service("messages").create({ text: "Hello" });
-
-    expect(mockIo.to).toHaveBeenCalledWith(["admins", "moderators"]);
-    expect(mockIoEmit).not.toHaveBeenCalled(); // io.emit (broadcast all) should NOT be called
+  it("emits 'connection' on app when a socket connects", () => {
+    const received: unknown[] = [];
+    app.on("connection", (conn) => received.push(conn));
+    const socket = makeSocket();
+    captureConnectionHandler()(socket);
+    expect(received).toHaveLength(1);
+    expect(typeof received[0]).toBe("object");
   });
 
-  it("falls back to io.emit when params.rooms is not set", async () => {
+  it("emits 'disconnect' on app when a socket disconnects", () => {
+    const received: unknown[] = [];
+    app.on("disconnect", (conn) => received.push(conn));
+    const socket = makeSocket();
+    captureConnectionHandler()(socket);
+    const disconnectHandler = socket.on.mock.calls.find(([event]) => event === "disconnect")?.[1] as () => void;
+    disconnectHandler();
+    expect(received).toHaveLength(1);
+  });
+
+  it("removes connection from all channels on disconnect", () => {
+    const socket = makeSocket();
+    captureConnectionHandler()(socket);
+
+    let captured: Record<string, unknown> | undefined;
+    app.on("connection", (conn) => {
+      captured = conn as Record<string, unknown>;
+      app.channel("authenticated").join(conn as Record<string, unknown>);
+    });
+
+    const socket2 = makeSocket("socket-2");
+    captureConnectionHandler()(socket2);
+
+    expect(captured).toBeDefined();
+    expect(app.channel("authenticated").connections).toContain(captured);
+
+    const disconnectHandler = socket2.on.mock.calls.find(([event]) => event === "disconnect")?.[1] as () => void;
+    disconnectHandler();
+
+    expect(app.channel("authenticated").connections).not.toContain(captured);
+  });
+
+  it("connection object includes __socketId for internal socket lookup", () => {
+    let captured: Record<string, unknown> | undefined;
+    app.on("connection", (conn) => {
+      captured = conn as Record<string, unknown>;
+    });
+    const socket = makeSocket("my-socket-id");
+    captureConnectionHandler()(socket);
+    expect(captured?.["__socketId"]).toBe("my-socket-id");
+  });
+});
+
+// ─── Channel-based broadcasting ───────────────────────────────────────────────
+
+describe("socketio() — channel broadcasting (opt-in)", () => {
+  let app: ReturnType<typeof mantle>;
+  let socket: ReturnType<typeof makeSocket>;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockSocketsMap.clear();
+    app = makeApp();
+    // Join all connections to 'everyone' channel at connect time
+    app.on("connection", (conn) => {
+      app.channel("everyone").join(conn as Record<string, unknown>);
+    });
+    app.configure(socketio());
+    callListen(app);
+    socket = makeSocket();
+    captureConnectionHandler()(socket);
+  });
+
+  it("does NOT broadcast when no publisher is configured (opt-in security)", async () => {
     const svc = makeService();
     app.use("messages", svc as never);
+    await app.service("messages").create({ text: "Hello" }, { provider: "rest" });
+    expect(socket.emit).not.toHaveBeenCalled();
+  });
+
+  it("broadcasts to channel connections when a global publisher is configured", async () => {
+    const svc = makeService();
+    app.use("messages", svc as never);
+    app.publish(() => app.channel("everyone"));
+    await app.service("messages").create({ text: "Hello" }, { provider: "rest" });
+    expect(socket.emit).toHaveBeenCalledWith("messages created", expect.objectContaining({ name: "Alice" }));
+  });
+
+  it("broadcasts 'messages updated' after update (global publisher)", async () => {
+    const svc = makeService();
+    app.use("messages", svc as never);
+    app.publish(() => app.channel("everyone"));
+    await app.service("messages").update("1", { text: "Edited" });
+    expect(socket.emit).toHaveBeenCalledWith("messages updated", expect.any(Object));
+  });
+
+  it("broadcasts 'messages patched' after patch (global publisher)", async () => {
+    const svc = makeService();
+    app.use("messages", svc as never);
+    app.publish(() => app.channel("everyone"));
+    await app.service("messages").patch("1", { text: "P" });
+    expect(socket.emit).toHaveBeenCalledWith("messages patched", expect.any(Object));
+  });
+
+  it("broadcasts 'messages removed' after remove (global publisher)", async () => {
+    const svc = makeService();
+    app.use("messages", svc as never);
+    app.publish(() => app.channel("everyone"));
+    await app.service("messages").remove("1");
+    expect(socket.emit).toHaveBeenCalledWith("messages removed", expect.any(Object));
+  });
+
+  it("does NOT broadcast after find or get (no service:event emitted)", async () => {
+    const svc = makeService();
+    app.use("messages", svc as never);
+    app.publish(() => app.channel("everyone"));
+    await app.service("messages").find();
+    await app.service("messages").get("1");
+    expect(socket.emit).not.toHaveBeenCalled();
+  });
+
+  it("does NOT broadcast when service throws", async () => {
+    app.use("messages", { create: vi.fn().mockRejectedValue(new Error("fail")) } as never);
+    app.publish(() => app.channel("everyone"));
+    await expect(app.service("messages").create({})).rejects.toThrow();
+    expect(socket.emit).not.toHaveBeenCalled();
+  });
+
+  it("uses per-service publisher over global publisher", async () => {
+    const svc = makeService();
+    app.use("messages", svc as never);
+    app.publish(() => app.channel("everyone"));          // global
+    app.service("messages").publish(() => app.channel("nobody")); // per-service: empty channel
+
     await app.service("messages").create({ text: "Hello" });
-    expect(mockIoEmit).toHaveBeenCalledWith("messages created", expect.any(Object));
-    expect(mockIo.to).not.toHaveBeenCalled();
+    expect(socket.emit).not.toHaveBeenCalled();
+  });
+
+  it("falls back to global publisher when no per-service publisher is set", async () => {
+    const svc = makeService();
+    app.use("messages", svc as never);
+    app.publish(() => app.channel("everyone")); // global only
+
+    await app.service("messages").create({ text: "Hello" });
+    expect(socket.emit).toHaveBeenCalledWith("messages created", expect.any(Object));
+  });
+
+  it("cross-transport: REST mutation triggers socket broadcast", async () => {
+    const svc = makeService();
+    app.use("messages", svc as never);
+    app.publish(() => app.channel("everyone"));
+    await app.service("messages").create({ text: "Hello" }, { provider: "rest" });
+    expect(socket.emit).toHaveBeenCalledWith("messages created", expect.objectContaining({ name: "Alice" }));
+  });
+});
+
+// ─── Channel filtering in publisher ──────────────────────────────────────────
+
+describe("socketio() — publisher filter", () => {
+  let app: ReturnType<typeof mantle>;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockSocketsMap.clear();
+    app = makeApp();
+    app.configure(socketio());
+    callListen(app);
+  });
+
+  it("applies filter predicate — matching connection receives event", async () => {
+    // Register handler BEFORE connecting sockets so connections land in the channel
+    app.on("connection", (conn) => {
+      app.channel("all").join(conn as Record<string, unknown>);
+    });
+
+    const adminSocket = makeSocket("admin");
+    const userSocket = makeSocket("user");
+    captureConnectionHandler()(adminSocket);
+    captureConnectionHandler()(userSocket);
+
+    // Mark admin connection after it has been added to the channel
+    const adminConn = app.channel("all").connections.find((c) => c["__socketId"] === "admin")!;
+    adminConn["role"] = "admin";
+
+    app.use("secret", makeService() as never);
+    app.service("secret").publish(() =>
+      app.channel("all").filter((_, conn) => (conn as Record<string, unknown>)["role"] === "admin"),
+    );
+
+    await app.service("secret").create({});
+    expect(adminSocket.emit).toHaveBeenCalledWith("secret created", expect.any(Object));
+    expect(userSocket.emit).not.toHaveBeenCalled();
+  });
+
+  it("deduplicates across multiple channels returned by publisher", async () => {
+    const sock = makeSocket("sock");
+    captureConnectionHandler()(sock);
+    const conn = app.channel("all").connections.find((c) => c["__socketId"] === "sock")!;
+
+    // Wait — the app.on('connection') wasn't set before captureConnectionHandler... let me add the conn manually
+    app.on("connection", (c) => {
+      app.channel("ch-a").join(c as Record<string, unknown>);
+      app.channel("ch-b").join(c as Record<string, unknown>);
+    });
+
+    const sock2 = makeSocket("sock2");
+    captureConnectionHandler()(sock2);
+
+    app.use("items", makeService() as never);
+    app.service("items").publish(() => [app.channel("ch-a"), app.channel("ch-b")]);
+
+    await app.service("items").create({});
+    expect(sock2.emit).toHaveBeenCalledTimes(1); // not twice despite being in both channels
+    void conn; // suppress unused warning
   });
 });
 
@@ -362,7 +567,7 @@ describe("socketio() — connection state", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mockIo.to = vi.fn().mockReturnValue({ emit: mockIoEmit });
+    mockSocketsMap.clear();
     app = makeApp();
     app.configure(socketio());
     callListen(app);
@@ -400,15 +605,12 @@ describe("socketio() — connection state", () => {
     await socket.anyHandler!("find", "messages", {}, cb);
 
     expect(connections).toHaveLength(2);
-    expect(connections[0]).toBe(connections[1]); // same object reference
+    expect(connections[0]).toBe(connections[1]);
   });
 
-  it("removes connection state on disconnect", () => {
-    const disconnectHandler = socket.on.mock.calls.find(([event]) => event === "disconnect")?.[1] as () => void;
-    expect(disconnectHandler).toBeDefined();
-    disconnectHandler();
-    // Internal state is cleaned up — no public assertion possible without inspecting internals,
-    // but we verify disconnect listener was registered.
+  it("disconnect handler is registered on the socket", () => {
+    const disconnectCall = socket.on.mock.calls.find(([event]) => event === "disconnect");
+    expect(disconnectCall).toBeDefined();
   });
 
   it("different sockets get independent connection objects", async () => {
@@ -445,7 +647,7 @@ describe("socketio() — custom methods", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mockIo.to = vi.fn().mockReturnValue({ emit: mockIoEmit });
+    mockSocketsMap.clear();
     app = makeApp();
     app.configure(socketio());
     callListen(app);
@@ -456,11 +658,9 @@ describe("socketio() — custom methods", () => {
 
   it("routes a custom method to service.dispatch()", async () => {
     const chargeResult = { charged: true };
-    const dispatchFn = vi.fn().mockResolvedValue(chargeResult);
     const svc = { ...makeService(), charge: vi.fn().mockResolvedValue(chargeResult) };
     app.use("payments", svc as never, { methods: ["find", "charge"] });
 
-    // Override dispatch on the service handle to verify it's called
     const handle = app.service("payments");
     const originalDispatch = handle.dispatch.bind(handle);
     const dispatchSpy = vi.fn().mockImplementation(originalDispatch);
@@ -495,7 +695,7 @@ describe("socketio() — error handling", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mockIo.to = vi.fn().mockReturnValue({ emit: mockIoEmit });
+    mockSocketsMap.clear();
     app = makeApp();
     app.configure(socketio());
     callListen(app);
