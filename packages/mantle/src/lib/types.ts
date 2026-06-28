@@ -72,6 +72,32 @@ export interface Repository<T, D = Partial<T>> {
   count(params?: QueryParams): Promise<number>;
 }
 
+export interface VectorRepository<T extends Record<string, unknown>, D = Partial<T>> extends Repository<T, D> {
+  /** Find the top-K records most similar to the given embedding vector */
+  findSimilar(vector: number[], topK: number, params?: QueryParams): Promise<T[]>;
+  /** Upsert a record with its embedding vector */
+  upsertVector(id: Id, vector: number[], data: Partial<T>): Promise<T>;
+  /** Delete a vector and its associated record */
+  deleteVector(id: Id): Promise<T>;
+}
+
+export interface GraphRepository<T extends Record<string, unknown>> {
+  /** Create a node */
+  createNode(data: Partial<T>): Promise<T>;
+  /** Find a node by ID */
+  findNodeById(id: Id): Promise<T | null>;
+  /** Find nodes matching properties */
+  findNodes(params?: QueryParams): Promise<T[]>;
+  /** Create a directed relationship between two nodes */
+  createRelationship(fromId: Id, toId: Id, type: string, properties?: Record<string, unknown>): Promise<void>;
+  /** Traverse relationships from a starting node */
+  traverse(startId: Id, relation: string, depth?: number): Promise<T[]>;
+  /** Delete a node and all its relationships */
+  deleteNode(id: Id): Promise<T>;
+  /** Execute a raw graph query */
+  cypher<R = T>(query: string, params?: Record<string, unknown>): Promise<R[]>;
+}
+
 export interface HookContext<T = unknown> {
   app: MantleApplication;
   service: Partial<Service<T>>;
