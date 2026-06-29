@@ -1,0 +1,40 @@
+{
+  "name": "@mantlejs/pinecone",
+  "version": "0.0.1",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    "./package.json": "./package.json",
+    ".": {
+      "@mantle/source": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "!**/*.tsbuildinfo"
+  ],
+  "nx": {
+    "name": "pinecone"
+  },
+  "dependencies": {
+    "tslib": "^2.3.0"
+  },
+  "description": "Pinecone vector database adapter for Mantle JS — PineconeRepository with full QueryParams support",
+  "license": "MIT",
+  "keywords": [
+    "mantle",
+    "pinecone",
+    "vector",
+    "database",
+    "repository"
+  ],
+  "peerDependencies": {
+    "@mantlejs/mantle": "^0.0.1",
+    "@pinecone-database/pinecone": "^5.0.0"
+  }
+}

@@ -53,6 +53,7 @@ Dependencies always point inward. Nothing in Domain or Application layers knows 
 | `@mantlejs/knex`        | SQL adapter via Knex.js (PostgreSQL, MySQL/MariaDB, SQLite3, MSSQL)                   |
 | `@mantlejs/dynamodb`    | Amazon DynamoDB adapter — `DynamoDbRepository` with full `QueryParams` support         |
 | `@mantlejs/supabase`    | Supabase adapter — `SupabaseRepository` backed by the Supabase JS client               |
+| `@mantlejs/pinecone`    | Pinecone vector database adapter — `PineconeRepository` with embedding support         |
 | `@mantlejs/auth`        | JWT engine + strategy runner                                                          |
 | `@mantlejs/auth-local`  | Local email+password strategy (Argon2id)                                              |
 | `@mantlejs/auth-oauth`  | Shared OAuth 2.0 base — state, PKCE, find-or-create, route registration               |

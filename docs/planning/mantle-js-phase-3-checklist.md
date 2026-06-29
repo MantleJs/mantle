@@ -34,7 +34,7 @@ Work through these in order. Each item maps to a package spec in the Phase 3 PRD
 - [x] **9. Implement pgvector extension for `@mantlejs/knex`**
   Extend `KnexRepository<T>` (no new package) with `VectorRepository<T>` support for PostgreSQL + pgvector. Add a `vectorColumn` property (default: `'embedding'`) and implement `findSimilar(vector, topK, params?)`, `upsertVector(id, vector, data)`, and `deleteVector(id)`. `findSimilar` generates: `SELECT *, embedding <=> $1 AS _distance FROM <table> ORDER BY embedding <=> $1 LIMIT $2`. Cosine distance operator (`<=>`) is the default; expose `distanceOperator` property for `<#>` (negative inner product) and `<->` (L2). Only activate on `pg` client — throw `GeneralError` if called on non-PostgreSQL connections.
 
-- [ ] **10. Implement `@mantlejs/pinecone`**
+- [x] **10. Implement `@mantlejs/pinecone`**
   New package. `pinecone()` plugin factory initializes the Pinecone client (using `@pinecone-database/pinecone`) and stores it as `app.set('pinecone', client)`. `PineconeRepository<T>` implements `VectorRepository<T>`. Subclasses declare `readonly namespace: string`. Records are stored with their vectors in Pinecone; non-vector metadata is stored in Pinecone's metadata field. `findAll` / `findNodes` filter via Pinecone's metadata filter API mapped from `QueryParams.where`. `findById` uses `index.fetch([id])`. `save` uses `index.upsert()` with a zero vector (for records not yet assigned an embedding — set via `upsertVector`).
 
 - [ ] **11. Implement `@mantlejs/qdrant`**

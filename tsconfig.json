@@ -71,6 +71,9 @@
     },
     {
       "path": "./packages/supabase"
+    },
+    {
+      "path": "./packages/pinecone"
     }
   ]
 }
