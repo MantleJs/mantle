@@ -56,6 +56,7 @@ Dependencies always point inward. Nothing in Domain or Application layers knows 
 | `@mantlejs/auth-oauth`  | Shared OAuth 2.0 base — state, PKCE, find-or-create, route registration               |
 | `@mantlejs/auth-google` | Google Sign-In strategy (authorization code + PKCE, no Passport.js)                   |
 | `@mantlejs/auth-github` | GitHub Sign-In strategy (authorization code flow, no Passport.js)                     |
+| `@mantlejs/auth-facebook` | Facebook Sign-In strategy (authorization code flow, no Passport.js)                 |
 | `@mantlejs/upload`      | File upload via busboy, local disk storage                                            |
 | `@mantlejs/upload-s3`   | AWS S3 storage adapter for `@mantlejs/upload` (supports MinIO, R2, and other S3-compatible stores) |
 | `@mantlejs/upload-gcs`  | Google Cloud Storage adapter for `@mantlejs/upload`                                                |

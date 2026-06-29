@@ -22,7 +22,7 @@ Work through these in order. Each item maps to a package spec in the Phase 3 PRD
 - [x] **5. Implement `@mantlejs/http`**
   New package. `http()` plugin factory sets two handlers on the app: `app.get('httpHandler')` returns a Node.js `(req: IncomingMessage, res: ServerResponse) => void` handler compatible with `http.createServer`; `app.get('fetchHandler')` returns a `(request: Request) => Promise<Response>` handler compatible with the Fetch API (Cloudflare Workers, Vercel Edge Functions, AWS Lambda@Edge). Both modes run the full Mantle hook pipeline. Set `params.provider = 'http'`. Zero framework dependencies — only `@mantlejs/mantle` and Node.js built-ins. Route matching and body parsing are implemented from scratch (no Express/Koa).
 
-- [ ] **6. Implement `@mantlejs/auth-facebook`**
+- [x] **6. Implement `@mantlejs/auth-facebook`**
   New package. `facebookStrategy()` plugin. Registers `GET /auth/facebook` (redirect to `facebook.com/v18.0/dialog/oauth`) and `GET /auth/facebook/callback` (code exchange, profile fetch via `graph.facebook.com/v18.0/me?fields=id,name,email`, find-or-create user, issue Mantle JWT). Follows the exact same pattern as `@mantlejs/auth-google`. Default scope: `['email', 'public_profile']`. Default `entityIdField`: `'facebookId'`. Returns `{ accessToken, refreshToken, user }`.
 
 - [ ] **7. Implement `@mantlejs/dynamodb`**
