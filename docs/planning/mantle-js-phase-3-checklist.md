@@ -10,7 +10,7 @@ Work through these in order. Each item maps to a package spec in the Phase 3 PRD
 - [x] **2. Implement `create-mantle`**
   New unscoped package (`create-mantle`, not `@mantlejs/create-mantle`) published to npm so `npm create mantle my-api` resolves correctly. The package is a minimal bin entry point that imports `newProject()` from `@mantlejs/cli` and forwards `process.argv` to it. No template logic is duplicated — all scaffolding lives in `@mantlejs/cli`. The `bin` field points to `dist/bin/create-mantle.js`. Add `create-mantle` to the packages table in the root `README.md`.
 
-- [ ] **3. Implement `@mantlejs/cli` — Phase 3 additions**
+- [x] **3. Implement `@mantlejs/cli` — Phase 3 additions**
   Three additions to the existing CLI binary:
   - **`mantle add <package>`**: Detects the package manager from the lockfile (npm/yarn/pnpm), runs install, then modifies `src/app.ts` using the TypeScript compiler API (AST manipulation — no regex). Inserts the import declaration and appends `.configure(plugin(options))` to the `mantle()` call chain. Ships wiring templates for: `@mantlejs/logger`, `@mantlejs/socketio`, `@mantlejs/koa`, `@mantlejs/auth`, `@mantlejs/auth-local`, `@mantlejs/auth-google`, `@mantlejs/auth-github`, `@mantlejs/auth-facebook`, `@mantlejs/sync`, `@mantlejs/config`. Unknown packages print instructions without modifying the file.
   - **`mantle generate authentication` (alias `g auth`)**: Generates `src/authentication.ts` with detected strategy configuration (reads installed `@mantlejs/auth-*` packages). Prints instructions for wiring into `app.ts`.

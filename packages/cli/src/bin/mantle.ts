@@ -2,6 +2,7 @@
 import { program } from "commander";
 import { newProject } from "../lib/new.js";
 import { generateCommand } from "../lib/generate.js";
+import { addPackage } from "../lib/add.js";
 
 program.name("mantle").description("Mantle JS CLI").version("0.0.1");
 
@@ -21,6 +22,13 @@ program
       packageManager: opts.packageManager as "npm" | "yarn" | "pnpm" | undefined,
       skipInstall: opts.skipInstall as boolean | undefined,
     });
+  });
+
+program
+  .command("add <package>")
+  .description("Install a Mantle package and wire it into src/app.ts")
+  .action(async (packageName: string) => {
+    await addPackage(packageName);
   });
 
 const gen = program.command("generate").alias("g").description("Generate Mantle code");
@@ -50,6 +58,22 @@ gen
   .option("--directory <path>", "Output directory (default: src/services/<name>)")
   .action(async (name: string, opts: Record<string, unknown>) => {
     await generateCommand("repository", name, { directory: opts.directory as string | undefined });
+  });
+
+gen
+  .command("authentication")
+  .alias("auth")
+  .description("Generate src/authentication.ts with detected auth strategy configuration")
+  .action(async () => {
+    await generateCommand("authentication", undefined, {});
+  });
+
+gen
+  .command("migration <name>")
+  .alias("m")
+  .description("Generate a Knex migration file (requires @mantlejs/knex)")
+  .action(async (name: string) => {
+    await generateCommand("migration", name, {});
   });
 
 program.parseAsync(process.argv).catch((err: Error) => {

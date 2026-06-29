@@ -1,6 +1,7 @@
 import { mkdir, writeFile, access } from "node:fs/promises";
 import { dirname } from "node:path";
 import { constants } from "node:fs";
+import { format, resolveConfig } from "prettier";
 
 export function toPascalCase(str: string): string {
   return str
@@ -29,8 +30,18 @@ export async function fileExists(path: string): Promise<boolean> {
   }
 }
 
+export async function formatContent(filePath: string, content: string): Promise<string> {
+  try {
+    const config = await resolveConfig(filePath);
+    return await format(content, { ...(config ?? {}), filepath: filePath });
+  } catch {
+    return content;
+  }
+}
+
 export async function writeGeneratedFile(filePath: string, content: string): Promise<void> {
   await mkdir(dirname(filePath), { recursive: true });
-  await writeFile(filePath, content, "utf-8");
+  const formatted = await formatContent(filePath, content);
+  await writeFile(filePath, formatted, "utf-8");
   console.log(`  created  ${filePath}`);
 }
