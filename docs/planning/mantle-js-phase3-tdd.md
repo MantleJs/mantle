@@ -13,16 +13,15 @@
 1. [Scope of This Document](#scope-of-this-document)
 2. [Package Dependency Graph](#package-dependency-graph)
 3. [Public API Surface — `@mantlejs/sync`](#public-api-surface--mantlejssync)
-4. [Public API Surface — `@mantlejs/client`](#public-api-surface--mantlejsclient)
-5. [Public API Surface — `@mantlejs/mongodb`](#public-api-surface--mantlejsmongodb)
-6. [Public API Surface — `@mantlejs/koa`](#public-api-surface--mantlejskoa)
-7. [Event Replication Lifecycle](#event-replication-lifecycle)
+4. [Public API Surface — `@mantlejs/mongodb`](#public-api-surface--mantlejsmongodb)
+5. [Public API Surface — `@mantlejs/koa`](#public-api-surface--mantlejskoa)
+6. [Event Replication Lifecycle](#event-replication-lifecycle)
 
 ---
 
 ## Scope of This Document
 
-This TDD covers the public TypeScript API surface and key data flows for Phase 3 packages. `@mantlejs/sync` is specified in full. The other Phase 3 packages (`@mantlejs/client`, `@mantlejs/mongodb`, `@mantlejs/koa`) are outlined at the API-shape level; full TDD sections will be added as implementation begins.
+This TDD covers the public TypeScript API surface and key data flows for Phase 3 packages. `@mantlejs/sync` is specified in full. The other Phase 3 packages (`@mantlejs/mongodb`, `@mantlejs/koa`) are outlined at the API-shape level; full TDD sections will be added as implementation begins. `@mantlejs/client` and `@mantlejs/react` are covered in the [Phase 4 TDD](./mantle-js-phase4-tdd.md).
 
 ---
 
@@ -52,8 +51,6 @@ This TDD covers the public TypeScript API surface and key data flows for Phase 3
 └── @mantlejs/sync                    depends on: @mantlejs/mantle              [NEW P3]
                                       peer: ioredis (for redisAdapter)
 
-@mantlejs/client                      depends on: socket.io-client             [NEW P3]
-                                      optional peer: @mantlejs/mantle (types)
 @mantlejs/cli                         (no runtime deps — code generator only)
 ```
 
@@ -164,56 +161,6 @@ const app = mantle()
     adapter: redisAdapter({ url: process.env.REDIS_URL }),
   }));
 ```
-
----
-
-## Public API Surface — `@mantlejs/client`
-
-> Outline only — full TDD section to be written during implementation.
-
-### Exports (planned)
-
-```typescript
-export function mantle(options: ClientOptions): MantleClient;
-export type { ClientOptions, ServiceClient, ClientAuthOptions };
-```
-
-### Key types (planned)
-
-```typescript
-interface ClientOptions {
-  /** Base URL of the Mantle server */
-  url: string;
-  /** Socket.io connection options */
-  socket?: Partial<ManagerOptions & SocketOptions>;
-  /** Storage for auth tokens. Default: MemoryStorage */
-  storage?: TokenStorage;
-}
-
-interface MantleClient {
-  service<T = unknown>(path: string): ServiceClient<T>;
-  authenticate(options: ClientAuthOptions): Promise<AuthResult>;
-  logout(): Promise<void>;
-  getAccessToken(): string | undefined;
-}
-
-interface ServiceClient<T> {
-  find(params?: Record<string, unknown>): Promise<T[]>;
-  get(id: Id, params?: Record<string, unknown>): Promise<T>;
-  create(data: Partial<T>, params?: Record<string, unknown>): Promise<T>;
-  update(id: Id, data: Partial<T>, params?: Record<string, unknown>): Promise<T>;
-  patch(id: Id, data: Partial<T>, params?: Record<string, unknown>): Promise<T>;
-  remove(id: Id, params?: Record<string, unknown>): Promise<T>;
-  on(event: 'created' | 'updated' | 'patched' | 'removed', handler: (data: T) => void): this;
-  off(event: 'created' | 'updated' | 'patched' | 'removed', handler: (data: T) => void): this;
-}
-```
-
-### Transport selection
-
-- Service method calls (`find`, `get`, `create`, ...) use **REST** by default (`fetch`).
-- Real-time subscriptions (`on('created', ...)`) use **socket.io** automatically — the client connects lazily on first `on()` call.
-- A `transport` option per call will allow forcing socket.io for method calls (Phase 3 stretch goal).
 
 ---
 
