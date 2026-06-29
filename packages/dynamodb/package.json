@@ -1,0 +1,42 @@
+{
+  "name": "@mantlejs/dynamodb",
+  "version": "0.0.1",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    "./package.json": "./package.json",
+    ".": {
+      "@mantle/source": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "!**/*.tsbuildinfo"
+  ],
+  "nx": {
+    "name": "dynamodb"
+  },
+  "dependencies": {
+    "tslib": "^2.3.0"
+  },
+  "description": "Amazon DynamoDB adapter for Mantle JS — DynamoDbRepository with full QueryParams support",
+  "license": "MIT",
+  "keywords": [
+    "mantle",
+    "dynamodb",
+    "aws",
+    "nosql",
+    "database",
+    "repository"
+  ],
+  "peerDependencies": {
+    "@aws-sdk/client-dynamodb": "^3.0.0",
+    "@aws-sdk/util-dynamodb": "^3.0.0",
+    "@mantlejs/mantle": "^0.1.0"
+  }
+}
