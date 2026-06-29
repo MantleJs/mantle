@@ -1,4 +1,4 @@
-import { EventEmitter } from "events";
+import { EventEmitter } from "node:events";
 import { BadRequest, GeneralError, MethodNotAllowed, NotFound } from "./errors.js";
 import type {
   ChannelPublisher,

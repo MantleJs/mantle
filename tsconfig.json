@@ -59,6 +59,9 @@
     },
     {
       "path": "./packages/koa"
+    },
+    {
+      "path": "./packages/http"
     }
   ]
 }

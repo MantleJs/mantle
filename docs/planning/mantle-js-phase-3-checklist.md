@@ -19,7 +19,7 @@ Work through these in order. Each item maps to a package spec in the Phase 3 PRD
 - [x] **4. Implement `@mantlejs/koa`**
   New package. `koa()` plugin factory registers service routes on a Koa application using `@koa/router`. Set `params.provider = 'koa'`. Register the same six REST route patterns as `@mantlejs/express`: `GET /:service`, `GET /:service/:id`, `POST /:service`, `PUT /:service/:id`, `PATCH /:service/:id`, `DELETE /:service/:id`, `POST /:service/:method` (custom methods). Error handler maps `MantleError` subclasses to correct HTTP status codes. Store the underlying Koa app as `app.set('koa', koaApp)` and the http.Server as `app.set('server', server)` after `app.listen()`. `@mantlejs/socketio` must be able to attach to `app.get('server')`.
 
-- [ ] **5. Implement `@mantlejs/http`**
+- [x] **5. Implement `@mantlejs/http`**
   New package. `http()` plugin factory sets two handlers on the app: `app.get('httpHandler')` returns a Node.js `(req: IncomingMessage, res: ServerResponse) => void` handler compatible with `http.createServer`; `app.get('fetchHandler')` returns a `(request: Request) => Promise<Response>` handler compatible with the Fetch API (Cloudflare Workers, Vercel Edge Functions, AWS Lambda@Edge). Both modes run the full Mantle hook pipeline. Set `params.provider = 'http'`. Zero framework dependencies — only `@mantlejs/mantle` and Node.js built-ins. Route matching and body parsing are implemented from scratch (no Express/Koa).
 
 - [ ] **6. Implement `@mantlejs/auth-facebook`**
