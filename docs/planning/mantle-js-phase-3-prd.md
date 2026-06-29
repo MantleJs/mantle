@@ -27,7 +27,7 @@ Phase 2 made Mantle production-ready: logging, schema validation, real-time via 
 
 1. **Ecosystem completeness** — Koa transport, plain HTTP adapter, Facebook OAuth, `@mantlejs/mantle` package rename (done), and `create-mantle` for frictionless project creation
 2. **Client SDKs** — first-party browser/Node.js client with REST + Socket.io, and React hooks built on TanStack Query
-3. **Database breadth** — MongoDB (native driver), vector databases (Pinecone, Qdrant, pgvector extension), and graph databases (Neo4j)
+3. **Database breadth** — DynamoDB (serverless NoSQL), Supabase (Postgres + Realtime), vector databases (Pinecone, Qdrant, pgvector extension), and graph databases (Neo4j)
 4. **Horizontal scaling** — cross-instance socket event replication via `@mantlejs/sync`
 
 Phase 3 also closes the CLI gap with `mantle add` (install a package and wire it into `app.ts`) and additional generators.
@@ -43,12 +43,13 @@ Phase 3 package summary:
 | `@mantlejs/auth-facebook` | Facebook OAuth 2.0 strategy |
 | `@mantlejs/client` | Browser + Node.js client SDK — REST + Socket.io |
 | `@mantlejs/react` | React hooks for Mantle services (TanStack Query) |
-| `@mantlejs/mongodb` | MongoDB adapter implementing `Repository<T>` (native driver) |
+| `@mantlejs/dynamodb` | DynamoDB adapter implementing `Repository<T>` (AWS SDK v3, serverless-native) |
+| `@mantlejs/supabase` | Supabase repository adapter + Realtime `SyncAdapter` for `@mantlejs/sync` |
 | `@mantlejs/pinecone` | Pinecone vector database adapter |
 | `@mantlejs/qdrant` | Qdrant vector database adapter |
 | `@mantlejs/pgvector` | pgvector extension for `@mantlejs/knex` — adds `findSimilar` |
 | `@mantlejs/neo4j` | Neo4j graph database adapter |
-| `@mantlejs/sync` | Cross-instance service event replication via Redis |
+| `@mantlejs/sync` | Cross-instance service event replication via Redis, DragonflyDB, or Supabase Realtime |
 
 ---
 
@@ -62,7 +63,8 @@ Phase 3 package summary:
 - Add Facebook as a supported OAuth strategy
 - Ship a first-party client SDK (`@mantlejs/client`) usable in browser, Node.js, and React Native
 - Ship `@mantlejs/react` with TanStack Query integration for `useFind`, `useGet`, `useCreate`, etc.
-- Add MongoDB via the native driver (no Mongoose)
+- Add DynamoDB via AWS SDK v3 — serverless-native NoSQL with no cluster to manage
+- Add Supabase — Postgres-backed `Repository<T>` plus a `SyncAdapter` using Supabase Realtime Broadcast
 - Add vector database adapters: Pinecone, Qdrant, and pgvector (PostgreSQL extension)
 - Add Neo4j as the first graph database adapter
 - Enable horizontal scaling: a mutation on any instance reaches socket clients on all instances
@@ -77,7 +79,6 @@ Phase 3 package summary:
 - No multi-tenancy primitives (Phase 4)
 - No Prisma or Mongoose adapters (community or Phase 4)
 - No AWS Neptune, Azure Cosmos DB, or ArangoDB adapters (Phase 4 — multi-cloud)
-- No DynamoDB adapter (Phase 4 — key-value/document hybrid, lower demand)
 - No AMQP/RabbitMQ sync adapter (community adapter can implement `SyncAdapter`)
 - No sticky session management — leave to load balancer configuration
 
@@ -451,26 +452,31 @@ function Messages() {
 
 ---
 
-### `@mantlejs/mongodb`
+### `@mantlejs/dynamodb`
 
-MongoDB adapter implementing `Repository<T>`. Targets MongoDB 6.x and the official Node.js driver.
+DynamoDB adapter implementing `Repository<T>`. Targets AWS DynamoDB via AWS SDK v3 — serverless-native, no cluster to manage, scales to zero.
 
-**Dependencies:** `@mantlejs/mantle`, `mongodb`
+**Dependencies:** `@mantlejs/mantle`, `@aws-sdk/lib-dynamodb`, `@aws-sdk/client-dynamodb`
 
 ```typescript
-function mongodb(options: MongoOptions): MantlePlugin;
+function dynamodb(options: DynamoOptions): MantlePlugin;
 
-interface MongoOptions {
-  /** MongoDB connection URI */
-  uri: string;
-  /** Database name */
-  database: string;
-  /** MongoClient options passed to the driver */
-  clientOptions?: MongoClientOptions;
+interface DynamoOptions {
+  /** AWS region. Default: process.env.AWS_REGION */
+  region?: string;
+  /** Endpoint override for local development (DynamoDB Local or LocalStack) */
+  endpoint?: string;
+  /** AWS credentials. Default: resolved from environment / IAM role */
+  credentials?: AwsCredentialIdentity;
 }
 
-class MongoRepository<T extends Record<string, unknown>> implements Repository<T> {
-  readonly collectionName: string;  // override in subclass
+class DynamoRepository<T extends Record<string, unknown>> implements Repository<T> {
+  /** DynamoDB table name. Override in subclass. */
+  readonly tableName: string;
+  /** Partition key attribute name. Default: 'id' */
+  readonly pk: string = 'id';
+  /** Sort key attribute name. Optional — omit for single-key tables. */
+  readonly sk?: string;
 
   constructor(app: MantleApplication);
 
@@ -484,28 +490,132 @@ class MongoRepository<T extends Record<string, unknown>> implements Repository<T
   deleteById(id: Id): Promise<T>;
   count(params?: QueryParams): Promise<number>;
 
-  // MongoDB-specific
+  // DynamoDB-specific
   withTransaction<R>(fn: (repo: this) => Promise<R>): Promise<R>;
-  protected get collection(): Collection<T>;
+  protected get client(): DynamoDBDocumentClient;
 }
 ```
 
-#### QueryParams → MongoDB query mapping
+#### QueryParams → DynamoDB query mapping
 
-| Mantle operator | MongoDB equivalent |
+`findById` uses `GetItem`. `findAll` uses `Scan` with `FilterExpression` derived from `QueryParams.where`.
+
+| Mantle operator | DynamoDB FilterExpression |
 |---|---|
-| `{ field: value }` | `{ field: value }` |
-| `{ field: null }` | `{ field: null }` |
-| `{ field: { $gt: v } }` | `{ field: { $gt: v } }` |
-| `{ field: { $in: [...] } }` | `{ field: { $in: [...] } }` |
-| `{ $or: [...] }` | `{ $or: [...] }` |
-| `{ $and: [...] }` | `{ $and: [...] }` |
-| `limit` | `.limit(n)` |
-| `skip` | `.skip(n)` |
-| `sort` | `.sort({ field: 1 | -1 })` |
-| `select` | `.project({ field: 1 })` |
+| `{ field: value }` | `#field = :value` |
+| `{ field: null }` | `attribute_not_exists(#field)` |
+| `{ field: { $gt: v } }` | `#field > :v` |
+| `{ field: { $gte: v } }` | `#field >= :v` |
+| `{ field: { $lt: v } }` | `#field < :v` |
+| `{ field: { $lte: v } }` | `#field <= :v` |
+| `{ field: { $ne: v } }` | `#field <> :v` |
+| `{ field: { $in: [...] } }` | Multiple `OR` conditions |
+| `{ $or: [...] }` | `(expr1) OR (expr2)` |
+| `{ $and: [...] }` | `(expr1) AND (expr2)` |
+| `$like` | `contains(#field, :v)` |
+| `limit` | `Limit: n` |
+| `skip` | Not supported — use cursor pagination via `params.query._startKey` (`LastEvaluatedKey`) |
+| `sort` | In-memory sort — DynamoDB `Scan` does not guarantee order without a sort key |
 
-IDs: `findById` and `deleteById` accept string IDs and convert to `ObjectId` automatically when the ID is a valid ObjectId hex string.
+DynamoDB does not support offset-based pagination. `skip` is silently ignored; callers should pass `_startKey` for cursor-based pagination. `withTransaction` uses `TransactWriteItems` (max 100 items per DynamoDB transaction). Auto UUID via `crypto.randomUUID()`, auto timestamps (`createdAt`, `updatedAt`).
+
+#### Local development
+
+```typescript
+const app = mantle().configure(dynamodb({
+  region: 'us-east-1',
+  endpoint: 'http://localhost:8000', // DynamoDB Local or LocalStack
+}));
+```
+
+---
+
+### `@mantlejs/supabase`
+
+Supabase adapter with two concerns: a `Repository<T>` implementation backed by Supabase's table API, and a `SyncAdapter` for `@mantlejs/sync` that uses Supabase Realtime as the cross-instance pub/sub transport.
+
+**Dependencies:** `@mantlejs/mantle`, `@supabase/supabase-js`
+
+```typescript
+function supabase(options: SupabaseOptions): MantlePlugin;
+
+interface SupabaseOptions {
+  /** Supabase project URL */
+  url: string;
+  /** Service role key (server-side) or anon key */
+  key: string;
+  options?: SupabaseClientOptions;
+}
+
+class SupabaseRepository<T extends Record<string, unknown>> implements Repository<T> {
+  /** Supabase table name. Override in subclass. */
+  readonly tableName: string;
+  /**
+   * When true, subscribes to Postgres Changes for this table and re-emits
+   * direct DB mutations (PostgREST, migrations, Supabase Studio) as Mantle
+   * service events. Default: false.
+   */
+  readonly listenToChanges: boolean = false;
+
+  constructor(app: MantleApplication);
+
+  // Full Repository<T> implementation
+  findAll(params?: QueryParams): Promise<T[]>;
+  findById(id: Id): Promise<T | null>;
+  save(data: Partial<T>): Promise<T>;
+  saveAll(data: Partial<T>[]): Promise<T[]>;
+  updateById(id: Id, data: Partial<T>): Promise<T>;
+  patchById(id: Id, data: Partial<T>): Promise<T>;
+  deleteById(id: Id): Promise<T>;
+  count(params?: QueryParams): Promise<number>;
+}
+```
+
+#### QueryParams → Supabase filter mapping
+
+| Mantle operator | Supabase method |
+|---|---|
+| `{ field: value }` | `.eq(field, value)` |
+| `{ field: null }` | `.is(field, null)` |
+| `{ field: { $gt: v } }` | `.gt(field, v)` |
+| `{ field: { $gte: v } }` | `.gte(field, v)` |
+| `{ field: { $lt: v } }` | `.lt(field, v)` |
+| `{ field: { $lte: v } }` | `.lte(field, v)` |
+| `{ field: { $ne: v } }` | `.neq(field, v)` |
+| `{ field: { $in: [...] } }` | `.in(field, [...])` |
+| `{ $or: [...] }` | `.or(conditions)` |
+| `$like` | `.like(field, pattern)` |
+| `$ilike` | `.ilike(field, pattern)` |
+| `limit` / `skip` | `.range(skip, skip + limit - 1)` |
+| `sort` | `.order(field, { ascending })` |
+
+#### `supabaseAdapter()` — Supabase Realtime as a sync transport
+
+```typescript
+import { supabaseAdapter } from '@mantlejs/supabase';
+
+const app = mantle()
+  .configure(express())
+  .configure(supabase({ url: process.env.SUPABASE_URL!, key: process.env.SUPABASE_SERVICE_KEY! }))
+  .configure(socketio())
+  .configure(sync({ adapter: supabaseAdapter() }));
+```
+
+`supabaseAdapter()` uses **Supabase Realtime Broadcast** channels as the pub/sub transport, replacing Redis. When `sync()` publishes a `SyncMessage`, it sends it to a shared Broadcast channel (default: `'mantle:sync'`). Each instance subscribes to that channel and re-emits received messages locally, triggering the `@mantlejs/socketio` channel broadcast. `originId` deduplication is unchanged.
+
+| | `redisAdapter()` | `supabaseAdapter()` |
+|---|---|---|
+| Infrastructure | Redis or DragonflyDB | Supabase subscription (no extra infra) |
+| Protocol | Redis pub/sub (two connections) | Supabase Realtime WebSocket |
+| Latency | ~1ms (local Redis) | ~10–50ms (Supabase-hosted) |
+
+#### Postgres Changes — database-level event propagation
+
+When `listenToChanges = true`, `SupabaseRepository<T>` opens a Supabase Realtime Postgres Changes subscription for `INSERT`, `UPDATE`, and `DELETE` on its table. Changes are translated to Mantle `service:event` emissions (`created`, `patched`, `removed`) and flow through the hook pipeline and channels system on every connected instance.
+
+This captures mutations from **any source** — PostgREST, Supabase Studio, migrations, or other services writing to the same Postgres — not only Mantle API calls. It does not replace `@mantlejs/sync`; both can be active simultaneously. `sync()` handles cross-instance propagation of Mantle-originated events; Postgres Changes handles external database mutations.
+
+> **Supabase and PostgREST do not replace Mantle.** Supabase's auto-generated PostgREST API handles raw CRUD against the database schema but provides no hooks, custom methods, authentication pipeline, or business logic. Mantle sits above Supabase as the application layer. Teams can use both: PostgREST for simple reads, Mantle for write paths with domain logic.
 
 ---
 
@@ -749,7 +859,9 @@ interface SyncMessage {
 }
 ```
 
-#### `redisAdapter()` — built-in Redis adapter
+#### Built-in adapters
+
+**`redisAdapter()`** — ships with `@mantlejs/sync`, uses `ioredis` (peer dep, two connections — required by Redis pub/sub protocol). Also compatible with **DragonflyDB**, a Redis-compatible in-memory store with higher throughput; it exposes the same pub/sub protocol, so `redisAdapter` works with DragonflyDB as a drop-in replacement with no code changes.
 
 ```typescript
 function redisAdapter(options: RedisAdapterOptions): SyncAdapter;
@@ -763,7 +875,9 @@ interface RedisAdapterOptions {
 }
 ```
 
-Uses `ioredis` for pub/sub (two connections — required by Redis pub/sub protocol). Sync failures are non-fatal: local clients are not affected and a warning is logged.
+**`supabaseAdapter()`** — ships with `@mantlejs/supabase`. Uses Supabase Realtime Broadcast channels. Requires `@mantlejs/supabase` to be configured. Zero additional infrastructure for teams already using Supabase. See `@mantlejs/supabase` spec for the latency trade-off table.
+
+Sync failures are non-fatal: local clients are not affected and a warning is logged.
 
 #### Typical setup
 
@@ -792,7 +906,8 @@ mantle/
 │   ├── auth-facebook/   @mantlejs/auth-facebook [NEW P3]
 │   ├── client/          @mantlejs/client       [NEW P3]
 │   ├── react/           @mantlejs/react        [NEW P3]
-│   ├── mongodb/         @mantlejs/mongodb      [NEW P3]
+│   ├── dynamodb/        @mantlejs/dynamodb     [NEW P3]
+│   ├── supabase/        @mantlejs/supabase     [NEW P3]
 │   ├── pinecone/        @mantlejs/pinecone     [NEW P3]
 │   ├── qdrant/          @mantlejs/qdrant       [NEW P3]
 │   ├── neo4j/           @mantlejs/neo4j        [NEW P3]
@@ -812,7 +927,8 @@ Note: `@mantlejs/pgvector` is delivered as an extension to `@mantlejs/knex`, not
 | `@mantlejs/auth-facebook` | `@mantlejs/mantle`, `@mantlejs/auth-oauth` |
 | `@mantlejs/client` | nothing (types-only optional peer on `@mantlejs/mantle`) |
 | `@mantlejs/react` | `@mantlejs/client` |
-| `@mantlejs/mongodb` | `@mantlejs/mantle` |
+| `@mantlejs/dynamodb` | `@mantlejs/mantle` |
+| `@mantlejs/supabase` | `@mantlejs/mantle` |
 | `@mantlejs/pinecone` | `@mantlejs/mantle` |
 | `@mantlejs/qdrant` | `@mantlejs/mantle` |
 | `@mantlejs/neo4j` | `@mantlejs/mantle` |
@@ -861,11 +977,14 @@ Phase 3 upholds all Phase 1 and Phase 2 principles and adds:
 | 2 | `mantle add` — regex vs AST? | **TypeScript compiler API (AST)**. Regex-based `app.ts` modification is brittle; AST manipulation handles formatting variations, comments, and multi-line chains reliably. |
 | 3 | One `@mantlejs/client` or split REST + Socket.io? | **One package.** Socket.io-client is an optional peer dependency — tree-shaken when unused. A unified client gives better UX (one install, one API surface) and matches `@feathersjs/client`. |
 | 4 | React hooks — React Query vs roll-our-own? | **TanStack Query (React Query v5).** Rolling our own means reimplementing caching, background refetch, stale-while-revalidate, and optimistic updates poorly. TanStack Query is the de facto standard; Socket.io events map cleanly to `queryClient.invalidateQueries()`. |
-| 5 | MongoDB driver — native vs Mongoose? | **Native `mongodb` driver** — same choice as FeathersJS. Mongoose schema enforcement conflicts with the TypeBox schema system already in `@mantlejs/schema`. Repository pattern handles all transformation without an ODM. |
-| 6 | Vector DB selection? | **Pinecone** (most used in production LLM apps), **Qdrant** (best open-source self-hosted option), **pgvector** (zero new infrastructure for PostgreSQL users — delivered as a `@mantlejs/knex` extension). |
-| 7 | Graph DB selection? | **Neo4j** — the standard, best Node.js ecosystem, Cypher is widely known. Neptune/ArangoDB are Phase 4 multi-cloud additions. |
-| 8 | `VectorRepository<T>` in core? | **Yes — in `@mantlejs/mantle`.** The interface is infrastructure-free (no driver imports). Defining it in core ensures all vector adapters are interchangeable and services remain transport-agnostic. |
-| 9 | `GraphRepository<T>` extends `Repository<T>`? | **No — separate interface.** Graph traversal semantics (`traverse`, `cypher`) are fundamentally different from record-by-ID CRUD. Forcing them into `Repository<T>` would produce an awkward interface with many irrelevant methods. |
-| 10 | `@mantlejs/http` — Node.js http vs Fetch API? | **Both modes** — `httpHandler` for Node.js `http.createServer`, `fetchHandler` for Fetch API (Cloudflare Workers, Vercel Edge). The same Mantle routing logic powers both; the adapter detects the call style. |
-| 11 | Where does sync channel filtering run? | **Locally on each receiving instance.** The broker carries raw event data only. Each instance runs its own channel publishers before broadcasting — per-user filtering and permission checks are never bypassed by the sync layer. |
-| 12 | pgvector — separate package or knex extension? | **Knex extension** (`@mantlejs/knex` gains `VectorRepository<T>` support). No new package or install step for PostgreSQL users — just enable the pgvector extension in their database and use `findSimilar`. |
+| 5 | MongoDB vs DynamoDB? | **DynamoDB.** MongoDB has lost market share to PostgreSQL JSONB for document-like storage and to DynamoDB for serverless/scalable NoSQL. DynamoDB is serverless-native, scales to zero, and fits better with the Cloud Run deployment model. MongoDB is deferred to community. |
+| 6 | Supabase — does it replace Mantle? | **No — it's infrastructure.** Supabase auto-generates CRUD APIs via PostgREST, but offers no hooks, custom methods, auth pipeline, or business logic. Mantle sits above Supabase. The `@mantlejs/supabase` package makes Supabase's Postgres and Realtime available as a repository backend and sync transport. Teams can use PostgREST for simple reads and Mantle for write paths with domain logic. |
+| 7 | Supabase Realtime Broadcast vs Postgres Changes for sync? | **Both, separate concerns.** `supabaseAdapter()` uses Broadcast (ephemeral pub/sub, replaces Redis for cross-instance Mantle event propagation). Postgres Changes (`listenToChanges`) is opt-in per-repository and captures external database mutations — a fundamentally different signal not available with `redisAdapter`. |
+| 8 | DragonflyDB — where does it fit? | **Drop-in for Redis in `redisAdapter()`.** DragonflyDB is Redis-compatible; `redisAdapter` works unchanged. It is not a document store (not a MongoDB alternative) but a higher-throughput in-memory store for the pub/sub sync path. No new adapter needed. |
+| 9 | Vector DB selection? | **Pinecone** (most used in production LLM apps), **Qdrant** (best open-source self-hosted option), **pgvector** (zero new infrastructure for PostgreSQL users — delivered as a `@mantlejs/knex` extension). |
+| 10 | Graph DB selection? | **Neo4j** — the standard, best Node.js ecosystem, Cypher is widely known. Neptune/ArangoDB are Phase 4 multi-cloud additions. |
+| 11 | `VectorRepository<T>` in core? | **Yes — in `@mantlejs/mantle`.** The interface is infrastructure-free (no driver imports). Defining it in core ensures all vector adapters are interchangeable and services remain transport-agnostic. |
+| 12 | `GraphRepository<T>` extends `Repository<T>`? | **No — separate interface.** Graph traversal semantics (`traverse`, `cypher`) are fundamentally different from record-by-ID CRUD. Forcing them into `Repository<T>` would produce an awkward interface with many irrelevant methods. |
+| 13 | `@mantlejs/http` — Node.js http vs Fetch API? | **Both modes** — `httpHandler` for Node.js `http.createServer`, `fetchHandler` for Fetch API (Cloudflare Workers, Vercel Edge). The same Mantle routing logic powers both; the adapter detects the call style. |
+| 14 | Where does sync channel filtering run? | **Locally on each receiving instance.** The broker carries raw event data only. Each instance runs its own channel publishers before broadcasting — per-user filtering and permission checks are never bypassed by the sync layer. |
+| 15 | pgvector — separate package or knex extension? | **Knex extension** (`@mantlejs/knex` gains `VectorRepository<T>` support). No new package or install step for PostgreSQL users — just enable the pgvector extension in their database and use `findSimilar`. |
