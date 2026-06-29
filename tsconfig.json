@@ -56,6 +56,9 @@
     },
     {
       "path": "./packages/create-mantle"
+    },
+    {
+      "path": "./packages/koa"
     }
   ]
 }

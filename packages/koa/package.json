@@ -1,0 +1,41 @@
+{
+  "name": "@mantlejs/koa",
+  "version": "0.0.1",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    "./package.json": "./package.json",
+    ".": {
+      "@mantle/source": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "!**/*.tsbuildinfo"
+  ],
+  "nx": {
+    "name": "koa"
+  },
+  "dependencies": {
+    "tslib": "^2.3.0"
+  },
+  "description": "Koa HTTP transport adapter for Mantle JS",
+  "license": "MIT",
+  "keywords": [
+    "mantle",
+    "koa",
+    "rest",
+    "api"
+  ],
+  "peerDependencies": {
+    "@mantlejs/mantle": "^0.0.1",
+    "koa": "^2.0.0",
+    "@koa/router": "^13.0.0",
+    "@koa/bodyparser": "^5.0.0"
+  }
+}

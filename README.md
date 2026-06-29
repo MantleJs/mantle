@@ -48,6 +48,7 @@ Dependencies always point inward. Nothing in Domain or Application layers knows 
 | ----------------------- | ------------------------------------------------------------------------------------- |
 | `@mantlejs/mantle`        | Framework kernel — Service, Repository, hooks, errors. Zero external deps.            |
 | `@mantlejs/express`     | Express HTTP transport adapter                                                        |
+| `@mantlejs/koa`         | Koa HTTP transport adapter                                                            |
 | `@mantlejs/knex`        | SQL adapter via Knex.js (PostgreSQL, MySQL/MariaDB, SQLite3, MSSQL)                   |
 | `@mantlejs/auth`        | JWT engine + strategy runner                                                          |
 | `@mantlejs/auth-local`  | Local email+password strategy (Argon2id)                                              |
