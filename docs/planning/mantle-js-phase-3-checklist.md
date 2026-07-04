@@ -37,7 +37,7 @@ Work through these in order. Each item maps to a package spec in the Phase 3 PRD
 - [x] **10. Implement `@mantlejs/pinecone`**
   New package. `pinecone()` plugin factory initializes the Pinecone client (using `@pinecone-database/pinecone`) and stores it as `app.set('pinecone', client)`. `PineconeRepository<T>` implements `VectorRepository<T>`. Subclasses declare `readonly namespace: string`. Records are stored with their vectors in Pinecone; non-vector metadata is stored in Pinecone's metadata field. `findAll` / `findNodes` filter via Pinecone's metadata filter API mapped from `QueryParams.where`. `findById` uses `index.fetch([id])`. `save` uses `index.upsert()` with a zero vector (for records not yet assigned an embedding — set via `upsertVector`).
 
-- [ ] **11. Implement `@mantlejs/qdrant`**
+- [x] **11. Implement `@mantlejs/qdrant`**
   New package. `qdrant()` plugin factory initializes the Qdrant client (using `@qdrant/js-client-rest`) and stores it as `app.set('qdrant', client)`. `QdrantRepository<T>` implements `VectorRepository<T>`. Subclasses declare `readonly collectionName: string`. Constructor option `vectorSize: number` is required (must match collection dimension). `findSimilar` uses Qdrant's `search` endpoint. `findAll` uses `scroll` with payload filtering. `QueryParams.where` maps to Qdrant payload filter syntax. `upsertVector` uses `upsert` with named vector `'default'`. Auto-create collection on first write if it does not exist.
 
 - [ ] **12. Implement `@mantlejs/neo4j`**

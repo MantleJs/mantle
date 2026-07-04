@@ -1,0 +1,40 @@
+{
+  "name": "@mantlejs/qdrant",
+  "version": "0.0.1",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    "./package.json": "./package.json",
+    ".": {
+      "@mantle/source": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "!**/*.tsbuildinfo"
+  ],
+  "nx": {
+    "name": "qdrant"
+  },
+  "dependencies": {
+    "tslib": "^2.3.0"
+  },
+  "description": "Qdrant vector database adapter for Mantle JS — QdrantRepository with full QueryParams support",
+  "license": "MIT",
+  "keywords": [
+    "mantle",
+    "qdrant",
+    "vector",
+    "database",
+    "repository"
+  ],
+  "peerDependencies": {
+    "@mantlejs/mantle": "^0.0.1",
+    "@qdrant/js-client-rest": "^1.0.0"
+  }
+}

@@ -74,6 +74,9 @@
     },
     {
       "path": "./packages/pinecone"
+    },
+    {
+      "path": "./packages/qdrant"
     }
   ]
 }
