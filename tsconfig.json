@@ -77,6 +77,12 @@
     },
     {
       "path": "./packages/qdrant"
+    },
+    {
+      "path": "./packages/neo4j"
+    },
+    {
+      "path": "./packages/sync"
     }
   ]
 }

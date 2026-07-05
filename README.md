@@ -55,6 +55,7 @@ Dependencies always point inward. Nothing in Domain or Application layers knows 
 | `@mantlejs/supabase`    | Supabase adapter — `SupabaseRepository` backed by the Supabase JS client               |
 | `@mantlejs/pinecone`    | Pinecone vector database adapter — `PineconeRepository` with embedding support         |
 | `@mantlejs/qdrant`      | Qdrant vector database adapter — `QdrantRepository` with embedding support             |
+| `@mantlejs/neo4j`       | Neo4j graph database adapter — `Neo4jRepository` with full `QueryParams` support       |
 | `@mantlejs/auth`        | JWT engine + strategy runner                                                          |
 | `@mantlejs/auth-local`  | Local email+password strategy (Argon2id)                                              |
 | `@mantlejs/auth-oauth`  | Shared OAuth 2.0 base — state, PKCE, find-or-create, route registration               |
@@ -67,6 +68,7 @@ Dependencies always point inward. Nothing in Domain or Application layers knows 
 | `@mantlejs/cli`         | Command-line interface — scaffold projects, services, repositories, and hooks         |
 | `@mantlejs/logger`      | Structured logging — pino adapter, `logRequest` / `logError` hooks, correlation ID    |
 | `@mantlejs/schema`      | TypeBox schema validation (`validate`) and field resolution (`resolver`) hooks        |
+| `@mantlejs/sync`        | Cross-instance event sync — broadcasts `service:event` emissions across processes via Redis (DragonflyDB-compatible) or Supabase Realtime |
 | `@mantlejs/socketio`    | Socket.IO transport adapter — real-time WebSocket events via the Mantle hook pipeline |
 | `create-mantle`         | Project initializer — scaffold a new Mantle application via `npm create mantle`       |
 

@@ -1,0 +1,40 @@
+{
+  "name": "@mantlejs/neo4j",
+  "version": "0.0.1",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    "./package.json": "./package.json",
+    ".": {
+      "@mantle/source": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "!**/*.tsbuildinfo"
+  ],
+  "nx": {
+    "name": "neo4j"
+  },
+  "dependencies": {
+    "tslib": "^2.3.0"
+  },
+  "description": "Neo4j graph database adapter for Mantle JS — Neo4jRepository with full QueryParams support",
+  "license": "MIT",
+  "keywords": [
+    "mantle",
+    "neo4j",
+    "graph",
+    "database",
+    "repository"
+  ],
+  "peerDependencies": {
+    "@mantlejs/mantle": "^0.0.1",
+    "neo4j-driver": "^5.0.0"
+  }
+}
