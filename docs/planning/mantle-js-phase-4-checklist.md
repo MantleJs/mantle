@@ -10,13 +10,30 @@ Work through these in order. Each item maps to a package spec in the Phase 4 PRD
 - [ ] **2. Implement `@mantlejs/react`**
   New package. React hooks for Mantle services built on TanStack Query v5. Export `MantleProvider` (wraps `QueryClientProvider`, creates a default `QueryClient` if none provided, stores `MantleClient` in context), `useMantleClient`, `useFind`, `useGet`, `useCreate`, `useUpdate`, `usePatch`, `useRemove`. `useFind` and `useGet` wrap `useQuery` with keys `[service, 'find', params]` and `[service, 'get', id, params]`. Mutation hooks wrap `useMutation`. When the client has a socket configured, `useFind` and `useGet` register socket event listeners on mount (one set per `(client, service)` pair, reference-counted) that call `queryClient.invalidateQueries({ queryKey: [service] })` on `created`, `updated`, `patched`, and `removed` events. Opt-out per hook via `realtime: false` in options. Listeners are cleaned up when the last hook for a service unmounts. Export `MantleProviderProps`, `MantleQueryOptions`.
 
-- [ ] **3. First npm release — all Mantle packages at `0.1.0`**
-  Prepare and publish all packages (Phase 1–4) to the public npm registry. Steps:
+- [ ] **3. Implement `@mantlejs/mongodb`**
+  New package. `mongodb(options)` configure plugin opens one `MongoClient` (Atlas or self-hosted, replica-set required for transactions), stores it on `app`. `MongoRepository<T, D>` abstract class implements `Repository<T, D>` over the official `mongodb` driver (no Mongoose). Translate `QueryParams` operators directly to MongoDB filter syntax (`$lt`/`$lte`/`$gt`/`$gte`/`$in`/`$nin`/`$or`/`$and`/`$ne` map 1:1); `$like`/`$ilike`/`$notlike` throw `BadRequest` (not supported — use the raw `collection` escape hatch with `$regex` instead). Convert `Id` ↔ `ObjectId` at the repository boundary — callers only ever see string ids. Implement `withTransaction()` via `client.startSession().withTransaction()`. Export `mongodb`, `MongoRepository`, `MongoConfig`.
+
+- [ ] **4. Implement `@mantlejs/openapi`**
+  New package. `openapi(options)` configure plugin walks `app`'s registered services, reads each `ServiceHandle.methods`, detects `@mantlejs/schema` `validate()` hooks (via the schema attached for introspection) to populate request/response schemas, and detects `authenticate('jwt')` in `before.all` to mark paths as requiring `bearerAuth`. Assembles an OpenAPI 3.1 document (`paths`, `components.schemas`, `components.securitySchemes`) and serves it at `options.specPath` (default `/openapi.json`); optionally mounts a Swagger UI page at `options.docsPath`. Services without a detected schema still appear in the spec with a generic `object` schema — never skip or error for missing schema coverage. Export `openapi`, `OpenApiOptions`.
+
+- [ ] **5. Implement batch requests — server + client**
+  - **Server:** add `app.batch(calls: BatchCall[])` to `@mantlejs/mantle` core — dispatches each call through `app.service(call.service)[call.method](...)` (full hook pipeline, no auth/validation bypass) via `Promise.allSettled`, returns `BatchResult[]` in input order. Reject requests over `maxBatchSize` (default 25) with `BadRequest` before executing any call. Wire a `POST /batch` route in `@mantlejs/express`, `@mantlejs/koa`, and `@mantlejs/http`.
+  - **Client:** add `ClientOptions.batch?: boolean | { windowMs?: number; maxSize?: number }` to `@mantlejs/client`. When enabled, service method calls enqueue into a `BatchScheduler` that flushes on a microtask (or `windowMs`) boundary as a single `POST /batch` request; each caller's promise resolves/rejects independently from the batched response. Queues longer than `maxSize` split into multiple requests.
+
+- [ ] **6. Add CORS support to `@mantlejs/express`, `@mantlejs/koa`, `@mantlejs/http`**
+  Add a `cors?: boolean | CorsOptions` option to each transport's configure function. `@mantlejs/express` wraps the `cors` npm package; `@mantlejs/koa` wraps `@koa/cors`; `@mantlejs/http` hand-rolls header-setting and `OPTIONS` preflight short-circuiting. `cors: true` resolves to `{ origin: true, methods: [...CRUD verbs], credentials: false }`. Disabled (no CORS headers) by default across all three transports.
+
+- [ ] **7. Extend `@mantlejs/storage` `StorageAdapter` with read/delete**
+  Add `retrieve(key): Promise<Readable>`, `delete(key): Promise<void>`, and optional `getSignedUrl(key, options?): Promise<string>` to the `StorageAdapter` interface. Add `key: string` to `UploadedFile` (distinct from the existing `path`, which stays a display-oriented URL). Implement across all three backends: disk (`createReadStream`/`unlink` relative to `destination`), S3 (`GetObjectCommand`/`DeleteObjectCommand`/`@aws-sdk/s3-request-presigner`), GCS (`bucket.file(key)` stream/delete/`getSignedUrl`). Disk storage omits `getSignedUrl` entirely — no direct-download concept for local disk.
+
+- [ ] **8. First npm release — curated package set**
+  Prepare and publish packages (Phase 1–4) to the public npm registry in two tiers. Steps:
   - Verify all packages build, test, and lint cleanly: `npx nx run-many -t build,test,lint`
   - Confirm every `package.json` has `"publishConfig": { "access": "public" }`, correct `"exports"`, `"main"`, `"module"`, `"types"`, and `"files": ["dist"]` fields
-  - Set `version: "0.1.0"` consistently across all packages; align `peerDependencies` ranges
+  - **Finalize the publish-tier list** — re-confirm the [Publish Tiering](./mantle-js-phase-4-prd.md#publish-tiering) split (stable `0.1.0` vs `0.1.0-experimental`) against actual test coverage and any real-world usage at release time; the planning-time split is a starting point, not a final answer. This needs a dedicated discussion before publishing, not a rubber stamp of the draft list.
+  - Set `version: "0.1.0"` (stable tier) or `"0.1.0-experimental"` (experimental tier) consistently; align `peerDependencies` ranges
   - Verify all README files are complete (at minimum: installation, quick start, API reference)
-  - Publish in dependency order: `@mantlejs/mantle` → adapters/transports → `@mantlejs/auth*` → `@mantlejs/upload*` → `@mantlejs/sync` → `@mantlejs/client` → `@mantlejs/react`
+  - Publish in dependency order: `@mantlejs/mantle` → adapters/transports (including `@mantlejs/mongodb`) → `@mantlejs/auth*` → `@mantlejs/storage*` → `@mantlejs/sync` → `@mantlejs/openapi` → `@mantlejs/client` → `@mantlejs/react`
   - Confirm each package is resolvable: `npm install @mantlejs/<name>` succeeds from an empty project
 
 ---
