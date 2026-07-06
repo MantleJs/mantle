@@ -1,6 +1,6 @@
 import { Transform } from "node:stream";
 import type { Readable } from "node:stream";
-import type { StorageAdapter, UploadedFile, UploadFileInfo } from "@mantlejs/upload";
+import type { StorageAdapter, UploadedFile, UploadFileInfo } from "@mantlejs/storage";
 
 export interface S3StorageConfig {
   bucket: string;

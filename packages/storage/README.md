@@ -1,4 +1,4 @@
-# @mantlejs/upload
+# @mantlejs/storage
 
 File upload plugin for [Mantle JS](https://github.com/mantlejs/mantle). Parses `multipart/form-data` requests via [busboy](https://github.com/mscdex/busboy), writes files to local disk (or a custom adapter), validates MIME types and file sizes, and attaches uploaded file metadata to `context.data` through a `before` hook.
 
@@ -7,7 +7,7 @@ File upload plugin for [Mantle JS](https://github.com/mantlejs/mantle). Parses `
 ## Installation
 
 ```bash
-npm install @mantlejs/upload busboy
+npm install @mantlejs/storage busboy
 ```
 
 ---
@@ -33,7 +33,7 @@ The `@mantlejs/express` transport puts the raw `IncomingMessage` at `params.requ
 ```typescript
 import { mantle } from "@mantlejs/mantle";
 import { express } from "@mantlejs/express";
-import { upload, diskStorage, handleUpload } from "@mantlejs/upload";
+import { upload, diskStorage, handleUpload } from "@mantlejs/storage";
 
 const app = mantle()
   .configure(express())
@@ -118,7 +118,7 @@ Side effects:
 Built-in storage adapter that writes uploaded files to a local directory.
 
 ```typescript
-import { diskStorage } from "@mantlejs/upload";
+import { diskStorage } from "@mantlejs/storage";
 
 const storage = diskStorage({
   destination: "./uploads",
@@ -196,7 +196,7 @@ interface UploadedFile {
 Implement `StorageAdapter` to redirect uploads to cloud storage, a database, or any other destination:
 
 ```typescript
-import type { StorageAdapter, UploadFileInfo, UploadedFile } from "@mantlejs/upload";
+import type { StorageAdapter, UploadFileInfo, UploadedFile } from "@mantlejs/storage";
 import type { Readable } from "node:stream";
 
 const s3Storage: StorageAdapter = {
@@ -228,7 +228,7 @@ import type {
   StorageAdapter,
   DiskStorageConfig,
   HandleUploadOptions,
-} from "@mantlejs/upload";
+} from "@mantlejs/storage";
 ```
 
 | Type | Description |
@@ -255,9 +255,9 @@ import type {
 ## Development
 
 ```bash
-npx nx build upload   # compile
-npx nx test upload    # run tests
-npx nx lint upload    # lint
+npx nx build storage   # compile
+npx nx test storage    # run tests
+npx nx lint storage    # lint
 ```
 
 ---
@@ -267,20 +267,20 @@ npx nx lint upload    # lint
 Build before publishing:
 
 ```bash
-npx nx build upload
+npx nx build storage
 ```
 
 First publish (scoped packages require `--access public`):
 
 ```bash
-cd packages/upload
+cd packages/storage
 npm publish --access public
 ```
 
-Subsequent releases — bump `version` in `packages/upload/package.json`, then:
+Subsequent releases — bump `version` in `packages/storage/package.json`, then:
 
 ```bash
-cd packages/upload
+cd packages/storage
 npm publish
 ```
 
@@ -291,9 +291,9 @@ npm publish
 npx nx run @mantle/source:local-registry
 
 # Terminal 2 — publish to it
-cd packages/upload
+cd packages/storage
 npm publish --registry http://localhost:4873
 
 # Install from it in another project
-npm install @mantlejs/upload --registry http://localhost:4873
+npm install @mantlejs/storage --registry http://localhost:4873
 ```

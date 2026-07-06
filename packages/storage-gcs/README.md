@@ -1,13 +1,13 @@
-# @mantlejs/upload-gcs
+# @mantlejs/storage-gcs
 
-Google Cloud Storage adapter for [`@mantlejs/upload`](../upload/README.md). Uploads files to a GCS bucket using the official `@google-cloud/storage` SDK, streaming directly without buffering into memory.
+Google Cloud Storage adapter for [`@mantlejs/storage`](../storage/README.md). Uploads files to a GCS bucket using the official `@google-cloud/storage` SDK, streaming directly without buffering into memory.
 
 ---
 
 ## Installation
 
 ```bash
-npm install @mantlejs/upload-gcs @google-cloud/storage
+npm install @mantlejs/storage-gcs @google-cloud/storage
 ```
 
 ---
@@ -16,7 +16,7 @@ npm install @mantlejs/upload-gcs @google-cloud/storage
 
 ### StorageAdapter
 
-`@mantlejs/upload` delegates file persistence to a `StorageAdapter`. This package provides `gcsStorage()` — a factory that returns an adapter wired to a GCS bucket. Pass it as the `storage` option when calling `upload()`.
+`@mantlejs/storage` delegates file persistence to a `StorageAdapter`. This package provides `gcsStorage()` — a factory that returns an adapter wired to a GCS bucket. Pass it as the `storage` option when calling `upload()`.
 
 ### Streaming upload
 
@@ -29,8 +29,8 @@ The adapter pipes the incoming `Readable` stream directly into a GCS write strea
 ```typescript
 import { mantle } from "@mantlejs/mantle";
 import { express } from "@mantlejs/express";
-import { upload } from "@mantlejs/upload";
-import { gcsStorage } from "@mantlejs/upload-gcs";
+import { upload } from "@mantlejs/storage";
+import { gcsStorage } from "@mantlejs/storage-gcs";
 
 const app = mantle()
   .configure(express())
@@ -49,7 +49,7 @@ const app = mantle()
 **Use in a service hook:**
 
 ```typescript
-import { handleUpload } from "@mantlejs/upload";
+import { handleUpload } from "@mantlejs/storage";
 
 app.service("avatars").hooks({
   before: {
@@ -101,10 +101,10 @@ gcsStorage({
 
 ### `gcsStorage(config)`
 
-Returns a `GcsStorageAdapter` that implements the `StorageAdapter` interface from `@mantlejs/upload`.
+Returns a `GcsStorageAdapter` that implements the `StorageAdapter` interface from `@mantlejs/storage`.
 
 ```typescript
-import { gcsStorage } from "@mantlejs/upload-gcs";
+import { gcsStorage } from "@mantlejs/storage-gcs";
 
 const storage = gcsStorage({
   bucket: "my-bucket",
@@ -131,8 +131,8 @@ const storage = gcsStorage({
 ## Types
 
 ```typescript
-import type { GcsStorageConfig } from "@mantlejs/upload-gcs";
-import { GcsStorageAdapter, gcsStorage } from "@mantlejs/upload-gcs";
+import type { GcsStorageConfig } from "@mantlejs/storage-gcs";
+import { GcsStorageAdapter, gcsStorage } from "@mantlejs/storage-gcs";
 ```
 
 | Export              | Kind     | Description                                     |
@@ -146,9 +146,9 @@ import { GcsStorageAdapter, gcsStorage } from "@mantlejs/upload-gcs";
 ## Development
 
 ```bash
-npx nx build upload-gcs   # compile
-npx nx test upload-gcs    # run tests
-npx nx lint upload-gcs    # lint
+npx nx build storage-gcs   # compile
+npx nx test storage-gcs    # run tests
+npx nx lint storage-gcs    # lint
 ```
 
 ---
@@ -158,19 +158,19 @@ npx nx lint upload-gcs    # lint
 Build before publishing:
 
 ```bash
-npx nx build upload-gcs
+npx nx build storage-gcs
 ```
 
 First publish (scoped packages require `--access public`):
 
 ```bash
-cd packages/upload-gcs
+cd packages/storage-gcs
 npm publish --access public
 ```
 
-Subsequent releases — bump `version` in `packages/upload-gcs/package.json`, then:
+Subsequent releases — bump `version` in `packages/storage-gcs/package.json`, then:
 
 ```bash
-cd packages/upload-gcs
+cd packages/storage-gcs
 npm publish
 ```

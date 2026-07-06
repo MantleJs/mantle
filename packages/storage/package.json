@@ -1,5 +1,5 @@
 {
-  "name": "@mantlejs/upload",
+  "name": "@mantlejs/storage",
   "version": "0.0.1",
   "type": "module",
   "main": "./dist/index.js",
@@ -19,15 +19,16 @@
     "!**/*.tsbuildinfo"
   ],
   "nx": {
-    "name": "upload"
+    "name": "storage"
   },
   "dependencies": {
     "tslib": "^2.3.0"
   },
-  "description": "File upload handling plugin for Mantle JS",
+  "description": "File upload/download storage plugin for Mantle JS",
   "license": "MIT",
   "keywords": [
     "mantle",
+    "storage",
     "upload",
     "multipart",
     "busboy"

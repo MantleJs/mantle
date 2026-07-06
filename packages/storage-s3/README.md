@@ -1,13 +1,13 @@
-# @mantlejs/upload-s3
+# @mantlejs/storage-s3
 
-AWS S3 storage adapter for [`@mantlejs/upload`](../upload/README.md). Uploads files to an S3 bucket using the official AWS SDK v3 with multipart support for files of any size.
+AWS S3 storage adapter for [`@mantlejs/storage`](../storage/README.md). Uploads files to an S3 bucket using the official AWS SDK v3 with multipart support for files of any size.
 
 ---
 
 ## Installation
 
 ```bash
-npm install @mantlejs/upload-s3 @aws-sdk/client-s3 @aws-sdk/lib-storage
+npm install @mantlejs/storage-s3 @aws-sdk/client-s3 @aws-sdk/lib-storage
 ```
 
 ---
@@ -16,7 +16,7 @@ npm install @mantlejs/upload-s3 @aws-sdk/client-s3 @aws-sdk/lib-storage
 
 ### StorageAdapter
 
-`@mantlejs/upload` delegates file persistence to a `StorageAdapter`. This package provides `s3Storage()` — a factory that returns an adapter wired to an S3 bucket. Pass it as the `storage` option when calling `upload()`.
+`@mantlejs/storage` delegates file persistence to a `StorageAdapter`. This package provides `s3Storage()` — a factory that returns an adapter wired to an S3 bucket. Pass it as the `storage` option when calling `upload()`.
 
 ### Multipart upload
 
@@ -29,8 +29,8 @@ The adapter uses `@aws-sdk/lib-storage` `Upload`, which automatically handles mu
 ```typescript
 import { mantle } from "@mantlejs/mantle";
 import { express } from "@mantlejs/express";
-import { upload } from "@mantlejs/upload";
-import { s3Storage } from "@mantlejs/upload-s3";
+import { upload } from "@mantlejs/storage";
+import { s3Storage } from "@mantlejs/storage-s3";
 
 const app = mantle()
   .configure(express())
@@ -50,7 +50,7 @@ const app = mantle()
 **Use in a service hook:**
 
 ```typescript
-import { handleUpload } from "@mantlejs/upload";
+import { handleUpload } from "@mantlejs/storage";
 
 app.service("avatars").hooks({
   before: {
@@ -98,10 +98,10 @@ s3Storage({
 
 ### `s3Storage(config)`
 
-Returns an `S3StorageAdapter` that implements the `StorageAdapter` interface from `@mantlejs/upload`.
+Returns an `S3StorageAdapter` that implements the `StorageAdapter` interface from `@mantlejs/storage`.
 
 ```typescript
-import { s3Storage } from "@mantlejs/upload-s3";
+import { s3Storage } from "@mantlejs/storage-s3";
 
 const storage = s3Storage({
   bucket: "my-bucket",
@@ -127,8 +127,8 @@ const storage = s3Storage({
 ## Types
 
 ```typescript
-import type { S3StorageConfig } from "@mantlejs/upload-s3";
-import { S3StorageAdapter, s3Storage } from "@mantlejs/upload-s3";
+import type { S3StorageConfig } from "@mantlejs/storage-s3";
+import { S3StorageAdapter, s3Storage } from "@mantlejs/storage-s3";
 ```
 
 | Export             | Kind     | Description                                     |
@@ -142,9 +142,9 @@ import { S3StorageAdapter, s3Storage } from "@mantlejs/upload-s3";
 ## Development
 
 ```bash
-npx nx build upload-s3   # compile
-npx nx test upload-s3    # run tests
-npx nx lint upload-s3    # lint
+npx nx build storage-s3   # compile
+npx nx test storage-s3    # run tests
+npx nx lint storage-s3    # lint
 ```
 
 ---
@@ -154,19 +154,19 @@ npx nx lint upload-s3    # lint
 Build before publishing:
 
 ```bash
-npx nx build upload-s3
+npx nx build storage-s3
 ```
 
 First publish (scoped packages require `--access public`):
 
 ```bash
-cd packages/upload-s3
+cd packages/storage-s3
 npm publish --access public
 ```
 
-Subsequent releases — bump `version` in `packages/upload-s3/package.json`, then:
+Subsequent releases — bump `version` in `packages/storage-s3/package.json`, then:
 
 ```bash
-cd packages/upload-s3
+cd packages/storage-s3
 npm publish
 ```

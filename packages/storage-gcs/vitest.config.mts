@@ -2,9 +2,9 @@ import { defineConfig } from "vitest/config";
 
 export default defineConfig(() => ({
   root: __dirname,
-  cacheDir: "../../node_modules/.vite/packages/upload-gcs",
+  cacheDir: "../../node_modules/.vite/packages/storage-gcs",
   test: {
-    name: "@mantlejs/upload-gcs",
+    name: "@mantlejs/storage-gcs",
     watch: false,
     globals: true,
     environment: "node",

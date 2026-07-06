@@ -1,5 +1,5 @@
 {
-  "name": "@mantlejs/upload-s3",
+  "name": "@mantlejs/storage-s3",
   "version": "0.0.1",
   "type": "module",
   "main": "./dist/index.js",
@@ -19,22 +19,22 @@
     "!**/*.tsbuildinfo"
   ],
   "nx": {
-    "name": "upload-s3"
+    "name": "storage-s3"
   },
   "dependencies": {
     "tslib": "^2.3.0"
   },
-  "description": "AWS S3 storage adapter for @mantlejs/upload",
+  "description": "AWS S3 storage adapter for @mantlejs/storage",
   "license": "MIT",
   "keywords": [
     "mantle",
+    "storage",
     "upload",
     "s3",
-    "aws",
-    "storage"
+    "aws"
   ],
   "peerDependencies": {
-    "@mantlejs/upload": "^0.0.1",
+    "@mantlejs/storage": "^0.0.1",
     "@aws-sdk/client-s3": "^3.0.0",
     "@aws-sdk/lib-storage": "^3.0.0"
   },

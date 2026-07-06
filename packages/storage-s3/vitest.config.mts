@@ -2,9 +2,9 @@ import { defineConfig } from "vitest/config";
 
 export default defineConfig(() => ({
   root: __dirname,
-  cacheDir: "../../node_modules/.vite/packages/upload-s3",
+  cacheDir: "../../node_modules/.vite/packages/storage-s3",
   test: {
-    name: "upload-s3",
+    name: "storage-s3",
     watch: false,
     globals: true,
     environment: "node",
