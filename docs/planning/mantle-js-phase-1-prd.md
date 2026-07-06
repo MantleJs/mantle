@@ -341,7 +341,7 @@ Local (username/password) authentication strategy. Mirrors the `@feathersjs/auth
 
 > OAuth and social strategies (`@mantlejs/auth-google`, `@mantlejs/auth-github`) are deferred to Phase 2.
 
-#### @mantlejs/upload
+#### @mantlejs/storage
 
 File upload handling plugin. Provides:
 
@@ -428,7 +428,7 @@ A Phase 1 release is considered complete when a developer can:
 - Prisma adapter (`@mantlejs/prisma`)
 - OAuth strategies: `@mantlejs/auth-google`, `@mantlejs/auth-github`
 - RBAC hooks and permission primitives
-- Cloud storage adapters for `@mantlejs/upload`: S3, Google Cloud Storage
+- Cloud storage adapters for `@mantlejs/storage`: S3, Google Cloud Storage
 
 ### Phase 3 — Scale & Ecosystem
 
@@ -476,7 +476,7 @@ mantle/
 │   │   ├── src/
 │   │   ├── project.json
 │   │   └── package.json
-│   ├── upload/            # @mantlejs/upload
+│   ├── storage/           # @mantlejs/storage
 │   │   ├── src/
 │   │   ├── project.json
 │   │   └── package.json

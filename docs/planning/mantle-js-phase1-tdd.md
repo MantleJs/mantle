@@ -16,7 +16,7 @@
 5. [Public API Surface — @mantlejs/knex](#public-api-surface--mantlejsknex)
 6. [Public API Surface — @mantlejs/auth](#public-api-surface--mantlejsauth)
 7. [Public API Surface — @mantlejs/auth-local](#public-api-surface--mantlejsauth-local)
-8. [Public API Surface — @mantlejs/upload](#public-api-surface--mantlejsupload)
+8. [Public API Surface — @mantlejs/storage](#public-api-surface--mantlejsstorage)
 9. [Request Lifecycle (Data Flow)](#request-lifecycle-data-flow)
 10. [Deferred to Full TDD](#deferred-to-full-tdd)
 
@@ -62,20 +62,20 @@ It does **not** cover internal implementation details, class internals, or infra
 │   └── @mantlejs/auth-local
 │           depends on: @mantlejs/mantle, @mantlejs/auth, bcrypt
 │
-└── @mantlejs/upload
+└── @mantlejs/storage
         depends on: @mantlejs/mantle, busboy
 ```
 
 ### Matrix View
 
-| Package | core | express | knex | auth | auth-local | upload |
+| Package | core | express | knex | auth | auth-local | storage |
 | --- | --- | --- | --- | --- | --- | --- |
 | `@mantlejs/mantle` | — | | | | | |
 | `@mantlejs/express` | ✅ | — | | | | |
 | `@mantlejs/knex` | ✅ | | — | | | |
 | `@mantlejs/auth` | ✅ | | | — | | |
 | `@mantlejs/auth-local` | ✅ | | | ✅ | — | |
-| `@mantlejs/upload` | ✅ | | | | | — |
+| `@mantlejs/storage` | ✅ | | | | | — |
 
 > No package outside of `auth-local` depends on another non-core package. This keeps each adapter independently installable.
 
@@ -648,7 +648,7 @@ app.service('users').hooks({
 
 ---
 
-## Public API Surface — @mantlejs/upload
+## Public API Surface — @mantlejs/storage
 
 ### `upload()`
 
@@ -787,6 +787,6 @@ The following topics are intentionally out of scope for this thin TDD and will b
 - Knex connection lifecycle management and pool teardown
 - JWT storage strategy (header vs cookie) and refresh token rotation implementation
 - Internal strategy runner in `@mantlejs/auth`
-- `busboy` stream handling internals in `@mantlejs/upload`
+- `busboy` stream handling internals in `@mantlejs/storage`
 - Nx project configuration, build targets, and test setup per package
 - ESM/CJS dual output compilation setup per package

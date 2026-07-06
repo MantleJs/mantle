@@ -40,9 +40,9 @@ This TDD covers the public TypeScript API surface and key data flows for Phase 3
 │   ├── @mantlejs/auth-local          depends on: @mantlejs/mantle, @mantlejs/auth, @node-rs/argon2
 │   ├── @mantlejs/auth-google         depends on: @mantlejs/mantle, @mantlejs/auth
 │   └── @mantlejs/auth-github         depends on: @mantlejs/mantle, @mantlejs/auth
-├── @mantlejs/upload                  depends on: @mantlejs/mantle, busboy
-│   ├── @mantlejs/upload-s3           depends on: @mantlejs/upload, @aws-sdk/client-s3
-│   └── @mantlejs/upload-gcs          depends on: @mantlejs/upload, @google-cloud/storage
+├── @mantlejs/storage                  depends on: @mantlejs/mantle, busboy
+│   ├── @mantlejs/storage-s3           depends on: @mantlejs/storage, @aws-sdk/client-s3
+│   └── @mantlejs/storage-gcs          depends on: @mantlejs/storage, @google-cloud/storage
 ├── @mantlejs/logger                  depends on: @mantlejs/mantle, pino
 ├── @mantlejs/schema                  depends on: @mantlejs/mantle, @sinclair/typebox
 ├── @mantlejs/memory                  depends on: @mantlejs/mantle

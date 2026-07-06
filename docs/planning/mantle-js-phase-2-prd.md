@@ -37,8 +37,8 @@ Phase 2 delivers eight new packages and one additive change to `@mantlejs/mantle
 | `@mantlejs/auth-google` | OAuth 2.0 Google Sign-In strategy |
 | `@mantlejs/auth-github` | OAuth 2.0 GitHub strategy |
 | `@mantlejs/socketio` | Socket.io real-time transport adapter |
-| `@mantlejs/upload-s3` | AWS S3 storage adapter for `@mantlejs/upload` |
-| `@mantlejs/upload-gcs` | Google Cloud Storage adapter for `@mantlejs/upload` |
+| `@mantlejs/storage-s3` | AWS S3 storage adapter for `@mantlejs/storage` |
+| `@mantlejs/storage-gcs` | Google Cloud Storage adapter for `@mantlejs/storage` |
 | `@mantlejs/cli` | Developer CLI: `mantle new` and `mantle generate` |
 
 ---
@@ -50,7 +50,7 @@ Phase 2 delivers eight new packages and one additive change to `@mantlejs/mantle
 - Add structured, pluggable logging as a first-class concept — `Logger` interface in core, pino adapter in `@mantlejs/logger`
 - Provide TypeBox-based schema validation and type inference via `@mantlejs/schema`
 - Ship a CLI for project scaffolding and code generation (`@mantlejs/cli`)
-- Add cloud storage adapters (S3, GCS) for `@mantlejs/upload`
+- Add cloud storage adapters (S3, GCS) for `@mantlejs/storage`
 - Provide an in-memory repository for unit testing with no database dependency
 - Add environment-aware configuration management with optional schema validation
 - Support OAuth 2.0 authentication via Google and GitHub strategies
@@ -847,11 +847,11 @@ app.listen(3030);
 
 ---
 
-### `@mantlejs/upload-s3`
+### `@mantlejs/storage-s3`
 
-AWS S3 storage adapter for `@mantlejs/upload`. Replaces the local disk adapter with S3 object storage.
+AWS S3 storage adapter for `@mantlejs/storage`. Replaces the local disk adapter with S3 object storage.
 
-**Dependencies:** `@mantlejs/upload`, `@aws-sdk/client-s3`, `@aws-sdk/lib-storage`
+**Dependencies:** `@mantlejs/storage`, `@aws-sdk/client-s3`, `@aws-sdk/lib-storage`
 
 ```typescript
 function s3Storage(config: S3StorageConfig): StorageAdapter;
@@ -881,8 +881,8 @@ After upload, `UploadedFile.path` is the full HTTPS URL:
 #### Usage
 
 ```typescript
-import { upload } from '@mantlejs/upload';
-import { s3Storage } from '@mantlejs/upload-s3';
+import { upload } from '@mantlejs/storage';
+import { s3Storage } from '@mantlejs/storage-s3';
 
 app.configure(upload({
   storage: s3Storage({
@@ -896,11 +896,11 @@ app.configure(upload({
 
 ---
 
-### `@mantlejs/upload-gcs`
+### `@mantlejs/storage-gcs`
 
-Google Cloud Storage adapter for `@mantlejs/upload`.
+Google Cloud Storage adapter for `@mantlejs/storage`.
 
-**Dependencies:** `@mantlejs/upload`, `@google-cloud/storage`
+**Dependencies:** `@mantlejs/storage`, `@google-cloud/storage`
 
 ```typescript
 function gcsStorage(config: GCSStorageConfig): StorageAdapter;
@@ -1009,7 +1009,7 @@ mantle/
 │   ├── knex/              # @mantlejs/knex         (unchanged)
 │   ├── auth/              # @mantlejs/auth         (unchanged)
 │   ├── auth-local/        # @mantlejs/auth-local   (unchanged)
-│   ├── upload/            # @mantlejs/upload       (unchanged)
+│   ├── storage/           # @mantlejs/storage      (unchanged)
 │   ├── logger/            # @mantlejs/logger       [NEW]
 │   ├── schema/            # @mantlejs/schema       [NEW]
 │   ├── memory/            # @mantlejs/memory       [NEW]
@@ -1017,8 +1017,8 @@ mantle/
 │   ├── auth-google/       # @mantlejs/auth-google  [NEW]
 │   ├── auth-github/       # @mantlejs/auth-github  [NEW]
 │   ├── socketio/          # @mantlejs/socketio     [NEW]
-│   ├── upload-s3/         # @mantlejs/upload-s3    [NEW]
-│   ├── upload-gcs/        # @mantlejs/upload-gcs   [NEW]
+│   ├── storage-s3/        # @mantlejs/storage-s3   [NEW]
+│   ├── storage-gcs/       # @mantlejs/storage-gcs  [NEW]
 │   └── cli/               # @mantlejs/cli          [NEW]
 ```
 
@@ -1031,7 +1031,7 @@ mantle/
 | `@mantlejs/knex` | `@mantlejs/mantle` |
 | `@mantlejs/auth` | `@mantlejs/mantle` |
 | `@mantlejs/auth-local` | `@mantlejs/mantle`, `@mantlejs/auth` |
-| `@mantlejs/upload` | `@mantlejs/mantle` |
+| `@mantlejs/storage` | `@mantlejs/mantle` |
 | `@mantlejs/logger` | `@mantlejs/mantle` |
 | `@mantlejs/schema` | `@mantlejs/mantle` |
 | `@mantlejs/memory` | `@mantlejs/mantle` |
@@ -1039,8 +1039,8 @@ mantle/
 | `@mantlejs/auth-google` | `@mantlejs/mantle`, `@mantlejs/auth` |
 | `@mantlejs/auth-github` | `@mantlejs/mantle`, `@mantlejs/auth` |
 | `@mantlejs/socketio` | `@mantlejs/mantle` |
-| `@mantlejs/upload-s3` | `@mantlejs/upload` |
-| `@mantlejs/upload-gcs` | `@mantlejs/upload` |
+| `@mantlejs/storage-s3` | `@mantlejs/storage` |
+| `@mantlejs/storage-gcs` | `@mantlejs/storage` |
 | `@mantlejs/cli` | nothing (code generator, no runtime imports) |
 
 ---
@@ -1085,7 +1085,7 @@ Phase 2 upholds all Phase 1 principles and adds:
 | 8 | Memory repo in core or separate? | **Separate `@mantlejs/memory`.** Core stays as the zero-dep kernel. |
 | 9 | OAuth implementation? | **Direct OAuth 2.0 flow** per provider — no Passport.js dependency. Each strategy package owns its flow. |
 | 10 | Socket.io channels? | **Implemented in Phase 2** in `@mantlejs/socketio`. Opt-in security model: no publisher = no broadcast. Uses `app.channel()`, `service.publish()`, and `app.publish()`. Filtered views via `channel.filter()`. Connection lifecycle via `app.on('connection'/'disconnect', ...)`. Cross-instance replication via `@mantlejs/sync` is Phase 3. |
-| 11 | Cloud storage adapter naming? | **Separate installable packages:** `@mantlejs/upload-s3`, `@mantlejs/upload-gcs`. Users only install what they need. |
+| 11 | Cloud storage adapter naming? | **Separate installable packages:** `@mantlejs/storage-s3`, `@mantlejs/storage-gcs`. Users only install what they need. |
 | 12 | Config file format? | **JSON only** for Phase 2. Simple to parse, no additional dependencies. YAML or JS config files can be added in a later phase. |
 | 13 | Config validation at startup? | **Optional TypeBox schema.** If provided, invalid config throws `GeneralError` before the server starts — fail fast, fail loud. |
 | 14 | Correlation ID threading? | **`AsyncLocalStorage` in `@mantlejs/mantle`** (`withContext` / `getContext`). Express middleware injects `correlationId` per request; `pinoAdapter` merges it into every record automatically. Hooks can read `getContext()` directly. No function-signature threading required. |

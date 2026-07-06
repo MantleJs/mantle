@@ -28,11 +28,11 @@ Work through these in order. Each item maps to a package spec in the Phase 2 PRD
 - [x] **8. Implement `@mantlejs/socketio`**
   New package. `socketio()` plugin attaches a `socket.io` Server to the Express HTTP server. Wire socket events (`find`, `get`, `create`, `update`, `patch`, `remove`) through the full hook pipeline. Set `params.provider = 'socket.io'`. Emit `<service> created/updated/patched/removed` events to all connected clients after successful mutations. Must be configured after `express()`.
 
-- [x] **9. Implement `@mantlejs/upload-s3`**
-  New package. `s3Storage()` returns a `StorageAdapter` for `@mantlejs/upload`. Use `@aws-sdk/lib-storage` `Upload` for multipart support. Support explicit credentials or AWS SDK default credential chain. `UploadedFile.path` is the full HTTPS S3 URL after upload.
+- [x] **9. Implement `@mantlejs/storage-s3`**
+  New package. `s3Storage()` returns a `StorageAdapter` for `@mantlejs/storage`. Use `@aws-sdk/lib-storage` `Upload` for multipart support. Support explicit credentials or AWS SDK default credential chain. `UploadedFile.path` is the full HTTPS S3 URL after upload.
 
-- [x] **10. Implement `@mantlejs/upload-gcs`**
-  New package. `gcsStorage()` returns a `StorageAdapter` for `@mantlejs/upload`. Use `@google-cloud/storage`. Support Application Default Credentials or explicit `keyFilename`. `UploadedFile.path` is HTTPS URL when `public: true`, `gs://` URI when `public: false`.
+- [x] **10. Implement `@mantlejs/storage-gcs`**
+  New package. `gcsStorage()` returns a `StorageAdapter` for `@mantlejs/storage`. Use `@google-cloud/storage`. Support Application Default Credentials or explicit `keyFilename`. `UploadedFile.path` is HTTPS URL when `public: true`, `gs://` URI when `public: false`.
 
 - [x] **11. Implement `@mantlejs/cli`**
   New package. `mantle` binary with `new <project-name>` (scaffold full project, prompts for transport / database / auth / package manager) and `generate <generator> <name>` (alias `g`). Generators: `service`, `hook`, `repository`. Generated service tests use `@mantlejs/memory`. No runtime imports from other Mantle packages.

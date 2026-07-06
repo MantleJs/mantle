@@ -20,8 +20,8 @@
 8. [Public API Surface — `@mantlejs/auth-google`](#public-api-surface--mantlejsauth-google)
 9. [Public API Surface — `@mantlejs/auth-github`](#public-api-surface--mantlejsauth-github)
 10. [Public API Surface — `@mantlejs/socketio`](#public-api-surface--mantlejssocketio)
-11. [Public API Surface — `@mantlejs/upload-s3`](#public-api-surface--mantlejsupload-s3)
-12. [Public API Surface — `@mantlejs/upload-gcs`](#public-api-surface--mantlejsupload-gcs)
+11. [Public API Surface — `@mantlejs/storage-s3`](#public-api-surface--mantlejsstorage-s3)
+12. [Public API Surface — `@mantlejs/storage-gcs`](#public-api-surface--mantlejsstorage-gcs)
 13. [Public API Surface — `@mantlejs/cli`](#public-api-surface--mantlejscli)
 14. [Request Lifecycle Additions](#request-lifecycle-additions)
 
@@ -45,7 +45,7 @@ Internal implementation details are deferred to the full TDD, produced as implem
 
 - Dependencies always point **inward** — outer packages depend on inner packages, never the reverse
 - `@mantlejs/mantle` retains **zero** external runtime dependencies
-- `@mantlejs/upload-s3` and `@mantlejs/upload-gcs` depend on `@mantlejs/upload`, not directly on `@mantlejs/mantle`
+- `@mantlejs/storage-s3` and `@mantlejs/storage-gcs` depend on `@mantlejs/storage`, not directly on `@mantlejs/mantle`
 - `@mantlejs/cli` is a code generator with no runtime imports from any Mantle package
 
 ### Full Graph (Phase 1 + Phase 2)
@@ -59,9 +59,9 @@ Internal implementation details are deferred to the full TDD, produced as implem
 │   ├── @mantlejs/auth-local          depends on: @mantlejs/mantle, @mantlejs/auth, @node-rs/argon2
 │   ├── @mantlejs/auth-google         depends on: @mantlejs/mantle, @mantlejs/auth       [NEW P2]
 │   └── @mantlejs/auth-github         depends on: @mantlejs/mantle, @mantlejs/auth       [NEW P2]
-├── @mantlejs/upload                  depends on: @mantlejs/mantle, busboy
-│   ├── @mantlejs/upload-s3           depends on: @mantlejs/upload, @aws-sdk/client-s3 [NEW P2]
-│   └── @mantlejs/upload-gcs          depends on: @mantlejs/upload, @google-cloud/storage [NEW P2]
+├── @mantlejs/storage                  depends on: @mantlejs/mantle, busboy
+│   ├── @mantlejs/storage-s3           depends on: @mantlejs/storage, @aws-sdk/client-s3 [NEW P2]
+│   └── @mantlejs/storage-gcs          depends on: @mantlejs/storage, @google-cloud/storage [NEW P2]
 ├── @mantlejs/logger                  depends on: @mantlejs/mantle, pino                 [NEW P2]
 ├── @mantlejs/schema                  depends on: @mantlejs/mantle, @sinclair/typebox    [NEW P2]
 ├── @mantlejs/memory                  depends on: @mantlejs/mantle                       [NEW P2]
@@ -75,14 +75,14 @@ Internal implementation details are deferred to the full TDD, produced as implem
 
 ### Dependency Matrix (full Phase 1 + Phase 2)
 
-| Package | core | express | knex | auth | auth-local | upload | logger | schema | memory | config | auth-google | auth-github | socketio | upload-s3 | upload-gcs | cli |
+| Package | core | express | knex | auth | auth-local | storage | logger | schema | memory | config | auth-google | auth-github | socketio | storage-s3 | storage-gcs | cli |
 |---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
 | `core` | — | | | | | | | | | | | | | | | |
 | `express` | ✅ | — | | | | | | | | | | | | | | |
 | `knex` | ✅ | | — | | | | | | | | | | | | | |
 | `auth` | ✅ | | | — | | | | | | | | | | | | |
 | `auth-local` | ✅ | | | ✅ | — | | | | | | | | | | | |
-| `upload` | ✅ | | | | | — | | | | | | | | | | |
+| `storage` | ✅ | | | | | — | | | | | | | | | | |
 | `logger` | ✅ | | | | | | — | | | | | | | | | |
 | `schema` | ✅ | | | | | | | — | | | | | | | | |
 | `memory` | ✅ | | | | | | | | — | | | | | | | |
@@ -90,8 +90,8 @@ Internal implementation details are deferred to the full TDD, produced as implem
 | `auth-google` | ✅ | | | ✅ | | | | | | | — | | | | | |
 | `auth-github` | ✅ | | | ✅ | | | | | | | | — | | | | |
 | `socketio` | ✅ | | | | | | | | | | | | — | | | |
-| `upload-s3` | | | | | | ✅ | | | | | | | | — | | |
-| `upload-gcs` | | | | | | ✅ | | | | | | | | | — | |
+| `storage-s3` | | | | | | ✅ | | | | | | | | — | | |
+| `storage-gcs` | | | | | | ✅ | | | | | | | | | — | |
 | `cli` | | | | | | | | | | | | | | | | — |
 
 ---
@@ -860,7 +860,7 @@ Socket.io errors are serialized using `MantleError.toJSON()`. Plain `Error` inst
 
 ---
 
-## Public API Surface — `@mantlejs/upload-s3`
+## Public API Surface — `@mantlejs/storage-s3`
 
 ### Exports
 
@@ -895,7 +895,7 @@ Uses `@aws-sdk/lib-storage` `Upload` for multipart upload, supporting files of a
 
 ---
 
-## Public API Surface — `@mantlejs/upload-gcs`
+## Public API Surface — `@mantlejs/storage-gcs`
 
 ### Exports
 

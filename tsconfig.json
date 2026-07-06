@@ -13,7 +13,7 @@
       "path": "./packages/auth-local"
     },
     {
-      "path": "./packages/upload"
+      "path": "./packages/storage"
     },
     {
       "path": "./packages/knex"
@@ -43,10 +43,10 @@
       "path": "./packages/socketio"
     },
     {
-      "path": "./packages/upload-s3"
+      "path": "./packages/storage-s3"
     },
     {
-      "path": "./packages/upload-gcs"
+      "path": "./packages/storage-gcs"
     },
     {
       "path": "./packages/cli"
