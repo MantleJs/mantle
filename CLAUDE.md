@@ -46,35 +46,68 @@ Infrastructure        KnexRepository — implements Domain interfaces (outer lay
 ```
 mantle/
 ├── packages/
-│   ├── mantle/         @mantlejs/mantle      Framework kernel, zero external deps
-│   ├── express/        @mantlejs/express     Express HTTP transport adapter
-│   ├── knex/           @mantlejs/knex        SQL adapter via Knex.js (pg, mysql2, sqlite3…)
-│   ├── auth/           @mantlejs/auth        JWT engine + strategy runner
-│   ├── auth-local/     @mantlejs/auth-local  Local email+password strategy (Argon2id)
-│   ├── auth-oauth/     @mantlejs/auth-oauth  Shared OAuth 2.0 base (state, PKCE, find-or-create)
-│   ├── auth-google/    @mantlejs/auth-google Google Sign-In strategy (PKCE, no Passport.js)
-│   ├── upload/         @mantlejs/upload      File upload via busboy, local disk storage
-│   ├── upload-s3/      @mantlejs/upload-s3   AWS S3 storage adapter for @mantlejs/upload
-│   └── upload-gcs/     @mantlejs/upload-gcs  Google Cloud Storage adapter for @mantlejs/upload
+│   ├── mantle/          @mantlejs/mantle       Framework kernel, zero external deps
+│   ├── express/         @mantlejs/express      Express HTTP transport adapter
+│   ├── koa/             @mantlejs/koa          Koa HTTP transport adapter
+│   ├── http/            @mantlejs/http         Zero-dependency HTTP transport adapter (Node + Fetch API)
+│   ├── knex/            @mantlejs/knex         SQL adapter via Knex.js (pg, mysql2, sqlite3…)
+│   ├── dynamodb/        @mantlejs/dynamodb     Amazon DynamoDB adapter
+│   ├── supabase/        @mantlejs/supabase     Supabase adapter (Postgres + Realtime)
+│   ├── pinecone/        @mantlejs/pinecone     Pinecone vector database adapter
+│   ├── qdrant/          @mantlejs/qdrant       Qdrant vector database adapter
+│   ├── neo4j/           @mantlejs/neo4j        Neo4j graph database adapter
+│   ├── auth/            @mantlejs/auth         JWT engine + strategy runner
+│   ├── auth-local/      @mantlejs/auth-local   Local email+password strategy (Argon2id)
+│   ├── auth-oauth/      @mantlejs/auth-oauth   Shared OAuth 2.0 base (state, PKCE, find-or-create)
+│   ├── auth-google/     @mantlejs/auth-google  Google Sign-In strategy (PKCE, no Passport.js)
+│   ├── auth-github/     @mantlejs/auth-github  GitHub Sign-In strategy (no Passport.js)
+│   ├── auth-facebook/   @mantlejs/auth-facebook Facebook Sign-In strategy (no Passport.js)
+│   ├── storage/         @mantlejs/storage      File upload/download via busboy, local disk storage
+│   ├── storage-s3/      @mantlejs/storage-s3   AWS S3 storage adapter for @mantlejs/storage
+│   ├── storage-gcs/     @mantlejs/storage-gcs  Google Cloud Storage adapter for @mantlejs/storage
+│   ├── logger/          @mantlejs/logger       Structured logging (pino)
+│   ├── schema/          @mantlejs/schema       TypeBox schema validation + field resolution
+│   ├── memory/          @mantlejs/memory       In-memory Repository<T> for testing/prototyping
+│   ├── config/          @mantlejs/config       Environment-aware configuration loading
+│   ├── socketio/        @mantlejs/socketio     Socket.IO transport adapter
+│   ├── sync/            @mantlejs/sync         Cross-instance event sync (Redis/Supabase Realtime)
+│   ├── cli/             @mantlejs/cli          Command-line interface — scaffold projects/services/hooks
+│   └── create-mantle/   create-mantle          `npm create mantle` project initializer
 ├── docs/               scaffold.sh, PRD, TDD
 └── CLAUDE.md           This file
 ```
 
 ### Package Dependency Rules (enforced by @nx/enforce-module-boundaries)
 
-| Package               | May depend on                               |
-| --------------------- | ------------------------------------------- |
-| @mantlejs/mantle        | nothing                                     |
-| @mantlejs/express     | @mantlejs/mantle                              |
-| @mantlejs/knex        | @mantlejs/mantle                              |
-| @mantlejs/auth        | @mantlejs/mantle                              |
-| @mantlejs/auth-local  | @mantlejs/mantle, @mantlejs/auth              |
-| @mantlejs/auth-oauth  | @mantlejs/mantle, @mantlejs/auth              |
-| @mantlejs/auth-google | @mantlejs/mantle, @mantlejs/auth-oauth        |
-| @mantlejs/auth-github | @mantlejs/mantle, @mantlejs/auth-oauth        |
-| @mantlejs/upload      | @mantlejs/mantle                              |
-| @mantlejs/upload-s3   | @mantlejs/mantle, @mantlejs/upload            |
-| @mantlejs/upload-gcs  | @mantlejs/mantle, @mantlejs/upload            |
+| Package                | May depend on                                |
+| ---------------------- | --------------------------------------------- |
+| @mantlejs/mantle        | nothing                                       |
+| @mantlejs/express       | @mantlejs/mantle                              |
+| @mantlejs/koa           | @mantlejs/mantle                              |
+| @mantlejs/http          | @mantlejs/mantle                              |
+| @mantlejs/knex          | @mantlejs/mantle                              |
+| @mantlejs/dynamodb      | @mantlejs/mantle                              |
+| @mantlejs/supabase      | @mantlejs/mantle                              |
+| @mantlejs/pinecone      | @mantlejs/mantle                              |
+| @mantlejs/qdrant        | @mantlejs/mantle                              |
+| @mantlejs/neo4j         | @mantlejs/mantle                              |
+| @mantlejs/auth          | @mantlejs/mantle                              |
+| @mantlejs/auth-local    | @mantlejs/mantle, @mantlejs/auth              |
+| @mantlejs/auth-oauth    | @mantlejs/mantle, @mantlejs/auth              |
+| @mantlejs/auth-google   | @mantlejs/mantle, @mantlejs/auth-oauth        |
+| @mantlejs/auth-github   | @mantlejs/mantle, @mantlejs/auth-oauth        |
+| @mantlejs/auth-facebook | @mantlejs/mantle, @mantlejs/auth-oauth        |
+| @mantlejs/storage       | @mantlejs/mantle                              |
+| @mantlejs/storage-s3    | @mantlejs/mantle, @mantlejs/storage           |
+| @mantlejs/storage-gcs   | @mantlejs/mantle, @mantlejs/storage           |
+| @mantlejs/logger        | @mantlejs/mantle                              |
+| @mantlejs/schema        | @mantlejs/mantle                              |
+| @mantlejs/memory        | @mantlejs/mantle                              |
+| @mantlejs/config        | @mantlejs/mantle                              |
+| @mantlejs/socketio      | @mantlejs/mantle                              |
+| @mantlejs/sync          | @mantlejs/mantle                              |
+| @mantlejs/cli           | nothing (standalone code generator)           |
+| create-mantle           | @mantlejs/cli                                 |
 
 ---
 

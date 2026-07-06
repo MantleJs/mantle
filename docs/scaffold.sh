@@ -2,7 +2,10 @@
 # =============================================================================
 # Mantle JS — Monorepo Scaffold Script
 # =============================================================================
-# Creates the full Nx monorepo for Mantle JS from scratch.
+# Creates the full Nx monorepo for Mantle JS from scratch, matching the
+# current state of the project (Phases 1-3 packages; Phase 4 client/react
+# packages are not yet generated in the real repo and are intentionally
+# absent here too — add them here once they exist under packages/).
 # Serves as the canonical setup documentation for the project.
 #
 # Prerequisites:
@@ -174,18 +177,17 @@ EOF
 }
 
 # -----------------------------------------------------------------------------
-# Step 4: Generate Phase 1 packages
+# Step 4: Generate packages
 # -----------------------------------------------------------------------------
 
 generate_packages() {
-  log "Step 4: Generating Phase 1 packages"
+  log "Step 4: Generating packages"
 
   # Note: working directory is already set to the workspace by align_nx_versions.
 
   # Bundler: tsc
-  #   Chosen over esbuild for Phase 1 because tsc emits .d.ts declaration files
-  #   natively, which is critical for a TypeScript-first library. esbuild requires
-  #   a separate tsc pass for declarations, adding complexity. Revisit in Phase 2.
+  #   Emits .d.ts declaration files natively, critical for TypeScript-first
+  #   libraries. esbuild would require a separate tsc pass for declarations.
   #
   # Test runner: vitest
   #   Faster than Jest, native ESM support, Jest-compatible API.
@@ -199,22 +201,26 @@ generate_packages() {
   #   trying to spawn their own daemon process, causing a fatal plugin error.
   #   The daemon is only beneficial for interactive development; it adds no
   #   value during a one-shot scaffold run.
+  #
+  # Generation order follows the dependency graph (a package's dependencies
+  # are generated before the package itself) so that peerDependencies patched
+  # in Step 9 always reference an already-existing workspace package.
 
   # Stop any running Nx daemon before generating to avoid conflicts.
   npx nx daemon --stop 2>/dev/null || true
 
   # ---------------------------------------------------------------------------
-  # @mantlejs/core — The framework kernel. Zero external runtime dependencies.
+  # @mantlejs/mantle — The framework kernel. Zero external runtime dependencies.
   # ---------------------------------------------------------------------------
-  echo "  → Generating @mantlejs/core"
+  echo "  → Generating @mantlejs/mantle"
   NX_DAEMON=false npx nx g @nx/js:library \
-    --name=core \
-    --directory=packages/core \
+    --name=mantle \
+    --directory=packages/mantle \
     --bundler=tsc \
     --unitTestRunner=vitest \
     --linter=eslint \
     --publishable \
-    --importPath=@mantlejs/core \
+    --importPath=@mantlejs/mantle \
     --no-interactive
 
   # ---------------------------------------------------------------------------
@@ -232,17 +238,116 @@ generate_packages() {
     --no-interactive
 
   # ---------------------------------------------------------------------------
-  # @mantlejs/postgresql — PostgreSQL adapter via Knex.js.
+  # @mantlejs/koa — Koa HTTP transport adapter.
   # ---------------------------------------------------------------------------
-  echo "  → Generating @mantlejs/postgresql"
+  echo "  → Generating @mantlejs/koa"
   NX_DAEMON=false npx nx g @nx/js:library \
-    --name=postgresql \
-    --directory=packages/postgresql \
+    --name=koa \
+    --directory=packages/koa \
     --bundler=tsc \
     --unitTestRunner=vitest \
     --linter=eslint \
     --publishable \
-    --importPath=@mantlejs/postgresql \
+    --importPath=@mantlejs/koa \
+    --no-interactive
+
+  # ---------------------------------------------------------------------------
+  # @mantlejs/http — Zero-dependency HTTP transport adapter (Node.js handler +
+  # Fetch API handler, for edge/serverless runtimes with no framework).
+  # ---------------------------------------------------------------------------
+  echo "  → Generating @mantlejs/http"
+  NX_DAEMON=false npx nx g @nx/js:library \
+    --name=http \
+    --directory=packages/http \
+    --bundler=tsc \
+    --unitTestRunner=vitest \
+    --linter=eslint \
+    --publishable \
+    --importPath=@mantlejs/http \
+    --no-interactive
+
+  # ---------------------------------------------------------------------------
+  # @mantlejs/knex — SQL adapter via Knex.js (PostgreSQL, MySQL, SQLite, MSSQL).
+  # ---------------------------------------------------------------------------
+  echo "  → Generating @mantlejs/knex"
+  NX_DAEMON=false npx nx g @nx/js:library \
+    --name=knex \
+    --directory=packages/knex \
+    --bundler=tsc \
+    --unitTestRunner=vitest \
+    --linter=eslint \
+    --publishable \
+    --importPath=@mantlejs/knex \
+    --no-interactive
+
+  # ---------------------------------------------------------------------------
+  # @mantlejs/dynamodb — Amazon DynamoDB adapter (AWS SDK v3).
+  # ---------------------------------------------------------------------------
+  echo "  → Generating @mantlejs/dynamodb"
+  NX_DAEMON=false npx nx g @nx/js:library \
+    --name=dynamodb \
+    --directory=packages/dynamodb \
+    --bundler=tsc \
+    --unitTestRunner=vitest \
+    --linter=eslint \
+    --publishable \
+    --importPath=@mantlejs/dynamodb \
+    --no-interactive
+
+  # ---------------------------------------------------------------------------
+  # @mantlejs/supabase — Supabase adapter (Postgres + Realtime).
+  # ---------------------------------------------------------------------------
+  echo "  → Generating @mantlejs/supabase"
+  NX_DAEMON=false npx nx g @nx/js:library \
+    --name=supabase \
+    --directory=packages/supabase \
+    --bundler=tsc \
+    --unitTestRunner=vitest \
+    --linter=eslint \
+    --publishable \
+    --importPath=@mantlejs/supabase \
+    --no-interactive
+
+  # ---------------------------------------------------------------------------
+  # @mantlejs/pinecone — Pinecone vector database adapter.
+  # ---------------------------------------------------------------------------
+  echo "  → Generating @mantlejs/pinecone"
+  NX_DAEMON=false npx nx g @nx/js:library \
+    --name=pinecone \
+    --directory=packages/pinecone \
+    --bundler=tsc \
+    --unitTestRunner=vitest \
+    --linter=eslint \
+    --publishable \
+    --importPath=@mantlejs/pinecone \
+    --no-interactive
+
+  # ---------------------------------------------------------------------------
+  # @mantlejs/qdrant — Qdrant vector database adapter.
+  # ---------------------------------------------------------------------------
+  echo "  → Generating @mantlejs/qdrant"
+  NX_DAEMON=false npx nx g @nx/js:library \
+    --name=qdrant \
+    --directory=packages/qdrant \
+    --bundler=tsc \
+    --unitTestRunner=vitest \
+    --linter=eslint \
+    --publishable \
+    --importPath=@mantlejs/qdrant \
+    --no-interactive
+
+  # ---------------------------------------------------------------------------
+  # @mantlejs/neo4j — Neo4j graph database adapter.
+  # ---------------------------------------------------------------------------
+  echo "  → Generating @mantlejs/neo4j"
+  NX_DAEMON=false npx nx g @nx/js:library \
+    --name=neo4j \
+    --directory=packages/neo4j \
+    --bundler=tsc \
+    --unitTestRunner=vitest \
+    --linter=eslint \
+    --publishable \
+    --importPath=@mantlejs/neo4j \
     --no-interactive
 
   # ---------------------------------------------------------------------------
@@ -275,17 +380,222 @@ generate_packages() {
     --no-interactive
 
   # ---------------------------------------------------------------------------
-  # @mantlejs/upload — File upload handling (multipart, local disk storage).
+  # @mantlejs/auth-oauth — Shared OAuth 2.0 base (state, PKCE, find-or-create).
+  # Depends on @mantlejs/auth.
   # ---------------------------------------------------------------------------
-  echo "  → Generating @mantlejs/upload"
+  echo "  → Generating @mantlejs/auth-oauth"
   NX_DAEMON=false npx nx g @nx/js:library \
-    --name=upload \
-    --directory=packages/upload \
+    --name=auth-oauth \
+    --directory=packages/auth-oauth \
     --bundler=tsc \
     --unitTestRunner=vitest \
     --linter=eslint \
     --publishable \
-    --importPath=@mantlejs/upload \
+    --importPath=@mantlejs/auth-oauth \
+    --no-interactive
+
+  # ---------------------------------------------------------------------------
+  # @mantlejs/auth-google — Google Sign-In strategy (PKCE, no Passport.js).
+  # Depends on @mantlejs/auth-oauth.
+  # ---------------------------------------------------------------------------
+  echo "  → Generating @mantlejs/auth-google"
+  NX_DAEMON=false npx nx g @nx/js:library \
+    --name=auth-google \
+    --directory=packages/auth-google \
+    --bundler=tsc \
+    --unitTestRunner=vitest \
+    --linter=eslint \
+    --publishable \
+    --importPath=@mantlejs/auth-google \
+    --no-interactive
+
+  # ---------------------------------------------------------------------------
+  # @mantlejs/auth-github — GitHub Sign-In strategy (no Passport.js).
+  # Depends on @mantlejs/auth-oauth.
+  # ---------------------------------------------------------------------------
+  echo "  → Generating @mantlejs/auth-github"
+  NX_DAEMON=false npx nx g @nx/js:library \
+    --name=auth-github \
+    --directory=packages/auth-github \
+    --bundler=tsc \
+    --unitTestRunner=vitest \
+    --linter=eslint \
+    --publishable \
+    --importPath=@mantlejs/auth-github \
+    --no-interactive
+
+  # ---------------------------------------------------------------------------
+  # @mantlejs/auth-facebook — Facebook Sign-In strategy (no Passport.js).
+  # Depends on @mantlejs/auth-oauth.
+  # ---------------------------------------------------------------------------
+  echo "  → Generating @mantlejs/auth-facebook"
+  NX_DAEMON=false npx nx g @nx/js:library \
+    --name=auth-facebook \
+    --directory=packages/auth-facebook \
+    --bundler=tsc \
+    --unitTestRunner=vitest \
+    --linter=eslint \
+    --publishable \
+    --importPath=@mantlejs/auth-facebook \
+    --no-interactive
+
+  # ---------------------------------------------------------------------------
+  # @mantlejs/storage — File upload/download handling (multipart, local disk).
+  # ---------------------------------------------------------------------------
+  echo "  → Generating @mantlejs/storage"
+  NX_DAEMON=false npx nx g @nx/js:library \
+    --name=storage \
+    --directory=packages/storage \
+    --bundler=tsc \
+    --unitTestRunner=vitest \
+    --linter=eslint \
+    --publishable \
+    --importPath=@mantlejs/storage \
+    --no-interactive
+
+  # ---------------------------------------------------------------------------
+  # @mantlejs/storage-s3 — AWS S3 storage adapter for @mantlejs/storage.
+  # Depends on @mantlejs/storage.
+  # ---------------------------------------------------------------------------
+  echo "  → Generating @mantlejs/storage-s3"
+  NX_DAEMON=false npx nx g @nx/js:library \
+    --name=storage-s3 \
+    --directory=packages/storage-s3 \
+    --bundler=tsc \
+    --unitTestRunner=vitest \
+    --linter=eslint \
+    --publishable \
+    --importPath=@mantlejs/storage-s3 \
+    --no-interactive
+
+  # ---------------------------------------------------------------------------
+  # @mantlejs/storage-gcs — Google Cloud Storage adapter for @mantlejs/storage.
+  # Depends on @mantlejs/storage.
+  # ---------------------------------------------------------------------------
+  echo "  → Generating @mantlejs/storage-gcs"
+  NX_DAEMON=false npx nx g @nx/js:library \
+    --name=storage-gcs \
+    --directory=packages/storage-gcs \
+    --bundler=tsc \
+    --unitTestRunner=vitest \
+    --linter=eslint \
+    --publishable \
+    --importPath=@mantlejs/storage-gcs \
+    --no-interactive
+
+  # ---------------------------------------------------------------------------
+  # @mantlejs/logger — Structured logging (pino adapter, request/error hooks).
+  # ---------------------------------------------------------------------------
+  echo "  → Generating @mantlejs/logger"
+  NX_DAEMON=false npx nx g @nx/js:library \
+    --name=logger \
+    --directory=packages/logger \
+    --bundler=tsc \
+    --unitTestRunner=vitest \
+    --linter=eslint \
+    --publishable \
+    --importPath=@mantlejs/logger \
+    --no-interactive
+
+  # ---------------------------------------------------------------------------
+  # @mantlejs/schema — TypeBox schema validation and field resolution hooks.
+  # ---------------------------------------------------------------------------
+  echo "  → Generating @mantlejs/schema"
+  NX_DAEMON=false npx nx g @nx/js:library \
+    --name=schema \
+    --directory=packages/schema \
+    --bundler=tsc \
+    --unitTestRunner=vitest \
+    --linter=eslint \
+    --publishable \
+    --importPath=@mantlejs/schema \
+    --no-interactive
+
+  # ---------------------------------------------------------------------------
+  # @mantlejs/memory — In-memory Repository<T> for testing and prototyping.
+  # ---------------------------------------------------------------------------
+  echo "  → Generating @mantlejs/memory"
+  NX_DAEMON=false npx nx g @nx/js:library \
+    --name=memory \
+    --directory=packages/memory \
+    --bundler=tsc \
+    --unitTestRunner=vitest \
+    --linter=eslint \
+    --publishable \
+    --importPath=@mantlejs/memory \
+    --no-interactive
+
+  # ---------------------------------------------------------------------------
+  # @mantlejs/config — Environment-aware configuration loading.
+  # ---------------------------------------------------------------------------
+  echo "  → Generating @mantlejs/config"
+  NX_DAEMON=false npx nx g @nx/js:library \
+    --name=config \
+    --directory=packages/config \
+    --bundler=tsc \
+    --unitTestRunner=vitest \
+    --linter=eslint \
+    --publishable \
+    --importPath=@mantlejs/config \
+    --no-interactive
+
+  # ---------------------------------------------------------------------------
+  # @mantlejs/socketio — Socket.IO transport adapter.
+  # ---------------------------------------------------------------------------
+  echo "  → Generating @mantlejs/socketio"
+  NX_DAEMON=false npx nx g @nx/js:library \
+    --name=socketio \
+    --directory=packages/socketio \
+    --bundler=tsc \
+    --unitTestRunner=vitest \
+    --linter=eslint \
+    --publishable \
+    --importPath=@mantlejs/socketio \
+    --no-interactive
+
+  # ---------------------------------------------------------------------------
+  # @mantlejs/sync — Cross-instance event sync (Redis or Supabase Realtime).
+  # ---------------------------------------------------------------------------
+  echo "  → Generating @mantlejs/sync"
+  NX_DAEMON=false npx nx g @nx/js:library \
+    --name=sync \
+    --directory=packages/sync \
+    --bundler=tsc \
+    --unitTestRunner=vitest \
+    --linter=eslint \
+    --publishable \
+    --importPath=@mantlejs/sync \
+    --no-interactive
+
+  # ---------------------------------------------------------------------------
+  # @mantlejs/cli — Command-line interface (scaffold projects/services/hooks).
+  # Standalone code generator — no @mantlejs/* peer dependency.
+  # ---------------------------------------------------------------------------
+  echo "  → Generating @mantlejs/cli"
+  NX_DAEMON=false npx nx g @nx/js:library \
+    --name=cli \
+    --directory=packages/cli \
+    --bundler=tsc \
+    --unitTestRunner=vitest \
+    --linter=eslint \
+    --publishable \
+    --importPath=@mantlejs/cli \
+    --no-interactive
+
+  # ---------------------------------------------------------------------------
+  # create-mantle — `npm create mantle` entry point. Unscoped package name
+  # (npm's `create` convention requires this) that delegates to @mantlejs/cli.
+  # Depends on @mantlejs/cli.
+  # ---------------------------------------------------------------------------
+  echo "  → Generating create-mantle"
+  NX_DAEMON=false npx nx g @nx/js:library \
+    --name=create-mantle \
+    --directory=packages/create-mantle \
+    --bundler=tsc \
+    --unitTestRunner=vitest \
+    --linter=eslint \
+    --publishable \
+    --importPath=create-mantle \
     --no-interactive
 
   echo "✓ All packages generated"
@@ -294,29 +604,77 @@ generate_packages() {
 # -----------------------------------------------------------------------------
 # Step 5: Install runtime dependencies
 # -----------------------------------------------------------------------------
+#
+# Convention: third-party libraries that an adapter/transport package only
+# *peer*-depends on (the contract "the host app must provide this") are
+# installed once at the workspace root, acting as the "host app" for local
+# development. Libraries a package bundles as its own real dependency
+# (e.g. @mantlejs/cli's commander/prompts, @mantlejs/schema's ajv) are
+# installed directly into that package via `--workspace=<name>` instead.
 
 install_dependencies() {
   log "Step 5: Installing runtime dependencies"
 
   # ---------------------------------------------------------------------------
-  # @mantlejs/express — Express transport
+  # @mantlejs/express — Express transport (peer: express@^5)
   # ---------------------------------------------------------------------------
   echo "  → Express transport"
-  npm install express
+  npm install "express@^5"
   npm install --save-dev @types/express
 
   # ---------------------------------------------------------------------------
-  # @mantlejs/postgresql — Knex + pg driver
+  # @mantlejs/koa — Koa transport (peer: koa@^3, @koa/router@^15, @koa/bodyparser@^6)
   # ---------------------------------------------------------------------------
-  echo "  → PostgreSQL adapter"
-  npm install knex pg
+  echo "  → Koa transport"
+  npm install "koa@^3" "@koa/router@^15" "@koa/bodyparser@^6"
+  npm install --save-dev @types/koa @types/koa__router
+
+  # ---------------------------------------------------------------------------
+  # @mantlejs/http — zero-dependency transport, no runtime libraries required.
+  # ---------------------------------------------------------------------------
+
+  # ---------------------------------------------------------------------------
+  # @mantlejs/knex — Knex.js + PostgreSQL driver (primary supported database)
+  # ---------------------------------------------------------------------------
+  echo "  → Knex SQL adapter"
+  npm install "knex@^3" pg
   npm install --save-dev @types/pg
+
+  # ---------------------------------------------------------------------------
+  # @mantlejs/dynamodb — AWS SDK v3 DynamoDB clients
+  # ---------------------------------------------------------------------------
+  echo "  → DynamoDB adapter"
+  npm install "@aws-sdk/client-dynamodb@^3" "@aws-sdk/util-dynamodb@^3"
+
+  # ---------------------------------------------------------------------------
+  # @mantlejs/supabase — Supabase JS client
+  # ---------------------------------------------------------------------------
+  echo "  → Supabase adapter"
+  npm install "@supabase/supabase-js@^2"
+
+  # ---------------------------------------------------------------------------
+  # @mantlejs/pinecone — Pinecone client
+  # ---------------------------------------------------------------------------
+  echo "  → Pinecone adapter"
+  npm install "@pinecone-database/pinecone@^5"
+
+  # ---------------------------------------------------------------------------
+  # @mantlejs/qdrant — Qdrant REST client
+  # ---------------------------------------------------------------------------
+  echo "  → Qdrant adapter"
+  npm install "@qdrant/js-client-rest@^1"
+
+  # ---------------------------------------------------------------------------
+  # @mantlejs/neo4j — Neo4j driver
+  # ---------------------------------------------------------------------------
+  echo "  → Neo4j adapter"
+  npm install "neo4j-driver@^5"
 
   # ---------------------------------------------------------------------------
   # @mantlejs/auth — JWT engine
   # ---------------------------------------------------------------------------
   echo "  → Auth engine"
-  npm install jsonwebtoken
+  npm install "jsonwebtoken@^9"
   npm install --save-dev @types/jsonwebtoken
 
   # ---------------------------------------------------------------------------
@@ -329,14 +687,83 @@ install_dependencies() {
   #   - Ships prebuilt Rust-native binaries — no build step required on install
   # ---------------------------------------------------------------------------
   echo "  → Auth local strategy (Argon2id)"
-  npm install @node-rs/argon2
+  npm install "@node-rs/argon2@^2"
 
   # ---------------------------------------------------------------------------
-  # @mantlejs/upload — Multipart parsing
+  # @mantlejs/auth-oauth, auth-google, auth-github, auth-facebook — no runtime
+  # libraries required. PKCE/state/authorization-code flows are implemented
+  # directly against `fetch`, deliberately avoiding Passport.js.
   # ---------------------------------------------------------------------------
-  echo "  → Upload plugin"
-  npm install busboy
+
+  # ---------------------------------------------------------------------------
+  # @mantlejs/storage — Multipart parsing
+  # ---------------------------------------------------------------------------
+  echo "  → Storage plugin"
+  npm install "busboy@^1"
   npm install --save-dev @types/busboy
+
+  # ---------------------------------------------------------------------------
+  # @mantlejs/storage-s3 — AWS SDK v3 S3 client + multipart upload helper
+  # ---------------------------------------------------------------------------
+  echo "  → S3 storage adapter"
+  npm install "@aws-sdk/client-s3@^3" "@aws-sdk/lib-storage@^3"
+
+  # ---------------------------------------------------------------------------
+  # @mantlejs/storage-gcs — Google Cloud Storage client
+  # ---------------------------------------------------------------------------
+  echo "  → GCS storage adapter"
+  npm install "@google-cloud/storage@^7"
+
+  # ---------------------------------------------------------------------------
+  # @mantlejs/logger — pino structured logger
+  # ---------------------------------------------------------------------------
+  echo "  → Logger plugin"
+  npm install "pino@^9"
+
+  # ---------------------------------------------------------------------------
+  # @mantlejs/schema — bundles its own validation stack (TypeBox + Ajv), not a
+  # peer dependency of the host app, so it installs into the package itself.
+  # ---------------------------------------------------------------------------
+  echo "  → Schema plugin (bundled deps)"
+  npm install "@sinclair/typebox@^0.34" ajv ajv-formats --workspace=@mantlejs/schema
+
+  # ---------------------------------------------------------------------------
+  # @mantlejs/memory — no runtime libraries required.
+  # ---------------------------------------------------------------------------
+
+  # ---------------------------------------------------------------------------
+  # @mantlejs/config — peer-depends on TypeBox (schemas authored by the host
+  # app), but bundles Ajv itself for validation.
+  # ---------------------------------------------------------------------------
+  echo "  → Config plugin"
+  npm install "@sinclair/typebox@^0.34"
+  npm install ajv --workspace=@mantlejs/config
+
+  # ---------------------------------------------------------------------------
+  # @mantlejs/socketio — bundles socket.io itself (the transport IS the
+  # dependency, not something the host app separately provides).
+  # ---------------------------------------------------------------------------
+  echo "  → Socket.IO transport (bundled dep)"
+  npm install socket.io --workspace=@mantlejs/socketio
+
+  # ---------------------------------------------------------------------------
+  # @mantlejs/sync — ioredis client (Redis/DragonflyDB pub-sub adapter)
+  # ---------------------------------------------------------------------------
+  echo "  → Sync plugin"
+  npm install "ioredis@^5"
+
+  # ---------------------------------------------------------------------------
+  # @mantlejs/cli — bundles its own runtime deps (it is a standalone
+  # executable, not a library consumed by a host app).
+  # ---------------------------------------------------------------------------
+  echo "  → CLI (bundled deps)"
+  npm install commander prompts typescript prettier --workspace=@mantlejs/cli
+  npm install --save-dev @types/prompts --workspace=@mantlejs/cli
+
+  # ---------------------------------------------------------------------------
+  # create-mantle — depends only on the (already workspace-linked)
+  # @mantlejs/cli package. No external install needed.
+  # ---------------------------------------------------------------------------
 
   echo "✓ Runtime dependencies installed"
 }
@@ -487,6 +914,10 @@ create_claude_md() {
   # when the project is opened, providing architecture rules, key interfaces,
   # Nx commands, coding conventions, and enough context to generate correct
   # Mantle code without additional prompting.
+  #
+  # This is a point-in-time snapshot of the project's actual root CLAUDE.md.
+  # Keep it in sync manually when the real CLAUDE.md changes meaningfully
+  # (new packages, new architectural rules) — there is no automated sync.
 
   write "CLAUDE.md" << 'EOF'
 # CLAUDE.md — Mantle JS
@@ -524,6 +955,7 @@ Infrastructure        KnexRepository — implements Domain interfaces (outer lay
 ```
 
 ### Dependency Rule (non-negotiable)
+
 - Dependencies always point inward
 - Infrastructure implements interfaces defined by Domain — never the reverse
 - Nothing in Domain or Application layers knows about HTTP or databases
@@ -536,32 +968,75 @@ Infrastructure        KnexRepository — implements Domain interfaces (outer lay
 ```
 mantle/
 ├── packages/
-│   ├── core/           @mantlejs/core        Framework kernel, zero external deps
-│   ├── express/        @mantlejs/express     Express HTTP transport adapter
-│   ├── postgresql/     @mantlejs/postgresql  PostgreSQL adapter via Knex.js
-│   ├── auth/           @mantlejs/auth        JWT engine + strategy runner
-│   ├── auth-local/     @mantlejs/auth-local  Local email+password strategy (Argon2id)
-│   └── upload/         @mantlejs/upload      File upload via busboy, local disk storage
+│   ├── mantle/          @mantlejs/mantle       Framework kernel, zero external deps
+│   ├── express/         @mantlejs/express      Express HTTP transport adapter
+│   ├── koa/             @mantlejs/koa          Koa HTTP transport adapter
+│   ├── http/            @mantlejs/http         Zero-dependency HTTP transport adapter (Node + Fetch API)
+│   ├── knex/            @mantlejs/knex         SQL adapter via Knex.js (pg, mysql2, sqlite3…)
+│   ├── dynamodb/        @mantlejs/dynamodb     Amazon DynamoDB adapter
+│   ├── supabase/        @mantlejs/supabase     Supabase adapter (Postgres + Realtime)
+│   ├── pinecone/        @mantlejs/pinecone     Pinecone vector database adapter
+│   ├── qdrant/          @mantlejs/qdrant       Qdrant vector database adapter
+│   ├── neo4j/           @mantlejs/neo4j        Neo4j graph database adapter
+│   ├── auth/            @mantlejs/auth         JWT engine + strategy runner
+│   ├── auth-local/      @mantlejs/auth-local   Local email+password strategy (Argon2id)
+│   ├── auth-oauth/      @mantlejs/auth-oauth   Shared OAuth 2.0 base (state, PKCE, find-or-create)
+│   ├── auth-google/     @mantlejs/auth-google  Google Sign-In strategy (PKCE, no Passport.js)
+│   ├── auth-github/     @mantlejs/auth-github  GitHub Sign-In strategy (no Passport.js)
+│   ├── auth-facebook/   @mantlejs/auth-facebook Facebook Sign-In strategy (no Passport.js)
+│   ├── storage/         @mantlejs/storage      File upload/download via busboy, local disk storage
+│   ├── storage-s3/      @mantlejs/storage-s3   AWS S3 storage adapter for @mantlejs/storage
+│   ├── storage-gcs/     @mantlejs/storage-gcs  Google Cloud Storage adapter for @mantlejs/storage
+│   ├── logger/          @mantlejs/logger       Structured logging (pino)
+│   ├── schema/          @mantlejs/schema       TypeBox schema validation + field resolution
+│   ├── memory/          @mantlejs/memory       In-memory Repository<T> for testing/prototyping
+│   ├── config/          @mantlejs/config       Environment-aware configuration loading
+│   ├── socketio/        @mantlejs/socketio     Socket.IO transport adapter
+│   ├── sync/            @mantlejs/sync         Cross-instance event sync (Redis/Supabase Realtime)
+│   ├── cli/             @mantlejs/cli          Command-line interface — scaffold projects/services/hooks
+│   └── create-mantle/   create-mantle          `npm create mantle` project initializer
 ├── docs/               scaffold.sh, PRD, TDD
 └── CLAUDE.md           This file
 ```
 
 ### Package Dependency Rules (enforced by @nx/enforce-module-boundaries)
 
-| Package | May depend on |
-|---|---|
-| @mantlejs/core | nothing |
-| @mantlejs/express | @mantlejs/core |
-| @mantlejs/postgresql | @mantlejs/core |
-| @mantlejs/auth | @mantlejs/core |
-| @mantlejs/auth-local | @mantlejs/core, @mantlejs/auth |
-| @mantlejs/upload | @mantlejs/core |
+| Package                | May depend on                                |
+| ---------------------- | --------------------------------------------- |
+| @mantlejs/mantle        | nothing                                       |
+| @mantlejs/express       | @mantlejs/mantle                              |
+| @mantlejs/koa           | @mantlejs/mantle                              |
+| @mantlejs/http          | @mantlejs/mantle                              |
+| @mantlejs/knex          | @mantlejs/mantle                              |
+| @mantlejs/dynamodb      | @mantlejs/mantle                              |
+| @mantlejs/supabase      | @mantlejs/mantle                              |
+| @mantlejs/pinecone      | @mantlejs/mantle                              |
+| @mantlejs/qdrant        | @mantlejs/mantle                              |
+| @mantlejs/neo4j         | @mantlejs/mantle                              |
+| @mantlejs/auth          | @mantlejs/mantle                              |
+| @mantlejs/auth-local    | @mantlejs/mantle, @mantlejs/auth              |
+| @mantlejs/auth-oauth    | @mantlejs/mantle, @mantlejs/auth              |
+| @mantlejs/auth-google   | @mantlejs/mantle, @mantlejs/auth-oauth        |
+| @mantlejs/auth-github   | @mantlejs/mantle, @mantlejs/auth-oauth        |
+| @mantlejs/auth-facebook | @mantlejs/mantle, @mantlejs/auth-oauth        |
+| @mantlejs/storage       | @mantlejs/mantle                              |
+| @mantlejs/storage-s3    | @mantlejs/mantle, @mantlejs/storage           |
+| @mantlejs/storage-gcs   | @mantlejs/mantle, @mantlejs/storage           |
+| @mantlejs/logger        | @mantlejs/mantle                              |
+| @mantlejs/schema        | @mantlejs/mantle                              |
+| @mantlejs/memory        | @mantlejs/mantle                              |
+| @mantlejs/config        | @mantlejs/mantle                              |
+| @mantlejs/socketio      | @mantlejs/mantle                              |
+| @mantlejs/sync          | @mantlejs/mantle                              |
+| @mantlejs/cli           | nothing (standalone code generator)           |
+| create-mantle           | @mantlejs/cli                                 |
 
 ---
 
-## Key Interfaces (all in @mantlejs/core)
+## Key Interfaces (all in @mantlejs/mantle)
 
 ### Service<T>
+
 ```typescript
 interface Service<T, D = Partial<T>> {
   find(params?: ServiceParams): Promise<T[] | Paginated<T>>;
@@ -572,9 +1047,11 @@ interface Service<T, D = Partial<T>> {
   remove(id: Id, params?: ServiceParams): Promise<T>;
 }
 ```
+
 Custom methods beyond these six must be explicitly registered in app.use() options.
 
 ### Repository<T>
+
 ```typescript
 interface Repository<T, D = Partial<T>> {
   findAll(params?: QueryParams): Promise<T[]>;
@@ -588,14 +1065,37 @@ interface Repository<T, D = Partial<T>> {
 }
 ```
 
+### QueryParams — supported where operators
+
+```typescript
+interface QueryParams {
+  where?: Record<string, unknown>; // see operators below
+  limit?: number;
+  skip?: number;
+  sort?: Record<string, "asc" | "desc">;
+  select?: string[];
+}
+```
+
+Operators supported in `where`:
+
+- Equality: `{ field: value }` → `field = value`
+- Null: `{ field: null }` → `IS NULL`
+- Comparison: `$lt`, `$lte`, `$gt`, `$gte`
+- Not-equal: `{ field: { $ne: value } }` (value `null` → `IS NOT NULL`)
+- Inclusion: `$in`, `$nin`
+- Logical: `$or`, `$and` (accept arrays of where clauses)
+- Pattern: `$like`, `$notlike`, `$ilike` (PostgreSQL only)
+
 ### HookContext<T>
+
 ```typescript
 interface HookContext<T = any> {
   app: MantleApplication;
   service: Service<T>;
-  path: string;        // e.g. "users"
-  method: string;      // e.g. "create"
-  provider?: string;   // "rest" | undefined (internal)
+  path: string; // e.g. "users"
+  method: string; // e.g. "create"
+  provider?: string; // "rest" | undefined (internal)
   params: ServiceParams;
   data?: Partial<T>;
   id?: Id;
@@ -605,22 +1105,25 @@ interface HookContext<T = any> {
 ```
 
 ### HookFunction<T>
+
 All hooks are pure functions — no class-based hooks.
+
 ```typescript
-type HookFunction<T = any> =
-  (context: HookContext<T>) => Promise<HookContext<T>> | HookContext<T>;
+type HookFunction<T = any> = (context: HookContext<T>) => Promise<HookContext<T>> | HookContext<T>;
 ```
 
 ### Error Classes
+
 Always throw a typed error — never a plain new Error().
+
 ```typescript
-throw new BadRequest("Invalid input");        // 400
+throw new BadRequest("Invalid input"); // 400
 throw new NotAuthenticated("Login required"); // 401
-throw new Forbidden("Access denied");         // 403
-throw new NotFound("User not found");         // 404
-throw new Conflict("Email already exists");   // 409
+throw new Forbidden("Access denied"); // 403
+throw new NotFound("User not found"); // 404
+throw new Conflict("Email already exists"); // 409
 throw new Unprocessable("Validation failed"); // 422
-throw new GeneralError("Something broke");    // 500
+throw new GeneralError("Something broke"); // 500
 ```
 
 ---
@@ -628,15 +1131,15 @@ throw new GeneralError("Something broke");    // 500
 ## Typical Usage Pattern
 
 ```typescript
-import { mantle } from "@mantlejs/core";
+import { mantle } from "@mantlejs/mantle";
 import { express } from "@mantlejs/express";
-import { postgresql } from "@mantlejs/postgresql";
+import { knex } from "@mantlejs/knex";
 import { auth, authenticate, sanitizeUser } from "@mantlejs/auth";
 import { localStrategy, hashPassword } from "@mantlejs/auth-local";
 
 const app = mantle()
   .configure(express())
-  .configure(postgresql({ connection: process.env.DATABASE_URL }))
+  .configure(knex({ client: "pg", connection: process.env.DATABASE_URL }))
   .configure(auth({ secret: process.env.JWT_SECRET! }))
   .configure(localStrategy());
 
@@ -656,14 +1159,36 @@ app.service("users").hooks({
 app.listen(3030);
 ```
 
+### KnexRepository usage
+
+```typescript
+import { KnexRepository } from "@mantlejs/knex";
+
+class UserRepository extends KnexRepository<User> {
+  readonly tableName = "users";
+
+  // Custom query using the raw query builder
+  async findByEmail(email: string): Promise<User | null> {
+    return this.db.where({ email }).first() ?? null;
+  }
+}
+
+// Transaction example
+const repo = new UserRepository(app);
+await repo.withTransaction(async (txRepo) => {
+  const user = await txRepo.save({ name: "Alice", email: "alice@example.com" });
+  await txRepo.save({ userId: user.id, role: "admin" }); // hypothetical
+});
+```
+
 ---
 
 ## Nx Commands
 
 ```bash
-npx nx build core                   # build one package
+npx nx build mantle                 # build one package
 npx nx run-many -t build            # build all packages
-npx nx test core                    # test one package
+npx nx test mantle                  # test one package
 npx nx run-many -t test             # test all packages
 npx nx run-many -t lint             # lint all packages
 npx nx graph                        # visualise dependency graph
@@ -676,17 +1201,17 @@ NX_DAEMON=false npx nx g @nx/js:library   --name=<name> --directory=packages/<na
 
 ## Coding Conventions
 
-| Convention | Rule |
-|---|---|
-| Quotes | Double quotes — enforced by Prettier |
-| Semicolons | Required |
-| Trailing commas | All |
-| Print width | 120 characters |
-| Hooks | Function-based only — no classes |
-| Exports | Each package exports only from src/index.ts |
-| Error handling | Always throw a typed MantleError subclass |
-| any | Banned — use unknown and narrow |
-| Test files | Co-located with source, *.spec.ts suffix |
+| Convention      | Rule                                        |
+| --------------- | -------------------------------------------- |
+| Quotes          | Double quotes — enforced by Prettier        |
+| Semicolons      | Required                                    |
+| Trailing commas | All                                         |
+| Print width     | 120 characters                              |
+| Hooks           | Function-based only — no classes            |
+| Exports         | Each package exports only from src/index.ts |
+| Error handling  | Always throw a typed MantleError subclass   |
+| any             | Banned — use unknown and narrow             |
+| Test files      | Co-located with source, \*.spec.ts suffix   |
 
 ---
 
@@ -705,16 +1230,47 @@ NX_DAEMON=false npx nx g @nx/js:library   --name=<name> --directory=packages/<na
 
 ## Key Technology Decisions
 
-| Decision | Choice | Reason |
-|---|---|---|
-| Monorepo | Nx (TS preset, npm) | Task pipeline, module boundary enforcement |
-| DB adapter | Knex.js | Query builder not ORM — keeps infra layer thin |
-| Password hashing | @node-rs/argon2 (Argon2id) | OWASP recommended; no 72-char bcrypt limit |
-| Testing | Vitest | Faster than Jest, native ESM, Jest-compatible API |
-| Transport (P1) | Express | Most familiar; AI-legible |
-| Auth | auth + auth-local (two packages) | Engine separate from strategy |
-| Bundler | tsc | Emits .d.ts natively — critical for TS-first libraries |
-| Deployment | Google Cloud Run | Scales to zero; pairs with Cloud SQL |
+| Decision                | Choice                                             | Reason                                                       |
+| ------------------------ | --------------------------------------------------- | -------------------------------------------------------------- |
+| Monorepo                | Nx (TS preset, npm)                                | Task pipeline, module boundary enforcement                   |
+| DB adapter              | @mantlejs/knex via Knex.js                         | Single package for all SQL databases; query builder not ORM  |
+| Supported SQL databases | PostgreSQL (primary), MySQL/MariaDB, SQLite, MSSQL | Knex abstracts differences; `RETURNING *` fallback for MySQL |
+| Password hashing        | @node-rs/argon2 (Argon2id)                         | OWASP recommended; no 72-char bcrypt limit                   |
+| Testing                 | Vitest                                             | Faster than Jest, native ESM, Jest-compatible API             |
+| Transport (P1)          | Express                                            | Most familiar; AI-legible                                    |
+| Auth                    | auth + auth-local (two packages)                   | Engine separate from strategy                                |
+| Bundler                 | tsc                                                | Emits .d.ts natively — critical for TS-first libraries        |
+| Deployment              | Google Cloud Run                                   | Scales to zero; pairs with Cloud SQL                          |
+
+## General Guidelines for working with Nx
+
+- For navigating/exploring the workspace, invoke the `nx-workspace` skill first - it has patterns for querying projects, targets, and dependencies
+- When running tasks (for example build, lint, test, e2e, etc.), always prefer running the task through `nx` (i.e. `nx run`, `nx run-many`, `nx affected`) instead of using the underlying tooling directly
+- Prefix nx commands with the workspace's package manager (e.g., `pnpm nx build`, `npm exec nx test`) - avoids using globally installed CLI
+- You have access to the Nx MCP server and its tools, use them to help the user
+- For Nx plugin best practices, check `node_modules/@nx/<plugin>/PLUGIN.md`. Not all plugins have this file - proceed without it if unavailable.
+- NEVER guess CLI flags - always check nx_docs or `--help` first when unsure
+
+## Docs
+
+- `docs/planning/` — PRDs, TDDs, phase checklists
+- `docs/decisions/` — ADRs and design rationale; follow `adr-001-*.md` as the naming and format template
+
+## FeathersJS comparisons
+
+When the user asks to compare a Mantle package or feature with FeathersJS, ALWAYS write the comparison to a markdown file in `docs/decisions/` (e.g. `docs/decisions/socketio-comparison.md`, `docs/decisions/auth-comparison.md`) in addition to any inline response. Use the existing files in `docs/decisions/` as format reference.
+
+## Scaffolding & Generators
+
+- For scaffolding tasks (creating apps, libs, project structure, setup), ALWAYS invoke the `nx-generate` skill FIRST before exploring or calling MCP tools
+- After generating a new package, ALWAYS replace the Nx-generated `README.md` with a full package README following the template in `packages/auth/README.md`. Sections: package name + one-line description, Installation, Concepts, Quick start, API (with options table), Types, Development, Publishing.
+- After generating a new package, ALWAYS add it to the Packages table in the root `README.md`.
+
+## When to use nx_docs
+
+- USE for: advanced config options, unfamiliar flags, migration guides, plugin configuration, edge cases
+- DON'T USE for: basic generator syntax (`nx g @nx/react:app`), standard commands, things you already know
+- The `nx-generate` skill handles generator discovery internally - don't call nx_docs just to look up generator syntax
 EOF
 
   echo "✓ CLAUDE.md created"
@@ -740,10 +1296,10 @@ configure_packages() {
   # Uses single-quoted Node.js heredocs (<< 'NODEJS') so no bash interpolation
   # occurs inside the JS -- avoids all quoting and newline escaping issues.
 
-  # @mantlejs/core
+  # @mantlejs/mantle
   node << 'NODEJS'
 const fs = require('fs');
-const path = 'packages/core/package.json';
+const path = 'packages/mantle/package.json';
 const pkg = JSON.parse(fs.readFileSync(path, 'utf8'));
 pkg.description = 'The Mantle JS framework kernel';
 pkg.license = 'MIT';
@@ -763,26 +1319,146 @@ pkg.license = 'MIT';
 pkg.keywords = ['mantle', 'express', 'rest', 'api'];
 pkg.peerDependencies = {
   ...(pkg.peerDependencies || {}),
-  '@mantlejs/core': '^0.1.0',
-  'express': '^4.0.0',
+  '@mantlejs/mantle': '^0.1.0',
+  'express': '^5.0.0',
 };
 fs.writeFileSync(path, JSON.stringify(pkg, null, 2) + '\n');
 console.log('  done: ' + pkg.name);
 NODEJS
 
-  # @mantlejs/postgresql
+  # @mantlejs/koa
   node << 'NODEJS'
 const fs = require('fs');
-const path = 'packages/postgresql/package.json';
+const path = 'packages/koa/package.json';
 const pkg = JSON.parse(fs.readFileSync(path, 'utf8'));
-pkg.description = 'PostgreSQL adapter for Mantle JS via Knex.js';
+pkg.description = 'Koa HTTP transport adapter for Mantle JS';
 pkg.license = 'MIT';
-pkg.keywords = ['mantle', 'postgresql', 'knex', 'database'];
+pkg.keywords = ['mantle', 'koa', 'rest', 'api'];
 pkg.peerDependencies = {
   ...(pkg.peerDependencies || {}),
-  '@mantlejs/core': '^0.1.0',
+  '@mantlejs/mantle': '^0.0.1',
+  'koa': '^3.0.0',
+  '@koa/router': '^15.0.0',
+  '@koa/bodyparser': '^6.0.0',
+};
+fs.writeFileSync(path, JSON.stringify(pkg, null, 2) + '\n');
+console.log('  done: ' + pkg.name);
+NODEJS
+
+  # @mantlejs/http
+  node << 'NODEJS'
+const fs = require('fs');
+const path = 'packages/http/package.json';
+const pkg = JSON.parse(fs.readFileSync(path, 'utf8'));
+pkg.description = 'Zero-dependency HTTP transport adapter for Mantle JS (Node.js handler + Fetch API handler)';
+pkg.license = 'MIT';
+pkg.keywords = ['mantle', 'http', 'transport', 'edge', 'cloudflare-workers'];
+pkg.peerDependencies = {
+  ...(pkg.peerDependencies || {}),
+  '@mantlejs/mantle': '^0.0.1',
+};
+fs.writeFileSync(path, JSON.stringify(pkg, null, 2) + '\n');
+console.log('  done: ' + pkg.name);
+NODEJS
+
+  # @mantlejs/knex
+  node << 'NODEJS'
+const fs = require('fs');
+const path = 'packages/knex/package.json';
+const pkg = JSON.parse(fs.readFileSync(path, 'utf8'));
+pkg.description = 'SQL database adapter for Mantle JS via Knex.js (PostgreSQL, MySQL, SQLite, MSSQL)';
+pkg.license = 'MIT';
+pkg.keywords = ['mantle', 'knex', 'sql', 'postgresql', 'mysql', 'sqlite', 'database'];
+pkg.peerDependencies = {
+  ...(pkg.peerDependencies || {}),
+  '@mantlejs/mantle': '^0.1.0',
   'knex': '^3.0.0',
-  'pg': '^8.0.0',
+};
+fs.writeFileSync(path, JSON.stringify(pkg, null, 2) + '\n');
+console.log('  done: ' + pkg.name);
+NODEJS
+
+  # @mantlejs/dynamodb
+  node << 'NODEJS'
+const fs = require('fs');
+const path = 'packages/dynamodb/package.json';
+const pkg = JSON.parse(fs.readFileSync(path, 'utf8'));
+pkg.description = 'Amazon DynamoDB adapter for Mantle JS — DynamoDbRepository with full QueryParams support';
+pkg.license = 'MIT';
+pkg.keywords = ['mantle', 'dynamodb', 'aws', 'nosql', 'database', 'repository'];
+pkg.peerDependencies = {
+  ...(pkg.peerDependencies || {}),
+  '@mantlejs/mantle': '^0.1.0',
+  '@aws-sdk/client-dynamodb': '^3.0.0',
+  '@aws-sdk/util-dynamodb': '^3.0.0',
+};
+fs.writeFileSync(path, JSON.stringify(pkg, null, 2) + '\n');
+console.log('  done: ' + pkg.name);
+NODEJS
+
+  # @mantlejs/supabase
+  node << 'NODEJS'
+const fs = require('fs');
+const path = 'packages/supabase/package.json';
+const pkg = JSON.parse(fs.readFileSync(path, 'utf8'));
+pkg.description = 'Supabase adapter for Mantle JS — SupabaseRepository with full QueryParams support';
+pkg.license = 'MIT';
+pkg.keywords = ['mantle', 'supabase', 'postgresql', 'database', 'repository'];
+pkg.peerDependencies = {
+  ...(pkg.peerDependencies || {}),
+  '@mantlejs/mantle': '^0.0.1',
+  '@supabase/supabase-js': '^2.0.0',
+};
+fs.writeFileSync(path, JSON.stringify(pkg, null, 2) + '\n');
+console.log('  done: ' + pkg.name);
+NODEJS
+
+  # @mantlejs/pinecone
+  node << 'NODEJS'
+const fs = require('fs');
+const path = 'packages/pinecone/package.json';
+const pkg = JSON.parse(fs.readFileSync(path, 'utf8'));
+pkg.description = 'Pinecone vector database adapter for Mantle JS — PineconeRepository with full QueryParams support';
+pkg.license = 'MIT';
+pkg.keywords = ['mantle', 'pinecone', 'vector', 'database', 'repository'];
+pkg.peerDependencies = {
+  ...(pkg.peerDependencies || {}),
+  '@mantlejs/mantle': '^0.0.1',
+  '@pinecone-database/pinecone': '^5.0.0',
+};
+fs.writeFileSync(path, JSON.stringify(pkg, null, 2) + '\n');
+console.log('  done: ' + pkg.name);
+NODEJS
+
+  # @mantlejs/qdrant
+  node << 'NODEJS'
+const fs = require('fs');
+const path = 'packages/qdrant/package.json';
+const pkg = JSON.parse(fs.readFileSync(path, 'utf8'));
+pkg.description = 'Qdrant vector database adapter for Mantle JS — QdrantRepository with full QueryParams support';
+pkg.license = 'MIT';
+pkg.keywords = ['mantle', 'qdrant', 'vector', 'database', 'repository'];
+pkg.peerDependencies = {
+  ...(pkg.peerDependencies || {}),
+  '@mantlejs/mantle': '^0.0.1',
+  '@qdrant/js-client-rest': '^1.0.0',
+};
+fs.writeFileSync(path, JSON.stringify(pkg, null, 2) + '\n');
+console.log('  done: ' + pkg.name);
+NODEJS
+
+  # @mantlejs/neo4j
+  node << 'NODEJS'
+const fs = require('fs');
+const path = 'packages/neo4j/package.json';
+const pkg = JSON.parse(fs.readFileSync(path, 'utf8'));
+pkg.description = 'Neo4j graph database adapter for Mantle JS — Neo4jRepository with full QueryParams support';
+pkg.license = 'MIT';
+pkg.keywords = ['mantle', 'neo4j', 'graph', 'database', 'repository'];
+pkg.peerDependencies = {
+  ...(pkg.peerDependencies || {}),
+  '@mantlejs/mantle': '^0.0.1',
+  'neo4j-driver': '^5.0.0',
 };
 fs.writeFileSync(path, JSON.stringify(pkg, null, 2) + '\n');
 console.log('  done: ' + pkg.name);
@@ -798,7 +1474,7 @@ pkg.license = 'MIT';
 pkg.keywords = ['mantle', 'auth', 'jwt', 'authentication'];
 pkg.peerDependencies = {
   ...(pkg.peerDependencies || {}),
-  '@mantlejs/core': '^0.1.0',
+  '@mantlejs/mantle': '^0.0.1',
   'jsonwebtoken': '^9.0.0',
 };
 fs.writeFileSync(path, JSON.stringify(pkg, null, 2) + '\n');
@@ -815,27 +1491,254 @@ pkg.license = 'MIT';
 pkg.keywords = ['mantle', 'auth', 'local', 'password', 'argon2'];
 pkg.peerDependencies = {
   ...(pkg.peerDependencies || {}),
-  '@mantlejs/core': '^0.1.0',
-  '@mantlejs/auth': '^0.1.0',
+  '@mantlejs/mantle': '^0.0.1',
+  '@mantlejs/auth': '^0.0.1',
   '@node-rs/argon2': '^2.0.0',
 };
 fs.writeFileSync(path, JSON.stringify(pkg, null, 2) + '\n');
 console.log('  done: ' + pkg.name);
 NODEJS
 
-  # @mantlejs/upload
+  # @mantlejs/auth-oauth
   node << 'NODEJS'
 const fs = require('fs');
-const path = 'packages/upload/package.json';
+const path = 'packages/auth-oauth/package.json';
 const pkg = JSON.parse(fs.readFileSync(path, 'utf8'));
-pkg.description = 'File upload handling plugin for Mantle JS';
+pkg.description = 'Shared OAuth 2.0 base for Mantle JS auth strategies';
 pkg.license = 'MIT';
-pkg.keywords = ['mantle', 'upload', 'multipart', 'busboy'];
+pkg.keywords = ['mantle', 'auth', 'oauth', 'oauth2'];
 pkg.peerDependencies = {
   ...(pkg.peerDependencies || {}),
-  '@mantlejs/core': '^0.1.0',
+  '@mantlejs/mantle': '^0.0.1',
+  '@mantlejs/auth': '^0.0.1',
+};
+fs.writeFileSync(path, JSON.stringify(pkg, null, 2) + '\n');
+console.log('  done: ' + pkg.name);
+NODEJS
+
+  # @mantlejs/auth-google
+  node << 'NODEJS'
+const fs = require('fs');
+const path = 'packages/auth-google/package.json';
+const pkg = JSON.parse(fs.readFileSync(path, 'utf8'));
+pkg.description = 'Google OAuth 2.0 strategy for Mantle JS';
+pkg.license = 'MIT';
+pkg.keywords = ['mantle', 'auth', 'google', 'oauth2'];
+pkg.peerDependencies = {
+  ...(pkg.peerDependencies || {}),
+  '@mantlejs/mantle': '^0.0.1',
+  '@mantlejs/auth-oauth': '^0.0.1',
+};
+fs.writeFileSync(path, JSON.stringify(pkg, null, 2) + '\n');
+console.log('  done: ' + pkg.name);
+NODEJS
+
+  # @mantlejs/auth-github
+  node << 'NODEJS'
+const fs = require('fs');
+const path = 'packages/auth-github/package.json';
+const pkg = JSON.parse(fs.readFileSync(path, 'utf8'));
+pkg.description = 'GitHub OAuth 2.0 strategy for Mantle JS';
+pkg.license = 'MIT';
+pkg.keywords = ['mantle', 'auth', 'github', 'oauth2'];
+pkg.peerDependencies = {
+  ...(pkg.peerDependencies || {}),
+  '@mantlejs/mantle': '^0.0.1',
+  '@mantlejs/auth-oauth': '^0.0.1',
+};
+fs.writeFileSync(path, JSON.stringify(pkg, null, 2) + '\n');
+console.log('  done: ' + pkg.name);
+NODEJS
+
+  # @mantlejs/auth-facebook
+  node << 'NODEJS'
+const fs = require('fs');
+const path = 'packages/auth-facebook/package.json';
+const pkg = JSON.parse(fs.readFileSync(path, 'utf8'));
+pkg.description = 'Facebook OAuth 2.0 strategy for Mantle JS';
+pkg.license = 'MIT';
+pkg.keywords = ['mantle', 'auth', 'facebook', 'oauth2'];
+pkg.peerDependencies = {
+  ...(pkg.peerDependencies || {}),
+  '@mantlejs/mantle': '^0.0.1',
+  '@mantlejs/auth-oauth': '^0.0.1',
+};
+fs.writeFileSync(path, JSON.stringify(pkg, null, 2) + '\n');
+console.log('  done: ' + pkg.name);
+NODEJS
+
+  # @mantlejs/storage
+  node << 'NODEJS'
+const fs = require('fs');
+const path = 'packages/storage/package.json';
+const pkg = JSON.parse(fs.readFileSync(path, 'utf8'));
+pkg.description = 'File upload/download storage plugin for Mantle JS';
+pkg.license = 'MIT';
+pkg.keywords = ['mantle', 'storage', 'upload', 'multipart', 'busboy'];
+pkg.peerDependencies = {
+  ...(pkg.peerDependencies || {}),
+  '@mantlejs/mantle': '^0.1.0',
   'busboy': '^1.0.0',
 };
+fs.writeFileSync(path, JSON.stringify(pkg, null, 2) + '\n');
+console.log('  done: ' + pkg.name);
+NODEJS
+
+  # @mantlejs/storage-s3
+  node << 'NODEJS'
+const fs = require('fs');
+const path = 'packages/storage-s3/package.json';
+const pkg = JSON.parse(fs.readFileSync(path, 'utf8'));
+pkg.description = 'AWS S3 storage adapter for @mantlejs/storage';
+pkg.license = 'MIT';
+pkg.keywords = ['mantle', 'storage', 'upload', 's3', 'aws'];
+pkg.peerDependencies = {
+  ...(pkg.peerDependencies || {}),
+  '@mantlejs/storage': '^0.0.1',
+  '@aws-sdk/client-s3': '^3.0.0',
+  '@aws-sdk/lib-storage': '^3.0.0',
+};
+fs.writeFileSync(path, JSON.stringify(pkg, null, 2) + '\n');
+console.log('  done: ' + pkg.name);
+NODEJS
+
+  # @mantlejs/storage-gcs
+  node << 'NODEJS'
+const fs = require('fs');
+const path = 'packages/storage-gcs/package.json';
+const pkg = JSON.parse(fs.readFileSync(path, 'utf8'));
+pkg.description = 'Google Cloud Storage adapter for @mantlejs/storage';
+pkg.license = 'MIT';
+pkg.keywords = ['mantle', 'storage', 'upload', 'gcs', 'google-cloud'];
+pkg.peerDependencies = {
+  ...(pkg.peerDependencies || {}),
+  '@mantlejs/storage': '^0.0.1',
+  '@google-cloud/storage': '^7.0.0',
+};
+fs.writeFileSync(path, JSON.stringify(pkg, null, 2) + '\n');
+console.log('  done: ' + pkg.name);
+NODEJS
+
+  # @mantlejs/logger
+  node << 'NODEJS'
+const fs = require('fs');
+const path = 'packages/logger/package.json';
+const pkg = JSON.parse(fs.readFileSync(path, 'utf8'));
+pkg.description = 'Structured logging plugin for Mantle JS — pino adapter and request/error hook factories';
+pkg.license = 'MIT';
+pkg.keywords = ['mantle', 'logger', 'pino', 'logging'];
+pkg.peerDependencies = {
+  ...(pkg.peerDependencies || {}),
+  '@mantlejs/mantle': '^0.0.1',
+  'pino': '^9.0.0',
+};
+fs.writeFileSync(path, JSON.stringify(pkg, null, 2) + '\n');
+console.log('  done: ' + pkg.name);
+NODEJS
+
+  # @mantlejs/schema
+  node << 'NODEJS'
+const fs = require('fs');
+const path = 'packages/schema/package.json';
+const pkg = JSON.parse(fs.readFileSync(path, 'utf8'));
+pkg.description = 'TypeBox schema definition, Ajv validation, and data resolution for Mantle JS';
+pkg.license = 'MIT';
+pkg.keywords = ['mantle', 'schema', 'typebox', 'validation', 'resolver'];
+pkg.peerDependencies = {
+  ...(pkg.peerDependencies || {}),
+  '@mantlejs/mantle': '^0.0.1',
+};
+fs.writeFileSync(path, JSON.stringify(pkg, null, 2) + '\n');
+console.log('  done: ' + pkg.name);
+NODEJS
+
+  # @mantlejs/memory
+  node << 'NODEJS'
+const fs = require('fs');
+const path = 'packages/memory/package.json';
+const pkg = JSON.parse(fs.readFileSync(path, 'utf8'));
+pkg.description = 'In-memory Repository<T> implementation for testing and prototyping with Mantle JS';
+pkg.license = 'MIT';
+pkg.keywords = ['mantle', 'memory', 'repository', 'testing'];
+pkg.peerDependencies = {
+  ...(pkg.peerDependencies || {}),
+  '@mantlejs/mantle': '^0.0.1',
+};
+fs.writeFileSync(path, JSON.stringify(pkg, null, 2) + '\n');
+console.log('  done: ' + pkg.name);
+NODEJS
+
+  # @mantlejs/config
+  node << 'NODEJS'
+const fs = require('fs');
+const path = 'packages/config/package.json';
+const pkg = JSON.parse(fs.readFileSync(path, 'utf8'));
+pkg.description = 'Environment-aware configuration loading with optional schema validation for Mantle JS';
+pkg.license = 'MIT';
+pkg.keywords = ['mantle', 'config', 'configuration', 'typescript'];
+pkg.peerDependencies = {
+  ...(pkg.peerDependencies || {}),
+  '@mantlejs/mantle': '^0.0.1',
+  '@sinclair/typebox': '^0.34.0',
+};
+fs.writeFileSync(path, JSON.stringify(pkg, null, 2) + '\n');
+console.log('  done: ' + pkg.name);
+NODEJS
+
+  # @mantlejs/socketio
+  node << 'NODEJS'
+const fs = require('fs');
+const path = 'packages/socketio/package.json';
+const pkg = JSON.parse(fs.readFileSync(path, 'utf8'));
+pkg.description = 'Socket.IO transport adapter for Mantle JS';
+pkg.license = 'MIT';
+pkg.keywords = ['mantle', 'socketio', 'websocket', 'realtime'];
+pkg.peerDependencies = {
+  ...(pkg.peerDependencies || {}),
+  '@mantlejs/mantle': '^0.0.1',
+};
+fs.writeFileSync(path, JSON.stringify(pkg, null, 2) + '\n');
+console.log('  done: ' + pkg.name);
+NODEJS
+
+  # @mantlejs/sync
+  node << 'NODEJS'
+const fs = require('fs');
+const path = 'packages/sync/package.json';
+const pkg = JSON.parse(fs.readFileSync(path, 'utf8'));
+pkg.description = 'Cross-instance event sync for Mantle JS — broadcasts service events across multiple application instances via Redis or Supabase Realtime';
+pkg.license = 'MIT';
+pkg.keywords = ['mantle', 'sync', 'realtime', 'redis', 'pubsub', 'events', 'typescript'];
+pkg.peerDependencies = {
+  ...(pkg.peerDependencies || {}),
+  '@mantlejs/mantle': '^0.0.1',
+  'ioredis': '^5.0.0',
+};
+fs.writeFileSync(path, JSON.stringify(pkg, null, 2) + '\n');
+console.log('  done: ' + pkg.name);
+NODEJS
+
+  # @mantlejs/cli
+  node << 'NODEJS'
+const fs = require('fs');
+const path = 'packages/cli/package.json';
+const pkg = JSON.parse(fs.readFileSync(path, 'utf8'));
+pkg.description = 'Command-line interface for Mantle JS — scaffold projects, services, repositories, and hooks';
+pkg.license = 'MIT';
+pkg.keywords = ['mantle', 'cli', 'scaffolding', 'codegen', 'typescript'];
+fs.writeFileSync(path, JSON.stringify(pkg, null, 2) + '\n');
+console.log('  done: ' + pkg.name);
+NODEJS
+
+  # create-mantle
+  node << 'NODEJS'
+const fs = require('fs');
+const path = 'packages/create-mantle/package.json';
+const pkg = JSON.parse(fs.readFileSync(path, 'utf8'));
+pkg.description = 'Project initializer for Mantle JS — scaffold a new Mantle application via npm create mantle';
+pkg.license = 'MIT';
+pkg.keywords = ['mantle', 'create', 'scaffold', 'initializer', 'typescript'];
+pkg.dependencies = { ...(pkg.dependencies || {}), '@mantlejs/cli': '^0.0.1' };
 fs.writeFileSync(path, JSON.stringify(pkg, null, 2) + '\n');
 console.log('  done: ' + pkg.name);
 NODEJS
@@ -893,11 +1796,11 @@ setup_git() {
 # -----------------------------------------------------------------------------
 
 smoke_test() {
-  log "Step 11: Smoke test — building @mantlejs/core"
+  log "Step 11: Smoke test — building @mantlejs/mantle"
 
-  npx nx build core
+  npx nx build mantle
 
-  echo "✓ @mantlejs/core builds successfully"
+  echo "✓ @mantlejs/mantle builds successfully"
 }
 
 # -----------------------------------------------------------------------------
@@ -911,19 +1814,40 @@ print_summary() {
   echo "  Workspace:  ${WORKSPACE_NAME}/"
   echo ""
   echo "  Packages:"
-  echo "    packages/core         → @mantlejs/core"
-  echo "    packages/express      → @mantlejs/express"
-  echo "    packages/postgresql   → @mantlejs/postgresql"
-  echo "    packages/auth         → @mantlejs/auth"
-  echo "    packages/auth-local   → @mantlejs/auth-local"
-  echo "    packages/upload       → @mantlejs/upload"
+  echo "    packages/mantle         → @mantlejs/mantle"
+  echo "    packages/express        → @mantlejs/express"
+  echo "    packages/koa            → @mantlejs/koa"
+  echo "    packages/http           → @mantlejs/http"
+  echo "    packages/knex           → @mantlejs/knex"
+  echo "    packages/dynamodb       → @mantlejs/dynamodb"
+  echo "    packages/supabase       → @mantlejs/supabase"
+  echo "    packages/pinecone       → @mantlejs/pinecone"
+  echo "    packages/qdrant         → @mantlejs/qdrant"
+  echo "    packages/neo4j          → @mantlejs/neo4j"
+  echo "    packages/auth           → @mantlejs/auth"
+  echo "    packages/auth-local     → @mantlejs/auth-local"
+  echo "    packages/auth-oauth     → @mantlejs/auth-oauth"
+  echo "    packages/auth-google    → @mantlejs/auth-google"
+  echo "    packages/auth-github    → @mantlejs/auth-github"
+  echo "    packages/auth-facebook  → @mantlejs/auth-facebook"
+  echo "    packages/storage        → @mantlejs/storage"
+  echo "    packages/storage-s3     → @mantlejs/storage-s3"
+  echo "    packages/storage-gcs    → @mantlejs/storage-gcs"
+  echo "    packages/logger         → @mantlejs/logger"
+  echo "    packages/schema         → @mantlejs/schema"
+  echo "    packages/memory         → @mantlejs/memory"
+  echo "    packages/config         → @mantlejs/config"
+  echo "    packages/socketio       → @mantlejs/socketio"
+  echo "    packages/sync           → @mantlejs/sync"
+  echo "    packages/cli            → @mantlejs/cli"
+  echo "    packages/create-mantle  → create-mantle"
   echo ""
   echo "  Open in VS Code:"
   echo "    code ${WORKSPACE_NAME}/mantle.code-workspace"
   echo ""
   echo "  Useful Nx commands:"
   echo "    npx nx graph                  # visualise the project graph"
-  echo "    npx nx build core             # build a single package"
+  echo "    npx nx build mantle           # build a single package"
   echo "    npx nx run-many -t build      # build all packages"
   echo "    npx nx run-many -t test       # run all tests"
   echo "    npx nx run-many -t lint       # lint all packages"

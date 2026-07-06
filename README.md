@@ -62,12 +62,14 @@ Dependencies always point inward. Nothing in Domain or Application layers knows 
 | `@mantlejs/auth-google` | Google Sign-In strategy (authorization code + PKCE, no Passport.js)                   |
 | `@mantlejs/auth-github` | GitHub Sign-In strategy (authorization code flow, no Passport.js)                     |
 | `@mantlejs/auth-facebook` | Facebook Sign-In strategy (authorization code flow, no Passport.js)                 |
-| `@mantlejs/upload`      | File upload via busboy, local disk storage                                            |
-| `@mantlejs/upload-s3`   | AWS S3 storage adapter for `@mantlejs/upload` (supports MinIO, R2, and other S3-compatible stores) |
-| `@mantlejs/upload-gcs`  | Google Cloud Storage adapter for `@mantlejs/upload`                                                |
+| `@mantlejs/storage`     | File upload via busboy, local disk storage                                            |
+| `@mantlejs/storage-s3`  | AWS S3 storage adapter for `@mantlejs/storage` (supports MinIO, R2, and other S3-compatible stores) |
+| `@mantlejs/storage-gcs` | Google Cloud Storage adapter for `@mantlejs/storage`                                               |
 | `@mantlejs/cli`         | Command-line interface — scaffold projects, services, repositories, and hooks         |
 | `@mantlejs/logger`      | Structured logging — pino adapter, `logRequest` / `logError` hooks, correlation ID    |
 | `@mantlejs/schema`      | TypeBox schema validation (`validate`) and field resolution (`resolver`) hooks        |
+| `@mantlejs/memory`      | In-memory `Repository<T>` implementation for testing and prototyping                 |
+| `@mantlejs/config`      | Environment-aware configuration loading with optional schema validation              |
 | `@mantlejs/sync`        | Cross-instance event sync — broadcasts `service:event` emissions across processes via Redis (DragonflyDB-compatible) or Supabase Realtime |
 | `@mantlejs/socketio`    | Socket.IO transport adapter — real-time WebSocket events via the Mantle hook pipeline |
 | `create-mantle`         | Project initializer — scaffold a new Mantle application via `npm create mantle`       |
