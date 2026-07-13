@@ -2,6 +2,12 @@
 
 Work through these in order. Each item maps to a package spec in the Phase 4 PRD.
 
+> **Prerequisites:** the [AI-First Review Remediation Checklist](./ai-first-review-checklist.md) Tier A items
+> (security/correctness fixes) must land before item 8 (npm release), and its Tier B items block work here:
+> B-1 (refresh-token service) blocks item 1 — the client's `POST /authentication/refresh` retry targets an endpoint
+> that does not exist yet — and B-2 (`RepositoryService<T>`) blocks items 1 and 4, which need canonical query
+> semantics and a stable `Paginated<T>` shape to build against.
+
 ---
 
 - [ ] **1. Implement `@mantlejs/client`**
