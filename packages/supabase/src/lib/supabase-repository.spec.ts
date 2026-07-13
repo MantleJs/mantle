@@ -95,6 +95,44 @@ describe("SupabaseRepository", () => {
     });
   });
 
+  // ── $or filter escaping ─────────────────────────────────────────────────────
+
+  describe("$or filter building", () => {
+    it("quotes string values so a comma cannot split the filter", async () => {
+      const chain = makeQuery({ data: [] });
+      fromMock.mockReturnValue(chain);
+      await repo.findAll({ where: { $or: [{ name: "a,b" }, { name: "c" }] } });
+      expect(chain["or"]).toHaveBeenCalledWith('name.eq."a,b",name.eq."c"');
+    });
+
+    it("escapes embedded quotes and parentheses safely", async () => {
+      const chain = makeQuery({ data: [] });
+      fromMock.mockReturnValue(chain);
+      await repo.findAll({ where: { $or: [{ name: 'x")(evil' }] } });
+      expect(chain["or"]).toHaveBeenCalledWith('name.eq."x\\")(evil"');
+    });
+
+    it("leaves numbers and booleans unquoted", async () => {
+      const chain = makeQuery({ data: [] });
+      fromMock.mockReturnValue(chain);
+      await repo.findAll({ where: { $or: [{ age: { $gt: 21 } }, { active: true }] } });
+      expect(chain["or"]).toHaveBeenCalledWith('age.gt.21,active.eq.true');
+    });
+
+    it("builds quoted parenthesized lists for $in inside $or", async () => {
+      const chain = makeQuery({ data: [] });
+      fromMock.mockReturnValue(chain);
+      await repo.findAll({ where: { $or: [{ role: { $in: ["a,b", "c"] } }] } });
+      expect(chain["or"]).toHaveBeenCalledWith('role.in.("a,b","c")');
+    });
+
+    it("throws BadRequest for an unknown operator inside $or", async () => {
+      const chain = makeQuery({ data: [] });
+      fromMock.mockReturnValue(chain);
+      await expect(repo.findAll({ where: { $or: [{ age: { $get: 21 } }] } })).rejects.toBeInstanceOf(BadRequest);
+    });
+  });
+
   // ── findById ───────────────────────────────────────────────────────────────
 
   describe("findById", () => {

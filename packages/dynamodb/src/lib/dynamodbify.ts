@@ -1,5 +1,6 @@
 import { type AttributeValue, type Condition } from "@aws-sdk/client-dynamodb";
 import { marshall } from "@aws-sdk/util-dynamodb";
+import { assertOperators, BadRequest } from "@mantlejs/mantle";
 
 type Primitive = string | number | boolean | null;
 type WhereValue = Primitive | Primitive[] | Record<string, unknown>;
@@ -11,6 +12,25 @@ const COMPARISON_OPS: Record<string, string> = {
   $gt: ">",
   $gte: ">=",
 };
+
+/**
+ * All query operators supported by the DynamoDB adapter.
+ * `$like` is deliberately absent: DynamoDB has no wildcard matching, and remapping
+ * it to `contains()` would silently change its semantics.
+ */
+export const DYNAMODB_OPERATORS: ReadonlySet<string> = new Set([
+  "$lt",
+  "$lte",
+  "$gt",
+  "$gte",
+  "$ne",
+  "$in",
+  "$nin",
+  "$begins",
+  "$contains",
+  "$or",
+  "$and",
+]);
 
 export interface FilterExpression {
   /** The filter expression string, e.g. "#n0 = :v0 AND #n1 > :v1" */
@@ -40,8 +60,11 @@ interface BuildContext {
  *   Logical    : $or, $and
  *   Pattern    : $begins (begins_with)
  *   Contains   : $contains
+ *
+ * Unsupported operators (including `$like`) throw `BadRequest`.
  */
 export function dynamodbify(where: WhereClause): FilterExpression {
+  assertOperators(where, DYNAMODB_OPERATORS, "@mantlejs/dynamodb");
   const ctx: BuildContext = { names: {}, values: {}, nameIdx: 0, valIdx: 0 };
   const expression = buildExpression(where, ctx);
   return { expression, names: ctx.names, values: ctx.values };
@@ -82,7 +105,8 @@ function buildFieldCondition(field: string, value: WhereValue, ctx: BuildContext
   const n = nameAlias(field, ctx);
 
   if (value === null) {
-    return `(attribute_not_exists(${n}) OR ${n} = :null_${ctx.valIdx - 1})`;
+    const v = valueAlias(null, ctx);
+    return `(attribute_not_exists(${n}) OR ${n} = ${v})`;
   }
 
   if (Array.isArray(value)) {
@@ -136,15 +160,14 @@ function buildSpecialOp(n: string, op: string, value: unknown, ctx: BuildContext
       const v = valueAlias(value, ctx);
       return `begins_with(${n}, ${v})`;
     }
-    case "$like":
     case "$contains": {
       const v = valueAlias(value, ctx);
       return `contains(${n}, ${v})`;
     }
     default: {
-      // Fallback: equality
-      const v = valueAlias(value, ctx);
-      return `${n} = ${v}`;
+      throw new BadRequest(
+        `Operator ${op} is not supported by @mantlejs/dynamodb. Supported: ${[...DYNAMODB_OPERATORS].join(", ")}`,
+      );
     }
   }
 }
@@ -165,6 +188,7 @@ export function buildKeyCondition(
   names: Record<string, string>;
   values: Record<string, AttributeValue>;
 } {
+  assertOperators(where, DYNAMODB_OPERATORS, "@mantlejs/dynamodb");
   const ctx: BuildContext = { names: {}, values: {}, nameIdx: 0, valIdx: 0 };
   const keyParts: string[] = [];
   const filterParts: string[] = [];

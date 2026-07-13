@@ -1,4 +1,5 @@
 import type { Knex } from "knex";
+import { assertOperators, BadRequest } from "@mantlejs/mantle";
 
 type Primitive = string | number | boolean | null;
 type WhereValue = Primitive | Primitive[] | Record<string, unknown>;
@@ -10,6 +11,22 @@ const COMPARISON_OPS: Record<string, string> = {
   $gt: ">",
   $gte: ">=",
 };
+
+/** All query operators supported by the Knex adapter. */
+export const KNEX_OPERATORS: ReadonlySet<string> = new Set([
+  "$lt",
+  "$lte",
+  "$gt",
+  "$gte",
+  "$ne",
+  "$in",
+  "$nin",
+  "$like",
+  "$notlike",
+  "$ilike",
+  "$or",
+  "$and",
+]);
 
 /**
  * Translates a structured where clause (with query operators) into Knex query builder calls.
@@ -23,6 +40,7 @@ const COMPARISON_OPS: Record<string, string> = {
  *                field: { $ne: null }  →  IS NOT NULL
  */
 export function knexify(builder: Knex.QueryBuilder, where: WhereClause): Knex.QueryBuilder {
+  assertOperators(where, KNEX_OPERATORS, "@mantlejs/knex");
   for (const [key, value] of Object.entries(where)) {
     if (key === "$or") {
       builder = applyOr(builder, value as unknown as WhereClause[]);
@@ -96,6 +114,8 @@ function applySpecialOp(
     case "$ilike":
       return builder.whereILike(col, value as string);
     default:
-      return builder.where(col, "=", value as Primitive);
+      throw new BadRequest(
+        `Operator ${op} is not supported by @mantlejs/knex. Supported: ${[...KNEX_OPERATORS].join(", ")}`,
+      );
   }
 }

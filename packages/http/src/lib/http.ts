@@ -11,11 +11,27 @@ import { toErrorResponse } from "./error-handler.js";
 export type NodeHttpHandler = (req: IncomingMessage, res: ServerResponse) => void;
 export type FetchHandler = (request: Request) => Promise<Response>;
 
+/** Convert URLSearchParams to a flat map, preserving repeated keys as arrays. */
+function flattenSearchParams(searchParams: URLSearchParams): Record<string, string | string[]> {
+  const flat: Record<string, string | string[]> = {};
+  for (const [key, value] of searchParams) {
+    const existing = flat[key];
+    if (existing === undefined) {
+      flat[key] = value;
+    } else if (Array.isArray(existing)) {
+      existing.push(value);
+    } else {
+      flat[key] = [existing, value];
+    }
+  }
+  return flat;
+}
+
 async function dispatch(
   router: Router,
   method: string,
   pathname: string,
-  query: Record<string, string>,
+  query: Record<string, string | string[]>,
   headers: Record<string, string>,
   body: unknown,
   correlationId: string,
@@ -48,7 +64,7 @@ export function http(): MantlePlugin {
         try {
           const correlationId = (req.headers["x-correlation-id"] as string | undefined) ?? randomUUID();
           const url = new URL(req.url ?? "/", "http://localhost");
-          const query = Object.fromEntries(url.searchParams.entries());
+          const query = flattenSearchParams(url.searchParams);
           const headers = req.headers as Record<string, string>;
           const body = await parseBody(req);
           const result = await dispatch(router, req.method ?? "GET", url.pathname, query, headers, body, correlationId);
@@ -74,7 +90,7 @@ export function http(): MantlePlugin {
     const fetchHandler: FetchHandler = async (request) => {
       const correlationId = request.headers.get("x-correlation-id") ?? randomUUID();
       const url = new URL(request.url);
-      const query = Object.fromEntries(url.searchParams.entries());
+      const query = flattenSearchParams(url.searchParams);
       const headers = Object.fromEntries(request.headers.entries());
 
       let body: unknown;

@@ -1,7 +1,7 @@
 export type RouteHandler = (
   params: Record<string, string>,
   body: unknown,
-  query: Record<string, string>,
+  query: Record<string, string | string[]>,
   headers: Record<string, string>,
 ) => Promise<{ status: number; body: unknown }>;
 

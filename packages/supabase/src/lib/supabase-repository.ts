@@ -233,16 +233,34 @@ export abstract class SupabaseRepository<T extends Record<string, unknown>, D = 
     for (const [col, value] of Object.entries(clause)) {
       if (value === null) {
         parts.push(`${col}.is.null`);
-      } else if (typeof value === "object" && !Array.isArray(value)) {
+      } else if (Array.isArray(value)) {
+        parts.push(`${col}.in.(${value.map((v) => this.quoteOrValue(v)).join(",")})`);
+      } else if (typeof value === "object") {
         for (const [op, opVal] of Object.entries(value as Record<string, unknown>)) {
           const pgOp = this.opToPg(op);
-          parts.push(`${col}.${pgOp}.${String(opVal)}`);
+          if (Array.isArray(opVal)) {
+            parts.push(`${col}.${pgOp}.(${opVal.map((v) => this.quoteOrValue(v)).join(",")})`);
+          } else {
+            parts.push(`${col}.${pgOp}.${this.quoteOrValue(opVal)}`);
+          }
         }
       } else {
-        parts.push(`${col}.eq.${String(value)}`);
+        parts.push(`${col}.eq.${this.quoteOrValue(value)}`);
       }
     }
     return parts.join(",");
+  }
+
+  /**
+   * Quote a value for PostgREST `or=` filter syntax. String values are always
+   * double-quoted with embedded `\` and `"` escaped, so reserved characters
+   * (`,`, `(`, `)`) can never split or terminate the filter expression.
+   */
+  private quoteOrValue(val: unknown): string {
+    if (val === null) return "null";
+    if (typeof val === "number" || typeof val === "boolean") return String(val);
+    const s = String(val);
+    return `"${s.replaceAll("\\", "\\\\").replaceAll('"', '\\"')}"`;
   }
 
   private opToPg(op: string): string {
@@ -256,7 +274,11 @@ export abstract class SupabaseRepository<T extends Record<string, unknown>, D = 
       $like: "like",
       $ilike: "ilike",
     };
-    return map[op] ?? op;
+    const pgOp = map[op];
+    if (pgOp === undefined) {
+      throw new BadRequest(`Unsupported query operator: ${op}`);
+    }
+    return pgOp;
   }
 
   // ─── Repository implementation ─────────────────────────────────────────────

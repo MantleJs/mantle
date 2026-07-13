@@ -250,6 +250,37 @@ describe("koa adapter", () => {
         await stop();
       }
     });
+
+    // Canonical cross-transport fixture (A-6): express, koa, and http must produce
+    // the identical nested params.query for this query string.
+    it("parses operator bracket notation into the canonical nested query", async () => {
+      let capturedQuery: Record<string, unknown> | undefined;
+
+      const { port, stop } = await startApp((app) => {
+        app.use("users", new TestUserService());
+        app.service("users").hooks({
+          before: {
+            find: [
+              (ctx) => {
+                capturedQuery = ctx.params.query;
+                return ctx;
+              },
+            ],
+          },
+        });
+      });
+
+      try {
+        await fetch(`http://localhost:${port}/users?age[$gt]=21&$or[0][role]=admin&$or[1][role]=editor&tags[]=a&tags[]=b`);
+        expect(capturedQuery).toEqual({
+          age: { $gt: "21" },
+          $or: [{ role: "admin" }, { role: "editor" }],
+          tags: ["a", "b"],
+        });
+      } finally {
+        await stop();
+      }
+    });
   });
 
   describe("error handling", () => {

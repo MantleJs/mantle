@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { BadRequest } from "@mantlejs/mantle";
 import { toQdrantFilter } from "./qdrant-filter.js";
 
 describe("toQdrantFilter", () => {
@@ -98,23 +99,25 @@ describe("toQdrantFilter", () => {
     });
   });
 
-  describe("$like and $ilike operators", () => {
-    it("maps $like to must match.text condition", () => {
-      expect(toQdrantFilter({ title: { $like: "%hello%" } })).toEqual({
-        must: [{ key: "title", match: { text: "%hello%" } }],
-      });
+  describe("unsupported operators", () => {
+    it("rejects $like (no pattern matching remap in Qdrant)", () => {
+      expect(() => toQdrantFilter({ title: { $like: "%hello%" } })).toThrow(BadRequest);
+      expect(() => toQdrantFilter({ title: { $like: "%hello%" } })).toThrow(/\$like.*@mantlejs\/qdrant/);
     });
 
-    it("maps $ilike to must match.text condition", () => {
-      expect(toQdrantFilter({ title: { $ilike: "%world%" } })).toEqual({
-        must: [{ key: "title", match: { text: "%world%" } }],
-      });
+    it("rejects $ilike and $notlike", () => {
+      expect(() => toQdrantFilter({ title: { $ilike: "%world%" } })).toThrow(BadRequest);
+      expect(() => toQdrantFilter({ title: { $notlike: "%spam%" } })).toThrow(BadRequest);
     });
 
-    it("maps $notlike to must_not match.text condition", () => {
-      expect(toQdrantFilter({ title: { $notlike: "%spam%" } })).toEqual({
-        must_not: [{ key: "title", match: { text: "%spam%" } }],
-      });
+    it("rejects unknown operators, naming the operator and adapter", () => {
+      expect(() => toQdrantFilter({ age: { $get: 21 } })).toThrow(
+        /Operator \$get is not supported by @mantlejs\/qdrant\. Supported: /,
+      );
+    });
+
+    it("rejects unknown operators nested in $or", () => {
+      expect(() => toQdrantFilter({ $or: [{ age: { $get: 21 } }] })).toThrow(BadRequest);
     });
   });
 

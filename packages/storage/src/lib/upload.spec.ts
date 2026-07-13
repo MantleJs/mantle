@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { mkdtemp, readFile, readdir, rm } from "node:fs/promises";
+import { mkdtemp, readFile, readdir, realpath, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, sep } from "node:path";
 import { PassThrough, Readable } from "node:stream";
 import type { IncomingMessage } from "node:http";
 import type { MantleApplication, HookContext } from "@mantlejs/mantle";
@@ -205,6 +205,45 @@ describe("diskStorage()", () => {
     await storage.store(stream, info);
 
     expect(filenameFn).toHaveBeenCalledWith(info);
+  });
+
+  it("never writes outside the destination for a traversal originalname", async () => {
+    const storage = diskStorage({ destination: tmpDir });
+    const stream = Readable.from(["evil"]);
+    const info: UploadFileInfo = { fieldname: "file", originalname: "../../evil.sh", mimetype: "text/plain" };
+
+    const result = await storage.store(stream, info);
+
+    const resolvedDestination = await realpath(tmpDir);
+    expect((await realpath(result.path)).startsWith(resolvedDestination + sep)).toBe(true);
+    expect(result.path).toMatch(/\d+-evil\.sh$/);
+  });
+
+  it("strips null bytes from the default filename", async () => {
+    const storage = diskStorage({ destination: tmpDir });
+    const stream = Readable.from(["x"]);
+    const info: UploadFileInfo = { fieldname: "file", originalname: "a\0b.txt", mimetype: "text/plain" };
+
+    const result = await storage.store(stream, info);
+
+    expect(result.path).not.toContain("\0");
+    expect(result.path).toMatch(/\d+-ab\.txt$/);
+  });
+
+  it("throws BadRequest when a filename function returns a traversal path", async () => {
+    const storage = diskStorage({ destination: tmpDir, filename: () => "../escape.txt" });
+    const stream = Readable.from(["x"]);
+    const info: UploadFileInfo = { fieldname: "file", originalname: "ok.txt", mimetype: "text/plain" };
+
+    await expect(storage.store(stream, info)).rejects.toBeInstanceOf(BadRequest);
+  });
+
+  it("throws BadRequest when a filename function escapes the root with nested traversal", async () => {
+    const storage = diskStorage({ destination: tmpDir, filename: () => "a/../../escape.txt" });
+    const stream = Readable.from(["x"]);
+    const info: UploadFileInfo = { fieldname: "file", originalname: "ok.txt", mimetype: "text/plain" };
+
+    await expect(storage.store(stream, info)).rejects.toBeInstanceOf(BadRequest);
   });
 });
 

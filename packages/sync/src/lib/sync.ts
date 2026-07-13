@@ -1,13 +1,24 @@
 import { randomUUID } from "node:crypto";
 import type { Logger, MantleApplication, MantlePlugin } from "@mantlejs/mantle";
 
+/**
+ * The whitelisted subset of `ServiceParams` that crosses the broker.
+ * Never carries `headers` (live credentials), the full `user` record, or the
+ * non-serializable `connection`.
+ */
+export interface SyncMessageParams {
+  provider?: string;
+  query?: Record<string, unknown>;
+  user?: { id: string | number };
+}
+
 export interface SyncMessage {
   /** UUID identifying the originating process instance. Used for deduplication. */
   originId: string;
   path: string;
   event: string;
   result: unknown;
-  params: Record<string, unknown>;
+  params: SyncMessageParams;
 }
 
 export interface SyncAdapter {
@@ -41,6 +52,32 @@ export interface SyncOptions {
  * app.configure(sync({ adapter: redisAdapter() }));
  * ```
  */
+/**
+ * Reduce arbitrary service params to the whitelisted wire shape. Applied on both
+ * publish and receive so credentials never cross (or arrive from) the broker.
+ */
+export function toWireParams(params: unknown): SyncMessageParams {
+  if (params === null || typeof params !== "object") return {};
+  const source = params as Record<string, unknown>;
+  const wire: SyncMessageParams = {};
+
+  if (typeof source["provider"] === "string") {
+    wire.provider = source["provider"];
+  }
+  if (source["query"] !== null && typeof source["query"] === "object" && !Array.isArray(source["query"])) {
+    wire.query = source["query"] as Record<string, unknown>;
+  }
+  const user = source["user"];
+  if (user !== null && typeof user === "object") {
+    const id = (user as Record<string, unknown>)["id"];
+    if (typeof id === "string" || typeof id === "number") {
+      wire.user = { id };
+    }
+  }
+
+  return wire;
+}
+
 export function sync(options: SyncOptions): MantlePlugin {
   return async (app: MantleApplication): Promise<void> => {
     const instanceId = randomUUID();
@@ -54,7 +91,7 @@ export function sync(options: SyncOptions): MantlePlugin {
         path: path as string,
         event: event as string,
         result,
-        params: (params ?? {}) as Record<string, unknown>,
+        params: toWireParams(params),
       };
       adapter.publish(channelName, message).catch((err: unknown) => {
         logger?.warn("sync: publish failed", { component: "mantle:sync", error: String(err) });
@@ -64,7 +101,7 @@ export function sync(options: SyncOptions): MantlePlugin {
     try {
       await adapter.subscribe(channelName, (message: SyncMessage) => {
         if (message.originId === instanceId) return;
-        app.emit("service:event", message.path, message.event, message.result, message.params);
+        app.emit("service:event", message.path, message.event, message.result, toWireParams(message.params));
       });
     } catch (err) {
       logger?.warn("sync: subscribe failed", { component: "mantle:sync", error: String(err) });

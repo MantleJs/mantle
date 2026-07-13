@@ -1,8 +1,8 @@
 import type { Driver, Session } from "neo4j-driver";
 import type { Id, QueryParams, GraphRepository } from "@mantlejs/mantle";
-import { GeneralError, NotFound } from "@mantlejs/mantle";
+import { BadRequest, GeneralError, MantleError, NotFound } from "@mantlejs/mantle";
 import type { MantleApplication } from "@mantlejs/mantle";
-import { toNeo4jWhere } from "./neo4j-where.js";
+import { assertValidFieldName, toNeo4jWhere } from "./neo4j-where.js";
 import type { WhereClause } from "./neo4j-where.js";
 
 /**
@@ -119,9 +119,13 @@ export abstract class Neo4jRepository<T extends Record<string, unknown>> impleme
         cypher += " RETURN n";
 
         if (params?.sort) {
-          const sortParts = Object.entries(params.sort).map(
-            ([field, dir]) => `n.${field} ${dir.toUpperCase()}`,
-          );
+          const sortParts = Object.entries(params.sort).map(([field, dir]) => {
+            assertValidFieldName(field);
+            if (dir !== "asc" && dir !== "desc") {
+              throw new BadRequest(`Invalid sort direction: ${String(dir)}`);
+            }
+            return `n.${field} ${dir.toUpperCase()}`;
+          });
           cypher += ` ORDER BY ${sortParts.join(", ")}`;
         }
 
@@ -237,8 +241,7 @@ export abstract class Neo4jRepository<T extends Record<string, unknown>> impleme
   // ─── Error helper ─────────────────────────────────────────────────────────
 
   protected wrapError(err: unknown): Error {
-    if (err instanceof NotFound) return err;
-    if (err instanceof GeneralError) return err;
+    if (err instanceof MantleError) return err;
     if (err instanceof Error) return new GeneralError(err.message);
     return new GeneralError("An unknown Neo4j error occurred");
   }

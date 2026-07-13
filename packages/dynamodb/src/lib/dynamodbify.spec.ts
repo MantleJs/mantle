@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { BadRequest } from "@mantlejs/mantle";
 import { dynamodbify, buildKeyCondition } from "./dynamodbify.js";
 
 describe("dynamodbify", () => {
@@ -14,6 +15,17 @@ describe("dynamodbify", () => {
   it("handles null values (attribute_not_exists)", () => {
     const result = dynamodbify({ deletedAt: null });
     expect(result.expression).toMatch(/attribute_not_exists/);
+  });
+
+  it("registers every value alias referenced by a null filter", () => {
+    const result = dynamodbify({ deletedAt: null });
+    const referenced = result.expression.match(/:[A-Za-z0-9_]+/g) ?? [];
+    expect(referenced.length).toBeGreaterThan(0);
+    for (const alias of referenced) {
+      expect(result.values).toHaveProperty(alias);
+    }
+    const registered = Object.values(result.values);
+    expect(registered).toContainEqual({ NULL: true });
   });
 
   it("handles $gt, $lt, $gte, $lte operators", () => {
@@ -61,9 +73,20 @@ describe("dynamodbify", () => {
     expect(result.expression).toMatch(/contains/);
   });
 
-  it("handles $like operator as contains()", () => {
-    const result = dynamodbify({ name: { $like: "Alice" } });
-    expect(result.expression).toMatch(/contains/);
+  it("rejects $like (no wildcard matching in DynamoDB)", () => {
+    expect(() => dynamodbify({ name: { $like: "Alice" } })).toThrow(BadRequest);
+    expect(() => dynamodbify({ name: { $like: "Alice" } })).toThrow(/\$like.*@mantlejs\/dynamodb/);
+  });
+
+  it("rejects unknown operators, naming the operator and adapter", () => {
+    expect(() => dynamodbify({ age: { $get: 21 } })).toThrow(BadRequest);
+    expect(() => dynamodbify({ age: { $get: 21 } })).toThrow(
+      /Operator \$get is not supported by @mantlejs\/dynamodb\. Supported: /,
+    );
+  });
+
+  it("rejects unknown operators nested in $or", () => {
+    expect(() => dynamodbify({ $or: [{ age: { $get: 21 } }] })).toThrow(BadRequest);
   });
 
   it("handles array shorthand as $in", () => {

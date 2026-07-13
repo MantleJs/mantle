@@ -15,7 +15,7 @@ them before the Phase 4 item 8 release cut.
 
 ## Tier A — Pre-release fixes (P0, independent, small)
 
-- [ ] **A-1. Fix DynamoDB `{ field: null }` filter (Q2)**
+- [x] **A-1. Fix DynamoDB `{ field: null }` filter (Q2)**
   `packages/dynamodb/src/lib/dynamodbify.ts:84-86` builds `(attribute_not_exists(#n) OR #n = :null_N)` but never
   registers `:null_N` in `ctx.values` — DynamoDB rejects the expression at runtime. Fix: register the alias
   explicitly via the existing `valueAlias(null, ctx)` (marshalls to `{ NULL: true }`) and interpolate the returned
@@ -24,7 +24,7 @@ them before the Phase 4 item 8 release cut.
   `expression` exists as a key in `values`; integration-style spec (mocked client) that `findAll({ where: { x: null } })`
   sends a well-formed `FilterExpression`.
 
-- [ ] **A-2. Whitelist Neo4j field identifiers (Q3)**
+- [x] **A-2. Whitelist Neo4j field identifiers (Q3)**
   `packages/neo4j/src/lib/neo4j-repository.ts:123` interpolates sort field names into Cypher unparameterized
   (`` `n.${field} ${dir}` ``), and `packages/neo4j/src/lib/neo4j-where.ts` interpolates where-clause *field names*
   (values are parameterized, names are not). Both can originate from HTTP `params.query`. Fix: in both files,
@@ -33,7 +33,7 @@ them before the Phase 4 item 8 release cut.
   **Accept:** specs proving `findNodes({ sort: { "id} RETURN n //": "asc" } })` and a malicious where key both throw
   `BadRequest` and never reach `session.run`.
 
-- [ ] **A-3. Fail loud on unsupported query operators everywhere (Q1)**
+- [x] **A-3. Fail loud on unsupported query operators everywhere (Q1)**
   Today unknown/unsupported operators silently corrupt results. Three changes, one convention:
   (a) Add `assertOperators(where: Record<string, unknown>, supported: ReadonlySet<string>, adapterName: string): void`
   to `@mantlejs/mantle` (new `packages/mantle/src/lib/query-operators.ts`, export from `src/index.ts`). It walks the
@@ -50,7 +50,7 @@ them before the Phase 4 item 8 release cut.
   **Accept:** per-adapter spec: an unknown operator (`$get`) throws `BadRequest` naming the operator and adapter;
   `@mantlejs/memory` (full operator support, `memory-repository.ts:154-207`) still passes untouched.
 
-- [ ] **A-4. Stop publishing credentials to the sync broker (E1, E2)**
+- [x] **A-4. Stop publishing credentials to the sync broker (E1, E2)**
   `packages/sync/src/lib/sync.ts:51-62` publishes the full `ctx.params` — including `headers.authorization` (the
   caller's live JWT), `params.user`, and the non-serializable `params.connection` — to Redis verbatim. Fix: build the
   wire message from a whitelist only: `{ provider: params.provider, query: params.query, user: params.user?.["id"] != null ? { id: params.user["id"] } : undefined }`.
@@ -59,7 +59,7 @@ them before the Phase 4 item 8 release cut.
   `headers: { authorization: "Bearer x" }` and `connection: {...}`, the payload passed to `adapter.publish` contains
   neither; round-trip spec that a received message re-emits with the whitelisted shape.
 
-- [ ] **A-5. Sanitize disk-storage filenames (X2)**
+- [x] **A-5. Sanitize disk-storage filenames (X2)**
   `packages/storage/src/lib/disk-storage.ts:14-15` joins client-controlled `originalname` into the destination path —
   `a/../../../x` escapes the upload root. Fix: (1) default filename uses `path.basename(info.originalname)` with null
   bytes stripped; (2) after `path.join`, verify containment:
@@ -70,7 +70,7 @@ them before the Phase 4 item 8 release cut.
   **Accept:** spec: `store()` with `originalname: "../../evil.sh"` writes inside `destination` (or throws) — never
   outside; spec with a `filename` config returning a traversal path throws.
 
-- [ ] **A-6. Canonical query parsing across all three HTTP transports (X1)**
+- [x] **A-6. Canonical query parsing across all three HTTP transports (X1)**
   Express parses `?age[$gt]=21` into `{ age: { $gt: "21" } }` (qs); `@mantlejs/http` produces the flat literal key
   `"age[$gt]"` (`packages/http/src/lib/http.ts:51,77` — `Object.fromEntries(url.searchParams)`); Koa's `ctx.query`
   is also flat (`packages/koa/src/lib/routes.ts:9`). Operator queries silently break on two of three transports.
@@ -82,7 +82,7 @@ them before the Phase 4 item 8 release cut.
   **Accept:** cross-transport fixture spec (`?age[$gt]=21&$or[0][role]=admin&$or[1][role]=editor&tags[]=a&tags[]=b`)
   produces the identical nested object via express, koa, and http packages.
 
-- [ ] **A-7. Escape Supabase `or` filter values (Q8)**
+- [x] **A-7. Escape Supabase `or` filter values (Q8)**
   `packages/supabase/src/lib/supabase-repository.ts:231-246` stringifies values into PostgREST `or` syntax —
   a value containing `,` or `()` corrupts the filter. Fix: PostgREST supports double-quoting
   (`col.eq."val,ue"`); quote every value and escape embedded quotes, or throw `BadRequest` for values matching

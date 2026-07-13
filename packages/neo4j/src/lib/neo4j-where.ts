@@ -1,6 +1,21 @@
+import { BadRequest } from "@mantlejs/mantle";
+
 type Primitive = string | number | boolean | null;
 type WhereValue = Primitive | Primitive[] | Record<string, unknown>;
 export type WhereClause = Record<string, WhereValue>;
+
+const VALID_FIELD_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/;
+
+/**
+ * Field identifiers are interpolated into Cypher unparameterized (Neo4j does not
+ * support parameterized property names), so every identifier that can originate
+ * from `params.query` must be whitelisted before it reaches `session.run`.
+ */
+export function assertValidFieldName(name: string): void {
+  if (!VALID_FIELD_NAME.test(name)) {
+    throw new BadRequest(`Invalid field name: ${name}`);
+  }
+}
 
 export interface WhereResult {
   cypher: string;
@@ -50,15 +65,19 @@ export function toNeo4jWhere(where: WhereClause, alias = "n"): WhereResult {
         const subExprs = (value as unknown as WhereClause[]).map((c) => `(${buildExpr(c)})`);
         parts.push(`(${subExprs.join(" AND ")})`);
       } else if (value === null) {
+        assertValidFieldName(key);
         parts.push(`${alias}.${key} IS NULL`);
       } else if (Array.isArray(value)) {
+        assertValidFieldName(key);
         const pk = nextKey();
         params[pk] = value;
         parts.push(`${alias}.${key} IN $${pk}`);
       } else if (typeof value === "object") {
+        assertValidFieldName(key);
         const ops = value as Record<string, unknown>;
         buildOpExpr(key, ops, parts);
       } else {
+        assertValidFieldName(key);
         const pk = nextKey();
         params[pk] = value;
         parts.push(`${alias}.${key} = $${pk}`);

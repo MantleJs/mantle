@@ -1,11 +1,14 @@
 import type { Application, NextFunction, Request, Response } from "express";
 import type { MantleApplication, ServiceHandle, ServiceOptions, ServiceParams } from "@mantlejs/mantle";
+import { parseQueryString } from "@mantlejs/mantle";
 
 const STANDARD_METHODS = new Set(["find", "get", "create", "update", "patch", "remove"]);
 
 function buildParams(req: Request): ServiceParams {
+  // Express 5's default "simple" parser leaves bracket keys flat; run the canonical
+  // Mantle parser so every transport produces identical params.query.
   return {
-    query: req.query as Record<string, unknown>,
+    query: parseQueryString(req.query as Record<string, string | string[]>),
     provider: "rest",
     headers: req.headers as Record<string, string>,
     request: req,

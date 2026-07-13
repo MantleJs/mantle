@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { Neo4jRepository } from "./neo4j-repository.js";
-import { NotFound } from "@mantlejs/mantle";
+import { BadRequest, NotFound } from "@mantlejs/mantle";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -130,6 +130,25 @@ describe("Neo4jRepository", () => {
       await repo.findNodes({ sort: { name: "asc" } });
       const query = session.run.mock.calls[0][0] as string;
       expect(query).toContain("ORDER BY n.name ASC");
+    });
+
+    it("rejects Cypher injection via sort field names before reaching session.run", async () => {
+      await expect(repo.findNodes({ sort: { "id} RETURN n //": "asc" } })).rejects.toBeInstanceOf(BadRequest);
+      expect(session.run).not.toHaveBeenCalled();
+    });
+
+    it("rejects an invalid sort direction before reaching session.run", async () => {
+      await expect(
+        repo.findNodes({ sort: { name: "asc} RETURN n //" as "asc" } }),
+      ).rejects.toBeInstanceOf(BadRequest);
+      expect(session.run).not.toHaveBeenCalled();
+    });
+
+    it("rejects Cypher injection via where field names before reaching session.run", async () => {
+      await expect(
+        repo.findNodes({ where: { "name = 'x' RETURN n //": "Alice" } }),
+      ).rejects.toBeInstanceOf(BadRequest);
+      expect(session.run).not.toHaveBeenCalled();
     });
   });
 

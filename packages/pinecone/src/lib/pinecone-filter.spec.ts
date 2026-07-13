@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { BadRequest } from "@mantlejs/mantle";
 import { toPineconeFilter } from "./pinecone-filter.js";
 
 describe("toPineconeFilter", () => {
@@ -62,8 +63,23 @@ describe("toPineconeFilter", () => {
     ).toEqual({ $and: [{ age: { $gt: 18 } }, { age: { $lt: 65 } }] });
   });
 
-  it("silently ignores $like (unsupported by Pinecone)", () => {
-    expect(toPineconeFilter({ name: { $like: "%alice%" } })).toEqual({ name: {} });
+  it("rejects $like (no pattern matching in Pinecone)", () => {
+    expect(() => toPineconeFilter({ name: { $like: "%alice%" } })).toThrow(BadRequest);
+    expect(() => toPineconeFilter({ name: { $like: "%alice%" } })).toThrow(/\$like.*@mantlejs\/pinecone/);
+  });
+
+  it("rejects unknown operators, naming the operator and adapter", () => {
+    expect(() => toPineconeFilter({ age: { $get: 21 } })).toThrow(
+      /Operator \$get is not supported by @mantlejs\/pinecone\. Supported: /,
+    );
+  });
+
+  it("rejects unknown operators nested in $or", () => {
+    expect(() => toPineconeFilter({ $or: [{ age: { $get: 21 } }] } as Record<string, unknown>)).toThrow(BadRequest);
+  });
+
+  it("passes $eq through unchanged", () => {
+    expect(toPineconeFilter({ name: { $eq: "Alice" } })).toEqual({ name: { $eq: "Alice" } });
   });
 
   it("handles multiple fields in a single clause", () => {

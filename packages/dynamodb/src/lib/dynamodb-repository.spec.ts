@@ -137,6 +137,20 @@ describe("DynamoDbRepository", () => {
       mockSend.mockRejectedValue(new Error("network error"));
       await expect(new UserRepo(app).findAll()).rejects.toBeInstanceOf(GeneralError);
     });
+
+    it("sends a well-formed FilterExpression for a null filter", async () => {
+      mockSend.mockResolvedValue({ Items: [], Count: 0 });
+
+      await new UserRepo(app).findAll({ where: { deletedAt: null } });
+
+      const input = mockSend.mock.calls[0][0].input;
+      expect(input.FilterExpression).toMatch(/attribute_not_exists/);
+      const referenced = (input.FilterExpression as string).match(/:[A-Za-z0-9_]+/g) ?? [];
+      expect(referenced.length).toBeGreaterThan(0);
+      for (const alias of referenced) {
+        expect(input.ExpressionAttributeValues).toHaveProperty(alias);
+      }
+    });
   });
 
   describe("findById", () => {

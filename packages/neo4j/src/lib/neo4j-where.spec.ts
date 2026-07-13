@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { BadRequest } from "@mantlejs/mantle";
 import { toNeo4jWhere } from "./neo4j-where.js";
 
 describe("toNeo4jWhere", () => {
@@ -167,6 +168,32 @@ describe("toNeo4jWhere", () => {
     it("uses provided alias instead of 'n'", () => {
       const { cypher } = toNeo4jWhere({ name: "Alice" }, "m");
       expect(cypher).toBe("m.name = $_w_0");
+    });
+  });
+
+  describe("field name whitelisting", () => {
+    it("throws BadRequest for an injection attempt in an equality key", () => {
+      expect(() => toNeo4jWhere({ "name = 'x' RETURN n //": "Alice" })).toThrow(BadRequest);
+    });
+
+    it("throws BadRequest for an injection attempt in an operator key", () => {
+      expect(() => toNeo4jWhere({ "age} RETURN n //": { $gt: 1 } })).toThrow(BadRequest);
+    });
+
+    it("throws BadRequest for an injection attempt in a null-check key", () => {
+      expect(() => toNeo4jWhere({ "x IS NULL OR true //": null })).toThrow(BadRequest);
+    });
+
+    it("throws BadRequest for an injection attempt inside $or branches", () => {
+      expect(() => toNeo4jWhere({ $or: [{ "bad key": "v" }] })).toThrow(BadRequest);
+    });
+
+    it("names the offending field in the error message", () => {
+      expect(() => toNeo4jWhere({ "bad key": "v" })).toThrow("Invalid field name: bad key");
+    });
+
+    it("allows underscore-prefixed and alphanumeric identifiers", () => {
+      expect(() => toNeo4jWhere({ _private: 1, field2: "x" })).not.toThrow();
     });
   });
 });

@@ -1,12 +1,13 @@
 import Router from "@koa/router";
 import type { Context } from "koa";
 import type { MantleApplication, ServiceHandle, ServiceOptions, ServiceParams } from "@mantlejs/mantle";
+import { parseQueryString } from "@mantlejs/mantle";
 
 const STANDARD_METHODS = new Set(["find", "get", "create", "update", "patch", "remove"]);
 
 function buildParams(ctx: Context): ServiceParams {
   return {
-    query: ctx.query as Record<string, unknown>,
+    query: parseQueryString(ctx.query as Record<string, string | string[]>),
     provider: "koa",
     headers: ctx.headers as Record<string, string>,
     request: ctx.req,

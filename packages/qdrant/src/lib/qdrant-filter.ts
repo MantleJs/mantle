@@ -1,8 +1,27 @@
+import { assertOperators } from "@mantlejs/mantle";
+
 type Primitive = string | number | boolean | null;
 type WhereValue = Primitive | Primitive[] | Record<string, unknown>;
 export type WhereClause = Record<string, WhereValue>;
 
 type Condition = Record<string, unknown>;
+
+/**
+ * All query operators supported by the Qdrant adapter.
+ * `$like`/`$ilike`/`$notlike` are deliberately absent: remapping them to Qdrant
+ * full-text match would silently change their semantics.
+ */
+export const QDRANT_OPERATORS: ReadonlySet<string> = new Set([
+  "$lt",
+  "$lte",
+  "$gt",
+  "$gte",
+  "$ne",
+  "$in",
+  "$nin",
+  "$or",
+  "$and",
+]);
 
 /**
  * Convert a Mantle `QueryParams.where` clause to a Qdrant payload filter object.
@@ -16,12 +35,13 @@ type Condition = Record<string, unknown>;
  *   { field: { $ne: null } }      → must_not: [{ is_null: { key: "field" } }]
  *   { field: { $in: [...] } }     → must: [{ key: "field", match: { any: [...] } }]
  *   { field: { $nin: [...] } }    → must_not: [{ key: "field", match: { any: [...] } }]
- *   { field: { $like/$ilike } }   → must: [{ key: "field", match: { text: value } }]
- *   { field: { $notlike } }       → must_not: [{ key: "field", match: { text: value } }]
  *   { $or: [...] }                → should: [mapped...]
  *   { $and: [...] }               → must: [mapped...]
+ *
+ * Unsupported operators (including $like/$ilike/$notlike) throw `BadRequest`.
  */
 export function toQdrantFilter(where: WhereClause): Record<string, unknown> {
+  assertOperators(where, QDRANT_OPERATORS, "@mantlejs/qdrant");
   const must: Condition[] = [];
   const must_not: Condition[] = [];
   const should: Condition[] = [];
@@ -66,18 +86,6 @@ export function toQdrantFilter(where: WhereClause): Record<string, unknown> {
 
       if ("$nin" in ops) {
         must_not.push({ key, match: { any: ops["$nin"] as (string | number)[] } });
-      }
-
-      if ("$like" in ops) {
-        must.push({ key, match: { text: ops["$like"] as string } });
-      }
-
-      if ("$ilike" in ops) {
-        must.push({ key, match: { text: ops["$ilike"] as string } });
-      }
-
-      if ("$notlike" in ops) {
-        must_not.push({ key, match: { text: ops["$notlike"] as string } });
       }
     } else {
       must.push({ key, match: { value: value as string | number | boolean } });

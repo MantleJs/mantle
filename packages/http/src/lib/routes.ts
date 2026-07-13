@@ -1,11 +1,12 @@
 import type { MantleApplication, ServiceHandle, ServiceOptions, ServiceParams } from "@mantlejs/mantle";
+import { parseQueryString } from "@mantlejs/mantle";
 import type { Router } from "./router.js";
 
 const STANDARD_METHODS = new Set(["find", "get", "create", "update", "patch", "remove"]);
 
-function buildParams(query: Record<string, string>, headers: Record<string, string>): ServiceParams {
+function buildParams(query: Record<string, string | string[]>, headers: Record<string, string>): ServiceParams {
   return {
-    query: query as Record<string, unknown>,
+    query: parseQueryString(query),
     provider: "http",
     headers,
   };

@@ -117,6 +117,66 @@ describe("sync", () => {
     expect(emitSpy).toHaveBeenCalledWith("service:event", "posts", "created", { id: 99 }, {});
   });
 
+  it("never publishes headers, connection, or the full user record", async () => {
+    const messages: SyncMessage[] = [];
+    const adapter = makeAdapter({
+      publish: vi.fn().mockImplementation(async (_ch: string, msg: SyncMessage) => {
+        messages.push(msg);
+      }),
+    });
+    const app = mantle();
+    await sync({ adapter })(app);
+
+    app.emit("service:event", "users", "created", { id: 1 }, {
+      provider: "rest",
+      query: { active: true },
+      headers: { authorization: "Bearer x" },
+      connection: { socket: "not-serializable" },
+      user: { id: 7, email: "alice@example.com", password: "hash" },
+    });
+
+    await vi.waitFor(() => expect(messages.length).toBe(1));
+    expect(messages[0].params).toEqual({
+      provider: "rest",
+      query: { active: true },
+      user: { id: 7 },
+    });
+    expect(messages[0].params).not.toHaveProperty("headers");
+    expect(messages[0].params).not.toHaveProperty("connection");
+  });
+
+  it("re-emits received messages with the whitelisted params shape only", async () => {
+    let capturedHandler: ((msg: SyncMessage) => void) | null = null;
+    const adapter = makeAdapter({
+      subscribe: vi.fn().mockImplementation(async (_ch: string, handler: (msg: SyncMessage) => void) => {
+        capturedHandler = handler;
+      }),
+    });
+
+    const app = mantle();
+    await sync({ adapter })(app);
+
+    const emitSpy = vi.spyOn(app, "emit");
+
+    if (!capturedHandler) throw new Error("handler not captured");
+    capturedHandler({
+      originId: "other-instance-id",
+      path: "posts",
+      event: "created",
+      result: { id: 99 },
+      params: {
+        provider: "rest",
+        user: { id: 5 },
+        headers: { authorization: "Bearer leaked" },
+      } as unknown as SyncMessage["params"],
+    });
+
+    expect(emitSpy).toHaveBeenCalledWith("service:event", "posts", "created", { id: 99 }, {
+      provider: "rest",
+      user: { id: 5 },
+    });
+  });
+
   it("closes the adapter during teardown", async () => {
     const adapter = makeAdapter();
     const app = mantle();

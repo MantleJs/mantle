@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { Knex } from "knex";
+import { BadRequest } from "@mantlejs/mantle";
 import { knexify } from "./knexify.js";
 
 function makeBuilder() {
@@ -185,6 +186,21 @@ describe("knexify", () => {
       expect((qb as unknown as Record<string, ReturnType<typeof vi.fn>>)["where"]).toHaveBeenCalledWith(
         expect.any(Function),
       );
+    });
+  });
+
+  describe("unsupported operators", () => {
+    it("rejects unknown operators, naming the operator and adapter", () => {
+      const qb = makeBuilder();
+      expect(() => knexify(qb, { age: { $get: 21 } })).toThrow(BadRequest);
+      expect(() => knexify(qb, { age: { $get: 21 } })).toThrow(
+        /Operator \$get is not supported by @mantlejs\/knex\. Supported: /,
+      );
+    });
+
+    it("rejects unknown operators nested in $or", () => {
+      const qb = makeBuilder();
+      expect(() => knexify(qb, { $or: [{ age: { $get: 21 } }] })).toThrow(BadRequest);
     });
   });
 
