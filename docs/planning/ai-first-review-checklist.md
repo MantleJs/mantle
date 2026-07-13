@@ -94,7 +94,7 @@ them before the Phase 4 item 8 release cut.
 
 ## Tier B — Design tasks (P0, TDD section first, blocks Phase 4 items 1 & 4)
 
-- [ ] **B-1. Refresh-token service in `@mantlejs/auth` (A3)**
+- [x] **B-1. Refresh-token service in `@mantlejs/auth` (A3)**
   Phase 4 checklist item 1 (`@mantlejs/client`) specifies retry-via-`POST /authentication/refresh` against an
   endpoint that does not exist. `packages/auth-oauth/src/lib/create-oauth-plugin.ts:106` mints
   `engine.createJwt({ sub, type: "refresh" })` — same secret, same expiry, no storage, no rotation, no revocation.
@@ -110,7 +110,7 @@ them before the Phase 4 item 8 release cut.
   Phase 4 client item can then target `POST /authentication` with `strategy: "refresh"` (adjust the client spec
   wording or add the `/authentication/refresh` alias route — decide in the TDD).
 
-- [ ] **B-2. `RepositoryService<T>` in `@mantlejs/mantle` (review §4 item 2, exec finding 1)**
+- [x] **B-2. `RepositoryService<T>` in `@mantlejs/mantle` (review §4 item 2, exec finding 1)**
   There is no framework-owned bridge from `ServiceParams.query` (raw strings) to `QueryParams` — every service
   hand-rolls it, which breaks type coercion, invites unfiltered field access, and leaves `find()` returning an
   unpredictable `T[] | Paginated<T>`. Design (TDD first — this defines HTTP query semantics for OpenAPI and the

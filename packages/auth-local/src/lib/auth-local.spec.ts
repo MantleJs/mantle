@@ -22,6 +22,9 @@ function makeEngine(overrides: Partial<AuthEngine> = {}): AuthEngine {
     config: { secret: "test" },
     createJwt: vi.fn().mockReturnValue("mock.jwt.token"),
     verifyJwt: vi.fn(),
+    createTokenPair: vi
+      .fn()
+      .mockResolvedValue({ accessToken: "mock.jwt.token", refreshToken: "mock.refresh.token" }),
     registerStrategy: vi.fn(),
     authenticate: vi.fn(),
     ...overrides,
@@ -80,10 +83,11 @@ describe("localStrategy()", () => {
 
       expect(mockVerify).toHaveBeenCalledWith(STORED_HASH, "secret");
       expect(result.accessToken).toBe("mock.jwt.token");
+      expect(result["refreshToken"]).toBe("mock.refresh.token");
       expect(result.user).toEqual(user);
     });
 
-    it("creates JWT with sub set to the user id", async () => {
+    it("creates the token pair with sub set to the user id", async () => {
       const user = { id: 42, email: "bob@example.com", password: STORED_HASH };
       const engine = makeEngine();
       const app = makeApp(engine, [user]);
@@ -92,7 +96,7 @@ describe("localStrategy()", () => {
 
       await strategy.authenticate({ email: "bob@example.com", password: "pw" }, {});
 
-      expect(engine.createJwt).toHaveBeenCalledWith({ sub: "42" });
+      expect(engine.createTokenPair).toHaveBeenCalledWith("42");
     });
 
     it("handles paginated find results", async () => {
@@ -184,7 +188,7 @@ describe("localStrategy()", () => {
       const strategy = captureStrategy(app);
 
       await strategy.authenticate({ email: "alice@example.com", password: "pw" }, {});
-      expect(engine.createJwt).toHaveBeenCalledWith({ sub: "abc123" });
+      expect(engine.createTokenPair).toHaveBeenCalledWith("abc123");
     });
   });
 });

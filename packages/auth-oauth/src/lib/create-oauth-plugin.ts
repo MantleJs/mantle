@@ -102,8 +102,7 @@ export function createOAuthPlugin(
         const user = await findOrCreateUser(app, entity, entityIdField, profile);
 
         const sub = String(user["id"] ?? user["_id"]);
-        const accessToken = engine.createJwt({ sub });
-        const refreshToken = engine.createJwt({ sub, type: "refresh" });
+        const { accessToken, refreshToken } = await engine.createTokenPair(sub);
 
         res.json({ accessToken, refreshToken, user });
       } catch (err) {

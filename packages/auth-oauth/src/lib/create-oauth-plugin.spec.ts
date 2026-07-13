@@ -71,6 +71,9 @@ function makeEngine(overrides: Partial<AuthEngine> = {}): AuthEngine {
     config: { secret: "test" },
     createJwt: vi.fn().mockReturnValue("mantle.jwt.token"),
     verifyJwt: vi.fn(),
+    createTokenPair: vi
+      .fn()
+      .mockResolvedValue({ accessToken: "mantle.jwt.token", refreshToken: "mantle.refresh.token" }),
     registerStrategy: vi.fn(),
     authenticate: vi.fn(),
     ...overrides,
@@ -294,21 +297,20 @@ describe("createOAuthPlugin()", () => {
       const { res } = await invokeCallback();
       expect(res.json).toHaveBeenCalledWith({
         accessToken: "mantle.jwt.token",
-        refreshToken: "mantle.jwt.token",
+        refreshToken: "mantle.refresh.token",
         user: EXISTING_USER,
       });
     });
 
-    it("creates both access and refresh JWTs with sub set to user id", async () => {
+    it("issues the token pair with sub set to user id", async () => {
       const { engine } = await invokeCallback();
-      expect(engine.createJwt).toHaveBeenCalledWith({ sub: "1" });
-      expect(engine.createJwt).toHaveBeenCalledWith({ sub: "1", type: "refresh" });
+      expect(engine.createTokenPair).toHaveBeenCalledWith("1");
     });
 
     it("falls back to _id when id is not present on the user", async () => {
       vi.mocked(findOrCreateUser).mockResolvedValueOnce({ _id: "mongo-id", testId: "uid123" });
       const { engine } = await invokeCallback();
-      expect(engine.createJwt).toHaveBeenCalledWith({ sub: "mongo-id" });
+      expect(engine.createTokenPair).toHaveBeenCalledWith("mongo-id");
     });
 
     it("handles paginated find results via findOrCreateUser", async () => {

@@ -22,6 +22,8 @@
 10. [Batch Requests — Server Dispatch & Client Coalescing](#batch-requests--server-dispatch--client-coalescing)
 11. [CORS — Per-Transport Option Shape](#cors--per-transport-option-shape)
 12. [`StorageAdapter` Interface Diff](#storageadapter-interface-diff)
+13. [Refresh-Token Service — `@mantlejs/auth` (B-1)](#refresh-token-service--mantlejsauth-b-1)
+14. [`RepositoryService<T>` — Framework Query Bridge (B-2)](#repositoryservicet--framework-query-bridge-b-2)
 
 ---
 
@@ -699,3 +701,226 @@ reflects the request `Origin` header, all Mantle CRUD verbs, no credentials unle
 `key` for disk storage is the filename relative to `destination` (what `path` already resolved to before this
 change); for S3/GCS, `key` is the object key used when the file was stored — `path` continues to hold the
 public-style URL for display, `key` is what callers pass back into `retrieve()`/`delete()`/`getSignedUrl()`.
+
+---
+
+## Refresh-Token Service — `@mantlejs/auth` (B-1)
+
+Closes review finding A3: refresh tokens are currently minted by the OAuth callback with the same secret, same
+expiry, no storage, no rotation, and no revocation. This section defines the server-side refresh contract the
+Phase 4 client retries against.
+
+### Config additions (`packages/auth/src/lib/types.ts`)
+
+```typescript
+export interface AuthConfig {
+  secret: string;
+  algorithms?: string[];
+  expiresIn?: string | number;          // access-token TTL, default "1d" (unchanged)
+  issuer?: string;
+  audience?: string | string[];
+  refreshExpiresIn?: string | number;   // NEW — refresh-token TTL, default "30d"
+  refreshTokenStore?: RefreshTokenStore; // NEW — default: in-memory store
+}
+
+export interface RefreshTokenStore {
+  /** Record an issued refresh token. `expiresAt` is the JWT `exp` in epoch seconds. */
+  add(jti: string, sub: string, expiresAt: number): void | Promise<void>;
+  /**
+   * Atomically remove and return whether `jti` was present. A `false` return on a
+   * token whose JWT still verifies means the token was already used — theft signal.
+   * (Redis implementation: GETDEL — see checklist D-6.)
+   */
+  consume(jti: string): boolean | Promise<boolean>;
+  /** Revoke every outstanding refresh token for a subject. */
+  revokeAll(sub: string): void | Promise<void>;
+}
+```
+
+All three methods are sync-or-async so the in-memory default stays allocation-free while a Redis-backed store
+(D-6) can be injected without an interface change. The in-memory store (`packages/auth/src/lib/refresh-token-store.ts`,
+exported as `memoryRefreshTokenStore()`) keeps `Map<jti, { sub, expiresAt }>` plus a per-sub index for `revokeAll`,
+and prunes expired entries opportunistically on `add`.
+
+### Token issuance — one helper, used everywhere
+
+`AuthEngine` gains:
+
+```typescript
+export interface AuthEngine {
+  // ...existing members unchanged...
+  /**
+   * Issue an access + refresh token pair for a subject. The refresh token carries
+   * { sub, type: "refresh", jti } signed with `refreshExpiresIn`, and its jti is
+   * recorded in the RefreshTokenStore before the pair is returned.
+   */
+  createTokenPair(sub: string, accessExtra?: Record<string, unknown>): Promise<TokenPair>;
+}
+
+export interface TokenPair {
+  accessToken: string;
+  refreshToken: string;
+}
+```
+
+`createJwt(payload)` gains an optional `options?: { expiresIn?: string | number }` second parameter (backward
+compatible) so `createTokenPair` can override the TTL for the refresh JWT.
+
+**Both existing issuers migrate to the helper** so `jti` bookkeeping is uniform:
+
+- `@mantlejs/auth-local` `authenticate()` returns `{ accessToken, refreshToken, user }` via `createTokenPair(sub)`.
+- `@mantlejs/auth-oauth` callback (`create-oauth-plugin.ts:104-108`) replaces its two hand-rolled `createJwt`
+  calls with `createTokenPair(sub)`. The unregistered `{ sub, type: "refresh" }` token it minted before is gone.
+
+### The `refresh` strategy
+
+Refresh is implemented as a built-in `AuthStrategy` named `"refresh"`, registered by the `auth()` plugin itself —
+so it flows through the existing `authentication` service with zero new routing:
+
+```
+POST /authentication   { "strategy": "refresh", "refreshToken": "<jwt>" }
+```
+
+Flow:
+
+1. `verifyJwt(refreshToken)` — signature/expiry failure → `NotAuthenticated("Invalid refresh token")`.
+2. `payload.type !== "refresh"` (e.g. an access token was submitted) → `NotAuthenticated("Invalid refresh token")`.
+3. Missing `jti` or `sub` → `NotAuthenticated("Invalid refresh token")`.
+4. `store.consume(jti)`:
+   - `true` → rotation: return `createTokenPair(sub)` — a fresh access + refresh pair; the old refresh token is
+     now dead.
+   - `false` → **reuse detected** (the token verified but was already consumed or revoked): call
+     `store.revokeAll(sub)` — the whole token family dies — and throw
+     `NotAuthenticated("Refresh token reuse detected")`.
+
+The strategy's `AuthResult` is `{ accessToken, refreshToken }` — no `user` field, since refresh proves possession
+of a token, not fresh credentials. Client code keeps its user from the original login (or re-fetches once C-3
+lands `authenticate("jwt", { entity })`).
+
+**Decision — no alias route.** The Phase 4 `@mantlejs/client` retry targets `POST /authentication` with
+`{ strategy: "refresh", refreshToken }`; there is no separate `/authentication/refresh` endpoint. The client item
+in the Phase 4 checklist should be read accordingly. Rationale: one endpoint, one dispatch mechanism, and the
+strategy name is self-describing in the request body — an agent reading the wire format needs no extra route
+knowledge.
+
+### Failure-mode table
+
+| Input | Outcome |
+|---|---|
+| Valid, unused refresh token | 201 — new `{ accessToken, refreshToken }`, old jti consumed |
+| Same refresh token replayed | 401 `NotAuthenticated`, **all** tokens for that sub revoked |
+| Expired refresh token | 401 (JWT verification fails; store untouched) |
+| Access token passed as `refreshToken` | 401 (`type` mismatch) |
+| Token signed with wrong secret | 401 |
+| Missing `refreshToken` field | 401 |
+
+### Spec plan (`packages/auth/src/lib/refresh.spec.ts` + store spec)
+
+- happy-path rotation: login (in-memory strategy) → refresh → new pair works, old token 401s on second use
+- reuse detection: refresh twice with the same token → second call 401 **and** the newly rotated token is also dead
+- expiry: refresh token signed with `refreshExpiresIn: "0s"` → 401, `consume` never called
+- type mismatch: submit an access token → 401
+- `memoryRefreshTokenStore`: consume-once semantics, `revokeAll`, pruning of expired entries
+
+---
+
+## `RepositoryService<T>` — Framework Query Bridge (B-2)
+
+Closes review §4 item 2 / exec finding 1: there is no framework-owned bridge from `ServiceParams.query` (raw
+strings from HTTP, canonicalized by A-6's `parseQueryString`) to `QueryParams` — every app hand-rolls it. This
+class defines Mantle's HTTP query semantics; `@mantlejs/openapi` (Phase 4 item 4) and `@mantlejs/client` (item 1)
+generate from and target exactly what is specified here.
+
+### Public API (`packages/mantle/src/lib/repository-service.ts`)
+
+```typescript
+export interface RepositoryServiceOptions {
+  /**
+   * Duck-typed JSON-Schema-ish object: { properties: { field: { type: "number" | ... } } }.
+   * Used only for string→type coercion of query values. NOT a TypeBox import —
+   * @mantlejs/mantle keeps zero dependencies; a TypeBox schema satisfies this shape.
+   */
+  schema?: { properties?: Record<string, { type?: string }> };
+  /** Whitelist of queryable fields. When set, a where/sort/select key outside it → BadRequest. */
+  fields?: string[];
+  /** Pagination defaults. When set, find() applies `default` and caps $limit at `max`. */
+  paginate?: { default: number; max: number };
+}
+
+export class RepositoryService<T, D = Partial<T>> implements Service<T, D> {
+  constructor(repository: Repository<T, D>, options?: RepositoryServiceOptions);
+  find(params?: ServiceParams): Promise<Paginated<T>>;   // ALWAYS Paginated — never bare T[]
+  get(id: Id, params?: ServiceParams): Promise<T>;
+  create(data: D | D[], params?: ServiceParams): Promise<T | T[]>;
+  update(id: Id, data: D, params?: ServiceParams): Promise<T>;
+  patch(id: Id, data: D, params?: ServiceParams): Promise<T>;
+  remove(id: Id, params?: ServiceParams): Promise<T>;
+}
+```
+
+### Locked decisions
+
+1. **Reserved keys** (FeathersJS convention), read from *inside* `params.query`; everything else is `where`:
+
+   | Key | Type after coercion | Meaning |
+   |---|---|---|
+   | `$limit` | number ≥ 0 | page size (capped at `paginate.max` when configured) |
+   | `$skip` | number ≥ 0 | offset |
+   | `$sort` | `Record<field, "asc" \| "desc">` — accepts `asc`/`desc`/`1`/`-1` | sort order |
+   | `$select` | `string[]` (bare string accepted → singleton array) | projection |
+
+   Malformed values (`$limit=abc`, `$sort[x]=up`) → `BadRequest` naming the key and expected form.
+
+2. **`find()` always returns `Paginated<T>`** — `{ total, limit, skip, data }`. `total` comes from
+   `repository.count({ where })` (same where, no limit/skip). `skip` defaults to 0. `limit` in the envelope is the
+   effective applied limit; when no limit was applied (no `$limit`, no `paginate`) it equals `total`. Rationale:
+   a stable envelope is the single most agent-legible response shape — `T[] | Paginated<T>` unions force every
+   consumer to branch.
+
+3. **Field whitelist** — when `options.fields` is set, every where key (recursing through `$or`/`$and`), sort key,
+   and select entry must be in it, else
+   `BadRequest("Field 'x' is not queryable. Allowed: a, b, c")`. Operator keys (`$gt`, …) inside a field's
+   operator object are exempt (they are validated by the adapter per A-3).
+
+4. **String coercion** — when `options.schema` is present, where values are coerced against
+   `schema.properties[field].type`: `"number"`/`"integer"` → `Number(v)` (NaN → `BadRequest`), `"boolean"` →
+   `"true"`/`"false"` → boolean, `"null"` string is NOT special-cased (use `$ne`-style operators for null
+   semantics). Coercion applies to bare values, operator-object values, `$in`/`$nin` arrays, and recursively into
+   `$or`/`$and` branches. `$limit`/`$skip` are coerced regardless of schema. **Without a schema, where values pass
+   through as strings unchanged** — adapters compare strings; this is documented in the README as the reason to
+   provide a schema (or use C-6's `querySyntax()` once it lands).
+
+5. **`update`/`patch`/`remove` propagate the repository's `NotFound` untouched** — no wrapping, no re-mapping.
+   `get()` maps a `null` from `findById` to `NotFound("No record found for id '<id>'")`.
+
+`create(data)` dispatches arrays to `repository.saveAll`, single objects to `repository.save`.
+
+### Data flow
+
+```
+GET /users?age[$gt]=21&$limit=10&$sort[name]=asc
+  │  transport (express/koa/http) → parseQueryString (A-6)
+  ▼
+params.query = { age: { $gt: "21" }, $limit: "10", $sort: { name: "asc" } }
+  │  RepositoryService.find()
+  │    1. split reserved keys ($limit/$skip/$sort/$select) from where
+  │    2. whitelist check (options.fields)
+  │    3. coerce ($limit → 10; age.$gt → 21 when schema says number)
+  ▼
+repository.findAll({ where: { age: { $gt: 21 } }, limit: 10, sort: { name: "asc" } })
+repository.count({ where: { age: { $gt: 21 } } })
+  ▼
+{ total, limit: 10, skip: 0, data: [...] }
+```
+
+### Spec plan
+
+- `packages/mantle/src/lib/repository-service.spec.ts` — unit: reserved-key parsing, coercion matrix, whitelist
+  errors, envelope shape, NotFound propagation (against a minimal in-file fake repository — mantle cannot
+  dev-import `@mantlejs/memory` without an Nx boundary cycle).
+- `packages/memory/src/lib/repository-service.spec.ts` — the six-method acceptance suite against the real
+  `MemoryRepository` (memory already depends on mantle, so the import direction is legal).
+- `packages/express/src/lib/express.spec.ts` — full HTTP round-trip:
+  `?age[$gt]=21&$limit=10&$sort[name]=asc` against a `RepositoryService` returns a `Paginated` envelope with
+  coerced, filtered, sorted results.
+- README section in `packages/mantle` documenting reserved keys, the envelope, and the no-schema string caveat.

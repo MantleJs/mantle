@@ -1,9 +1,9 @@
 import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
 import type { Application } from "express";
-import { mantle, getContext } from "@mantlejs/mantle";
+import { mantle, getContext, RepositoryService } from "@mantlejs/mantle";
 import { BadRequest, NotFound } from "@mantlejs/mantle";
-import type { ServiceParams } from "@mantlejs/mantle";
+import type { Id, Paginated, QueryParams, Repository, ServiceParams } from "@mantlejs/mantle";
 import { express } from "./express.js";
 
 async function startServer(expressApp: Application): Promise<{ port: number; stop: () => Promise<void> }> {
@@ -420,6 +420,90 @@ describe("express adapter", () => {
         const body = (await res.json()) as { verified: boolean };
         expect(body.verified).toBe(true);
         expect(hookRan).toBe(true);
+      } finally {
+        await stop();
+      }
+    });
+  });
+
+  // B-2 acceptance: full HTTP round-trip through a RepositoryService — the raw
+  // query string comes back as a Paginated envelope with coerced, filtered,
+  // sorted results.
+  describe("RepositoryService round-trip", () => {
+    interface Person extends Record<string, unknown> {
+      id: string;
+      name: string;
+      age: number;
+    }
+
+    class ArrayRepository implements Repository<Person> {
+      constructor(private rows: Person[]) {}
+
+      async findAll(params?: QueryParams): Promise<Person[]> {
+        let rows = this.rows.filter((r) => {
+          const ageFilter = params?.where?.["age"] as { $gt?: number } | undefined;
+          return ageFilter?.$gt === undefined || r.age > ageFilter.$gt;
+        });
+        for (const [field, dir] of Object.entries(params?.sort ?? {})) {
+          rows = [...rows].sort((a, b) => {
+            const cmp = a[field] < b[field] ? -1 : a[field] > b[field] ? 1 : 0;
+            return dir === "asc" ? cmp : -cmp;
+          });
+        }
+        const skip = params?.skip ?? 0;
+        const limit = params?.limit ?? rows.length;
+        return rows.slice(skip, skip + limit);
+      }
+
+      async count(params?: QueryParams): Promise<number> {
+        return (await this.findAll(params)).length;
+      }
+
+      async findById(id: Id): Promise<Person | null> {
+        return this.rows.find((r) => r.id === id) ?? null;
+      }
+
+      async save(data: Partial<Person>): Promise<Person> {
+        return data as Person;
+      }
+
+      async saveAll(data: Partial<Person>[]): Promise<Person[]> {
+        return data as Person[];
+      }
+
+      async updateById(id: Id, data: Partial<Person>): Promise<Person> {
+        return { id: String(id), ...data } as Person;
+      }
+
+      async patchById(id: Id, data: Partial<Person>): Promise<Person> {
+        return { id: String(id), ...data } as Person;
+      }
+
+      async deleteById(id: Id): Promise<Person> {
+        return { id: String(id) } as Person;
+      }
+    }
+
+    it("?age[$gt]=21&$limit=10&$sort[name]=asc returns a coerced Paginated envelope", async () => {
+      const repo = new ArrayRepository([
+        { id: "1", name: "Carol", age: 35 },
+        { id: "2", name: "Alice", age: 30 },
+        { id: "3", name: "Dave", age: 19 },
+        { id: "4", name: "Bob", age: 25 },
+      ]);
+      const schema = { properties: { name: { type: "string" }, age: { type: "number" } } };
+
+      const app = mantle().configure(express());
+      app.use("people", new RepositoryService<Person>(repo, { schema }));
+
+      const expressApp = app.get<Application>("express");
+      const { port, stop } = await startServer(expressApp);
+      try {
+        const res = await fetch(`http://localhost:${port}/people?age[$gt]=21&$limit=10&$sort[name]=asc`);
+        expect(res.status).toBe(200);
+        const body = (await res.json()) as Paginated<Person>;
+        expect(body).toMatchObject({ total: 3, limit: 10, skip: 0 });
+        expect(body.data.map((p) => p.name)).toEqual(["Alice", "Bob", "Carol"]);
       } finally {
         await stop();
       }

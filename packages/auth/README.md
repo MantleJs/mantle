@@ -126,10 +126,12 @@ Side effects:
 | Field | Type | Default | Description |
 | --- | --- | --- | --- |
 | `secret` | `string` | — | JWT signing secret (required) |
-| `expiresIn` | `string \| number` | `"1d"` | Token lifetime. Strings use [ms](https://github.com/vercel/ms) format (`"2h"`, `"7d"`). Numbers are seconds. |
+| `expiresIn` | `string \| number` | `"1d"` | Access-token lifetime. Strings use [ms](https://github.com/vercel/ms) format (`"2h"`, `"7d"`). Numbers are seconds. |
 | `algorithms` | `string[]` | `["HS256"]` | Verification algorithms |
 | `issuer` | `string` | — | Sets and verifies the `iss` claim |
 | `audience` | `string \| string[]` | — | Sets and verifies the `aud` claim |
+| `refreshExpiresIn` | `string \| number` | `"30d"` | Refresh-token lifetime |
+| `refreshTokenStore` | `RefreshTokenStore` | in-memory | Storage for outstanding refresh tokens. **Multi-instance deployments (Cloud Run) must inject a shared store** — the in-memory default cannot revoke tokens issued by another instance. |
 
 ---
 
@@ -232,6 +234,32 @@ The built-in authentication endpoint. Dispatches to a registered strategy based 
 
 ---
 
+### Refresh tokens
+
+Every login (local or OAuth) returns an access + refresh token pair issued by `engine.createTokenPair(sub)`. The
+refresh token carries `{ sub, type: "refresh", jti }`, lives `refreshExpiresIn` (default 30 days), and its `jti`
+is recorded in the `RefreshTokenStore`.
+
+Exchange it for a fresh pair via the built-in `refresh` strategy — same endpoint, no extra route:
+
+```json
+POST /authentication
+{ "strategy": "refresh", "refreshToken": "eyJhbGciOiJIUzI1NiJ9..." }
+```
+
+**Response** (`201 Created`): `{ "accessToken": "...", "refreshToken": "..." }` — no `user` field; a refresh
+proves possession of a token, not fresh credentials.
+
+Refresh tokens **rotate**: each successful exchange consumes the submitted token and issues a new one. Replaying
+an already-consumed token is treated as theft — **all** outstanding refresh tokens for that subject are revoked
+and the request fails with `401 NotAuthenticated("Refresh token reuse detected")`. Expired tokens, access tokens
+submitted as refresh tokens, and unknown signatures all fail with `401 NotAuthenticated("Invalid refresh token")`.
+
+Custom strategies should issue tokens through `engine.createTokenPair(sub, accessExtra?)` rather than
+`createJwt` directly, so their refresh tokens participate in rotation and revocation.
+
+---
+
 ## Types
 
 ```typescript
@@ -241,6 +269,8 @@ import type {
   AuthResult,
   AuthStrategy,
   JwtPayload,
+  RefreshTokenStore,
+  TokenPair,
 } from "@mantlejs/auth";
 ```
 
@@ -251,6 +281,8 @@ import type {
 | `AuthResult` | `{ accessToken: string; [key: string]: unknown }` — returned by strategies |
 | `AuthStrategy` | Interface to implement for custom strategies |
 | `JwtPayload` | Decoded JWT payload shape |
+| `RefreshTokenStore` | `add(jti, sub, exp)` / `consume(jti)` / `revokeAll(sub)` — inject a shared implementation for multi-instance deployments |
+| `TokenPair` | `{ accessToken, refreshToken }` — returned by `engine.createTokenPair()` |
 
 ---
 

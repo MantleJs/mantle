@@ -107,6 +107,46 @@ interface Repository<T, D = Partial<T>> {
 
 ---
 
+### `RepositoryService<T, D>`
+
+A ready-made `Service<T>` over any `Repository<T>` — the framework-owned bridge from raw HTTP query strings to typed `QueryParams`. Use it when a service is a straight CRUD facade over a repository; add hooks for everything else.
+
+```typescript
+import { RepositoryService } from "@mantlejs/mantle";
+
+app.use(
+  "users",
+  new RepositoryService(new UserRepository(app), {
+    schema: userSchema, // any object with { properties: { field: { type } } } — a TypeBox schema works
+    fields: ["name", "age", "active"], // optional whitelist of queryable fields
+    paginate: { default: 25, max: 100 },
+  }),
+);
+```
+
+#### Query conventions
+
+Reserved keys inside `query` (everything else becomes the repository `where` clause):
+
+| Key | Example | Meaning |
+| --------- | ----------------------- | ---------------------------------------------- |
+| `$limit` | `?$limit=10` | page size (capped at `paginate.max` when set) |
+| `$skip` | `?$skip=20` | offset |
+| `$sort` | `?$sort[name]=asc` | sort order — accepts `asc`/`desc`/`1`/`-1` |
+| `$select` | `?$select[]=name` | field projection |
+
+`GET /users?age[$gt]=21&$limit=10&$sort[name]=asc` becomes
+`repository.findAll({ where: { age: { $gt: 21 } }, limit: 10, sort: { name: "asc" } })`.
+
+#### Behavior guarantees
+
+- **`find()` always returns `Paginated<T>`** — `{ total, limit, skip, data }`, with `total` from `repository.count({ where })`. No `T[] | Paginated<T>` branching for consumers.
+- **Field whitelist** — with `options.fields`, a where/sort/select key outside the list throws `BadRequest` naming the field and the allowed set.
+- **String coercion** — query values arrive as strings over HTTP. With `options.schema`, values are coerced to each field's declared type (`number`, `integer`, `boolean`), including inside operator objects, `$in`/`$nin` arrays, and `$or`/`$and` branches. **Without a schema, strings pass through unchanged** — `age[$gt]=21` then compares against the string `"21"`, so provide a schema for any non-string field you query.
+- `update`/`patch`/`remove` propagate the repository's `NotFound` untouched; `get()` maps a `null` lookup to `NotFound`.
+
+---
+
 ### Hooks
 
 Hooks are plain functions — no classes. They run in three phases: `before`, `after`, and `error`. The `all` key applies to every method in that phase.

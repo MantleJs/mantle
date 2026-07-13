@@ -59,9 +59,9 @@ export function localStrategy(config: LocalStrategyConfig = {}): MantlePlugin {
         }
 
         const sub = String(user["id"] ?? user["_id"]);
-        const accessToken = engine.createJwt({ sub });
+        const { accessToken, refreshToken } = await engine.createTokenPair(sub);
 
-        return { accessToken, user };
+        return { accessToken, refreshToken, user };
       },
     };
 
