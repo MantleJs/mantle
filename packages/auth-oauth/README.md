@@ -34,7 +34,22 @@ The factory that wires a provider into Mantle. It registers two Express routes (
 
 ### State store
 
-An in-memory `Map` keyed on the OAuth `state` parameter. Entries expire after 10 minutes and are cleaned up lazily on each redirect request. The `codeVerifier` (PKCE only) is stored alongside the state and passed to the token exchange.
+Pending OAuth state is kept in an `OAuthStateStore` keyed on the OAuth `state` parameter. Entries expire after 10 minutes and are cleaned up lazily on each redirect request. The `codeVerifier` (PKCE only) is stored alongside the state and passed to the token exchange.
+
+The default store is an in-process, in-memory `Map` — fine for a single instance, **wrong for multi-instance deployments** (Cloud Run, horizontal scaling behind a load balancer), where the callback request can land on a different instance than the one that issued the state. Inject a shared implementation instead:
+
+```typescript
+import type { OAuthStateStore } from "@mantlejs/auth-oauth";
+
+const redisStateStore: OAuthStateStore = {
+  set(state, data) { /* SETEX with the 10-minute TTL */ },
+  get(state) { /* GET + JSON.parse, undefined when missing/expired */ },
+  delete(state) { /* DEL */ },
+  cleanup() { /* no-op — Redis TTL handles expiry */ },
+};
+
+app.configure(googleStrategy({ clientId, clientSecret, stateStore: redisStateStore }));
+```
 
 ### Find-or-create
 
@@ -156,6 +171,7 @@ function createOAuthPlugin(
 | `scope` | `string[]` | `provider.defaultScope` | OAuth scopes to request |
 | `entity` | `string` | `'users'` | Service used to find or create users |
 | `entityIdField` | `string` | `'{providerKey}Id'` | Field matched against the provider's user ID |
+| `stateStore` | `OAuthStateStore` | in-memory | Store for pending OAuth state. Multi-instance deployments must inject a shared (e.g. Redis-backed) implementation |
 
 ---
 
@@ -166,6 +182,8 @@ import type {
   OAuthProvider,
   OAuthProfile,
   OAuthPluginConfig,
+  OAuthStateStore,
+  OAuthStateData,
   AuthUrlParams,
   CodeExchangeParams,
 } from "@mantlejs/auth-oauth";
@@ -176,6 +194,8 @@ import type {
 | `OAuthProvider` | Interface that each strategy package implements |
 | `OAuthProfile` | Normalized profile: `{ id: string; email?: string; name?: string }` |
 | `OAuthPluginConfig` | Shared config options for all OAuth strategies |
+| `OAuthStateStore` | Store for pending OAuth state — inject via `config.stateStore` |
+| `OAuthStateData` | Stored entry: `{ codeVerifier?: string; expiresAt: number }` |
 | `AuthUrlParams` | Params passed to `provider.buildAuthUrl()` |
 | `CodeExchangeParams` | Params passed to `provider.exchangeCode()` |
 

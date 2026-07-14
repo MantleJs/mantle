@@ -1,28 +1,10 @@
-import type { MantleApplication, MantlePlugin } from "@mantlejs/mantle";
+import type { HttpRouterLike, MantleApplication, MantlePlugin } from "@mantlejs/mantle";
 import { NotAuthenticated } from "@mantlejs/mantle";
 import type { AuthEngine } from "@mantlejs/auth";
 import type { OAuthProvider, OAuthPluginConfig } from "./types.js";
 import { generateState, generateCodeVerifier, generateCodeChallenge } from "./pkce.js";
 import { createStateStore } from "./state-store.js";
 import { findOrCreateUser } from "./find-or-create.js";
-
-interface RouterLike {
-  get(
-    path: string,
-    handler: (req: IncomingLike, res: OutgoingLike, next: (err?: unknown) => void) => void | Promise<void>,
-  ): void;
-}
-
-interface IncomingLike {
-  protocol: string;
-  query: Record<string, unknown>;
-  get(header: string): string | undefined;
-}
-
-interface OutgoingLike {
-  redirect(url: string): void;
-  json(body: unknown): void;
-}
 
 export function createOAuthPlugin(
   providerKey: string,
@@ -35,9 +17,12 @@ export function createOAuthPlugin(
       throw new Error(`@mantlejs/auth must be configured before @mantlejs/auth-${providerKey}`);
     }
 
-    const router = app.get<RouterLike>("express");
+    // "express" fallback covers transports that predate the "http:router" contract.
+    const router = app.get<HttpRouterLike>("http:router") ?? app.get<HttpRouterLike>("express");
     if (!router) {
-      throw new Error(`@mantlejs/express must be configured before @mantlejs/auth-${providerKey}`);
+      throw new Error(
+        `An HTTP transport (@mantlejs/express, @mantlejs/koa, or @mantlejs/http) must be configured before @mantlejs/auth-${providerKey}`,
+      );
     }
 
     const callbackPath = config.callbackUrl ?? `/auth/${providerKey}/callback`;
@@ -45,7 +30,8 @@ export function createOAuthPlugin(
     const entity = config.entity ?? "users";
     const entityIdField = config.entityIdField ?? `${providerKey}Id`;
 
-    const stateStore = createStateStore();
+    // In-memory by default. Multi-instance deployments (e.g. Cloud Run) must inject a shared store.
+    const stateStore = config.stateStore ?? createStateStore();
 
     router.get(`/auth/${providerKey}`, (req, res): void => {
       stateStore.cleanup();

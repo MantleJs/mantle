@@ -140,6 +140,13 @@ describe("RepositoryService — field whitelist", () => {
     );
   });
 
+  it("carries an actionable hint on the whitelist error", async () => {
+    const svc = new RepositoryService(makeRepo(), options);
+    await expect(svc.find({ query: { password: "x" } })).rejects.toMatchObject({
+      hint: expect.stringContaining("allowed fields"),
+    });
+  });
+
   it("rejects unlisted fields nested in $or", async () => {
     const svc = new RepositoryService(makeRepo(), options);
     await expect(svc.find({ query: { $or: [{ name: "a" }, { secret: "x" }] } })).rejects.toThrow(/secret/);

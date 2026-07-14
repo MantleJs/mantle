@@ -163,7 +163,7 @@ class ServiceHandleImpl<T> implements ServiceHandle<T> {
 
       ctx = await runHookChain(this.getPhaseHooks("after", method), ctx);
 
-      const serviceEventName = SERVICE_EVENTS[method];
+      const serviceEventName = SERVICE_EVENTS[method] ?? (this.options.events.includes(method) ? method : undefined);
       if (serviceEventName) {
         this.app.emit("service:event", this.path, serviceEventName, ctx.result, ctx.params);
       }

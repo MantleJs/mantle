@@ -1,3 +1,5 @@
+import type { OAuthStateStore } from "./state-store.js";
+
 export interface OAuthProfile {
   id: string;
   email?: string;
@@ -38,4 +40,10 @@ export interface OAuthPluginConfig {
   entity?: string;
   /** Field matched against the provider's user ID. Default: `'{providerKey}Id'` */
   entityIdField?: string;
+  /**
+   * Store for pending OAuth state (CSRF token + PKCE verifier). Defaults to an in-process
+   * in-memory store — multi-instance deployments (e.g. Cloud Run) must inject a shared
+   * implementation (Redis or similar) so the callback can land on any instance.
+   */
+  stateStore?: OAuthStateStore;
 }

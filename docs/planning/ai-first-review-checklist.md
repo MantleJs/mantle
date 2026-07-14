@@ -132,40 +132,42 @@ them before the Phase 4 item 8 release cut.
 
 ## Tier C — Fold into existing Phase 4 checklist items (P1)
 
-- [ ] **C-1. Transport-neutral router/server contract (A1 + E5)** — with Phase 4 items 5/6 (transport work).
+- [x] **C-1. Transport-neutral router/server contract (A1 + E5)** — with Phase 4 items 5/6 (transport work).
   Convention: every HTTP transport registers `app.set("http:router", RouterLike)` and exposes listen via
   `app.set("http:server", ...)`. Consumers migrate: `create-oauth-plugin.ts:38-41` reads `http:router` instead of
   `"express"`; `packages/socketio/src/lib/socketio.ts:295-297` stops monkey-patching Express-specific `listen`.
   Keep the old keys registered for one release with a deprecation note.
 
-- [ ] **C-2. Injectable OAuth `StateStore` (A2)** — with any auth-oauth session.
+- [x] **C-2. Injectable OAuth `StateStore` (A2)** — with any auth-oauth session.
   Extract the `createStateStore()` shape (`packages/auth-oauth/src/lib/state-store.ts`) into an exported
   `StateStore` interface; add `OAuthPluginConfig.stateStore?: StateStore`. In-memory stays the default; document
   that multi-instance deployments (Cloud Run) must inject a shared store.
 
-- [ ] **C-3. `authenticate("jwt", { entity })` resolves the user record (A4)** — with Phase 4 item 1 (client),
+- [x] **C-3. `authenticate("jwt", { entity })` resolves the user record (A4)** — with Phase 4 item 1 (client),
   since the client's `params.user` expectations depend on it. `packages/auth/src/lib/authenticate.ts:55` currently
   sets `params.user` to the raw JWT payload. Add an options arg: when `entity` is provided, fetch
   `app.service(entity).get(payload.sub)` (internal call, no provider) into `params.user` and keep the payload as
   `params.authPayload`. Default behavior unchanged.
 
-- [ ] **C-4. Standardize `findSimilar` to return `_score` (Q5 partial)** — one session across
+- [x] **C-4. Standardize `findSimilar` to return `_score` (Q5 partial)** — one session across
   `packages/knex/src/lib/knex-vector-repository.ts` (rename `_distance`→ keep both for one release),
   `packages/pinecone/src/lib/pinecone-repository.ts:62-64`, `packages/qdrant/src/lib/qdrant-repository.ts:67`
   (both currently discard the match score). Return type: `Promise<Array<T & { _score: number }>>`; document the
   metric direction (higher-is-better vs distance) per adapter README.
 
-- [ ] **C-5. `MantleError.hint` field (review §6.1)** — small core change, then opportunistic adoption.
+- [x] **C-5. `MantleError.hint` field (review §6.1)** — small core change, then opportunistic adoption.
   Add optional `hint?: string` to `MantleError` constructor + `toJSON()` (`packages/mantle/src/lib/errors.ts`).
   Adopt in the A-3 operator errors and B-2 whitelist errors first — the highest-traffic agent-facing messages.
 
-- [ ] **C-6. `querySyntax()` in `@mantlejs/schema` (X3)** — after B-2 lands, feeding it.
+- [x] **C-6. `querySyntax()` in `@mantlejs/schema` (X3)** — after B-2 lands, feeding it.
   `validate(schema, { target: "query", coerce: true })` exists (`packages/schema/src/lib/validate.ts:47,69`) but a
   plain entity schema rejects operator objects. Add `querySyntax(entitySchema, options?)` producing a TypeBox
   schema that, per field, allows the bare value or an operator object (`$gt`/`$lt`/… typed to the field), plus
   `$limit`/`$skip`/`$sort`/`$select` reserved keys matching B-2's convention.
 
-- [ ] **C-7. `rooms` and `events`: implement or delete (E3, E4)** — with Phase 4 item 5 (transports/batch) or
+- [x] **C-7. `rooms` and `events`: implement or delete (E3, E4)** — with Phase 4 item 5 (transports/batch) or
+  *(Resolved: both implemented — `params.rooms` now targets named channels in the socket.io broadcast,
+  and custom methods listed in `ServiceOptions.events` emit `service:event` on dispatch.)*
   standalone. `ServiceParams.rooms` (`packages/mantle/src/lib/types.ts:42-43`) is a documented no-op — either
   implement room filtering in `broadcastToChannels` (`socketio.ts:155-174`) or delete field + comment.
   `ServiceOptions.events` (`application.ts:248`) is stored but never emitted — either emit `service:event` for
@@ -174,6 +176,9 @@ them before the Phase 4 item 8 release cut.
 - [ ] **C-8. Event-delivery semantics + reconnect invalidation (E6)** — with Phase 4 items 1/2 (client/react).
   Document at-most-once delivery in the `@mantlejs/sync` README; `@mantlejs/client` emits a `reconnect` event;
   `@mantlejs/react` calls `queryClient.invalidateQueries()` on it, bounding staleness from missed events.
+  *(Partially done: sync README now documents at-most-once delivery and the refetch-on-reconnect contract.
+  Remaining: the `reconnect` event and `invalidateQueries()` wiring — blocked until `@mantlejs/client` and
+  `@mantlejs/react` exist; fold into Phase 4 items 1/2.)*
 
 ---
 

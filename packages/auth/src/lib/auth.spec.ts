@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import jwt from "jsonwebtoken";
 import type { MantleApplication, HookContext } from "@mantlejs/mantle";
-import { BadRequest, NotAuthenticated } from "@mantlejs/mantle";
+import { BadRequest, NotAuthenticated, NotFound } from "@mantlejs/mantle";
 import { auth } from "./auth.js";
 import { authenticate } from "./authenticate.js";
 import { sanitizeUser } from "./sanitize-user.js";
@@ -204,6 +204,57 @@ describe("authenticate('jwt')", () => {
     const ctx = makeCtx({ params: { provider: "rest", headers: { authorization: "Bearer sometoken" } } });
     (ctx.app.get as ReturnType<typeof vi.fn>).mockReturnValue(undefined);
     await expect(authenticate("jwt")(ctx)).rejects.toBeInstanceOf(NotAuthenticated);
+  });
+});
+
+describe("authenticate('jwt', { entity })", () => {
+  function makeEntityCtx(claims: Record<string, unknown>, getImpl: (id: unknown) => Promise<unknown>) {
+    const engine = makeEngine();
+    const token = engine.createJwt(claims);
+    const ctx = makeCtx({ params: { provider: "rest", headers: { authorization: `Bearer ${token}` } } });
+    (ctx.app as unknown as { set: (k: string, v: unknown) => void }).set("auth", engine);
+    const get = vi.fn(getImpl);
+    const service = vi.fn(() => ({ get }));
+    (ctx.app as unknown as Record<string, unknown>)["service"] = service;
+    return { ctx, get, service };
+  }
+
+  it("resolves params.user from the entity service and keeps the payload as params.authPayload", async () => {
+    const record = { id: "42", email: "alice@example.com" };
+    const { ctx, get, service } = makeEntityCtx({ sub: "42" }, async () => record);
+
+    const result = await authenticate("jwt", { entity: "users" })(ctx);
+    expect(service).toHaveBeenCalledWith("users");
+    expect(get).toHaveBeenCalledWith("42");
+    expect(result.params.user).toBe(record);
+    expect((result.params.authPayload as { sub: string }).sub).toBe("42");
+  });
+
+  it("resolves the entity with an internal call (no provider passed to get)", async () => {
+    const { ctx, get } = makeEntityCtx({ sub: "42" }, async () => ({ id: "42" }));
+    await authenticate("jwt", { entity: "users" })(ctx);
+    // Single-arg call — params omitted, so the service treats it as internal
+    expect(get.mock.calls[0]).toHaveLength(1);
+  });
+
+  it("throws NotAuthenticated when the user record no longer exists", async () => {
+    const { ctx } = makeEntityCtx({ sub: "42" }, async () => {
+      throw new NotFound("gone");
+    });
+    await expect(authenticate("jwt", { entity: "users" })(ctx)).rejects.toBeInstanceOf(NotAuthenticated);
+  });
+
+  it("throws NotAuthenticated when the token has no sub claim", async () => {
+    const { ctx } = makeEntityCtx({ role: "admin" }, async () => ({ id: "x" }));
+    await expect(authenticate("jwt", { entity: "users" })(ctx)).rejects.toBeInstanceOf(NotAuthenticated);
+  });
+
+  it("default behavior unchanged: without entity, params.user is the raw payload", async () => {
+    const { ctx, get } = makeEntityCtx({ sub: "7" }, async () => ({ id: "7" }));
+    const result = await authenticate("jwt")(ctx);
+    expect(get).not.toHaveBeenCalled();
+    expect((result.params.user as { sub: string }).sub).toBe("7");
+    expect(result.params.authPayload).toBeUndefined();
   });
 });
 

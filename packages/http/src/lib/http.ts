@@ -1,9 +1,17 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { randomUUID } from "node:crypto";
 import { URL } from "node:url";
-import type { MantleApplication, MantlePlugin, ServiceOptions } from "@mantlejs/mantle";
+import type {
+  HttpRequestLike,
+  HttpResponseLike,
+  HttpRouteHandler,
+  HttpRouterLike,
+  MantleApplication,
+  MantlePlugin,
+  ServiceOptions,
+} from "@mantlejs/mantle";
 import { withContext } from "@mantlejs/mantle";
-import { Router } from "./router.js";
+import { Router, type RouteHandler } from "./router.js";
 import { mountServiceRoutes } from "./routes.js";
 import { parseBody } from "./body-parser.js";
 import { toErrorResponse } from "./error-handler.js";
@@ -35,7 +43,7 @@ async function dispatch(
   headers: Record<string, string>,
   body: unknown,
   correlationId: string,
-): Promise<{ status: number; body: unknown; correlationId: string }> {
+): Promise<{ status: number; body: unknown; headers?: Record<string, string>; correlationId: string }> {
   return withContext({ correlationId }, async () => {
     const matched = router.match(method, pathname);
     if (!matched) {
@@ -53,6 +61,55 @@ async function dispatch(
       return { status: errRes.status, body: errRes.body, correlationId };
     }
   });
+}
+
+/** Adapt the internal Router to the transport-neutral express-style HttpRouterLike contract. */
+function toHttpRouter(router: Router): HttpRouterLike {
+  const adapt =
+    (handler: HttpRouteHandler): RouteHandler =>
+    async (_params, _body, query, headers) => {
+      let status = 200;
+      let responseBody: unknown = null;
+      let redirectUrl: string | undefined;
+
+      const req: HttpRequestLike = {
+        protocol: headers["x-forwarded-proto"] ?? "http",
+        query,
+        headers,
+        get: (header) => headers[header.toLowerCase()],
+      };
+      const res: HttpResponseLike = {
+        status(code) {
+          status = code;
+          return this;
+        },
+        json(body) {
+          responseBody = body;
+        },
+        redirect(url) {
+          redirectUrl = url;
+        },
+      };
+
+      await new Promise<void>((resolve, reject) => {
+        const next = (err?: unknown): void => (err ? reject(err) : resolve());
+        Promise.resolve(handler(req, res, next)).then(() => resolve(), reject);
+      });
+
+      if (redirectUrl !== undefined) {
+        return { status: 302, body: null, headers: { Location: redirectUrl } };
+      }
+      return { status, body: responseBody };
+    };
+
+  return {
+    get: (path, handler) => {
+      router.add("GET", path, adapt(handler));
+    },
+    post: (path, handler) => {
+      router.add("POST", path, adapt(handler));
+    },
+  };
 }
 
 export function http(): MantlePlugin {
@@ -73,6 +130,7 @@ export function http(): MantlePlugin {
             "Content-Type": "application/json",
             "Content-Length": Buffer.byteLength(json),
             "x-correlation-id": result.correlationId,
+            ...result.headers,
           });
           res.end(json);
         } catch (err) {
@@ -109,12 +167,15 @@ export function http(): MantlePlugin {
         headers: {
           "Content-Type": "application/json",
           "x-correlation-id": result.correlationId,
+          ...result.headers,
         },
       });
     };
 
     app.set("httpHandler", httpHandler);
     app.set("fetchHandler", fetchHandler);
+    // Transport-neutral contract — plugins mount raw routes via "http:router".
+    app.set("http:router", toHttpRouter(router));
 
     const originalUse = (app.use as unknown as (...args: unknown[]) => MantleApplication).bind(app);
     (app as unknown as Record<string, unknown>)["use"] = function (
@@ -133,7 +194,10 @@ export function http(): MantlePlugin {
     (app as unknown as Record<string, unknown>)["listen"] = (port: number, callback?: () => void): Server => {
       const server = createServer(httpHandler);
       server.listen(port, callback);
+      app.set("http:server", server);
+      /** @deprecated Read "http:server" instead. Kept for one release. */
       app.set("server", server);
+      app.emit("http:server", server);
       return server;
     };
   };

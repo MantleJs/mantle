@@ -3,7 +3,7 @@ export type RouteHandler = (
   body: unknown,
   query: Record<string, string | string[]>,
   headers: Record<string, string>,
-) => Promise<{ status: number; body: unknown }>;
+) => Promise<{ status: number; body: unknown; headers?: Record<string, string> }>;
 
 interface RouteEntry {
   method: string;

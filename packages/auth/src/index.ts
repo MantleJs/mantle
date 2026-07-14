@@ -1,5 +1,6 @@
 export { auth } from "./lib/auth.js";
 export { authenticate } from "./lib/authenticate.js";
+export type { AuthenticateOptions } from "./lib/authenticate.js";
 export { sanitizeUser } from "./lib/sanitize-user.js";
 export { memoryRefreshTokenStore } from "./lib/refresh-token-store.js";
 export type {

@@ -73,8 +73,12 @@ export interface Repository<T, D = Partial<T>> {
 }
 
 export interface VectorRepository<T extends Record<string, unknown>, D = Partial<T>> extends Repository<T, D> {
-  /** Find the top-K records most similar to the given embedding vector */
-  findSimilar(vector: number[], topK: number, params?: QueryParams): Promise<T[]>;
+  /**
+   * Find the top-K records most similar to the given embedding vector.
+   * Every result carries the adapter's native match metric as `_score` — whether a higher
+   * or lower value means "more similar" is adapter-specific; see the adapter README.
+   */
+  findSimilar(vector: number[], topK: number, params?: QueryParams): Promise<Array<T & { _score: number }>>;
   /** Upsert a record with its embedding vector */
   upsertVector(id: Id, vector: number[], data: Partial<T>): Promise<T>;
   /** Delete a vector and its associated record */
@@ -96,6 +100,38 @@ export interface GraphRepository<T extends Record<string, unknown>> {
   deleteNode(id: Id): Promise<T>;
   /** Execute a raw graph query */
   cypher<R = T>(query: string, params?: Record<string, unknown>): Promise<R[]>;
+}
+
+/** Minimal express-compatible request passed to `HttpRouterLike` handlers. */
+export interface HttpRequestLike {
+  protocol: string;
+  query: Record<string, unknown>;
+  headers: Record<string, string | string[] | undefined>;
+  get(header: string): string | undefined;
+}
+
+/** Minimal express-compatible response passed to `HttpRouterLike` handlers. */
+export interface HttpResponseLike {
+  status(code: number): this;
+  json(body: unknown): void;
+  redirect(url: string): void;
+}
+
+export type HttpRouteHandler = (
+  req: HttpRequestLike,
+  res: HttpResponseLike,
+  next: (err?: unknown) => void,
+) => void | Promise<void>;
+
+/**
+ * Transport-neutral router contract. Every HTTP transport registers an implementation
+ * under `app.set("http:router", …)` so plugins can mount raw routes (e.g. OAuth redirects)
+ * without knowing which transport is in play. Transports also set `app.set("http:server", server)`
+ * and `app.emit("http:server", server)` when `listen()` creates the underlying Node server.
+ */
+export interface HttpRouterLike {
+  get(path: string, handler: HttpRouteHandler): void;
+  post(path: string, handler: HttpRouteHandler): void;
 }
 
 export interface HookContext<T = unknown> {
@@ -126,6 +162,10 @@ export interface HookConfig<T = unknown> {
 
 export interface ServiceOptions {
   methods?: string[];
+  /**
+   * Custom method names that emit a `service:event` when dispatched — the event name is the
+   * method name. Standard mutation events (created/updated/patched/removed) always emit.
+   */
   events?: string[];
   /** TypeBox schema for this service. Stored for tooling introspection — not validated here. */
   schema?: unknown;

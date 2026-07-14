@@ -127,11 +127,36 @@ describe("createOAuthPlugin()", () => {
     );
   });
 
-  it("throws if express is not configured", () => {
+  it("throws if no HTTP transport is configured", () => {
     const app = makeApp(makeEngine(), undefined);
     expect(() => createOAuthPlugin("test", makeProvider(), BASE_CONFIG)(app)).toThrow(
-      "@mantlejs/express must be configured before @mantlejs/auth-test",
+      "An HTTP transport (@mantlejs/express, @mantlejs/koa, or @mantlejs/http) must be configured before @mantlejs/auth-test",
     );
+  });
+
+  it("prefers the transport-neutral 'http:router' over the legacy 'express' key", () => {
+    const neutralRouter = makeRouter();
+    const legacyRouter = makeRouter();
+    const app = makeApp(makeEngine(), legacyRouter);
+    const store = (app.get as ReturnType<typeof vi.fn>).getMockImplementation();
+    (app.get as ReturnType<typeof vi.fn>).mockImplementation((key: string) =>
+      key === "http:router" ? neutralRouter : store?.(key),
+    );
+    createOAuthPlugin("test", makeProvider(), BASE_CONFIG)(app);
+    expect(neutralRouter.get).toHaveBeenCalledWith("/auth/test", expect.any(Function));
+    expect(legacyRouter.get).not.toHaveBeenCalled();
+  });
+
+  it("uses an injected stateStore instead of the in-memory default", () => {
+    const injected = { set: vi.fn(), get: vi.fn(), delete: vi.fn(), cleanup: vi.fn() };
+    const router = makeRouter();
+    const app = makeApp(makeEngine(), router);
+    createOAuthPlugin("test", makeProvider(), { ...BASE_CONFIG, stateStore: injected })(app);
+    const handler = router.route("/auth/test");
+    handler(makeReq(), makeRes(), vi.fn());
+    expect(injected.cleanup).toHaveBeenCalled();
+    expect(injected.set).toHaveBeenCalledWith("fixed-state", expect.any(Object));
+    expect(mockStateStore.set).not.toHaveBeenCalled();
   });
 
   it("registers redirect and callback routes on the express router", () => {

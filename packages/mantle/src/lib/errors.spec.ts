@@ -55,6 +55,16 @@ describe("MantleError", () => {
     });
   });
 
+  it("attaches an optional hint and includes it in toJSON", () => {
+    const err = new BadRequest("Bad", undefined, undefined, "Try one of the allowed fields");
+    expect(err.hint).toBe("Try one of the allowed fields");
+    expect(err.toJSON().hint).toBe("Try one of the allowed fields");
+  });
+
+  it("omits hint from toJSON when not set", () => {
+    expect(new BadRequest("Bad").toJSON()).not.toHaveProperty("hint");
+  });
+
   it("is instanceof MantleError and its own class", () => {
     const err = new Forbidden("No");
     expect(err).toBeInstanceOf(MantleError);

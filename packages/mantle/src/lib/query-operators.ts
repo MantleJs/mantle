@@ -39,6 +39,11 @@ export function assertOperators(
 function assertSupported(op: string, supported: ReadonlySet<string>, adapterName: string): void {
   if (!supported.has(op)) {
     const list = [...supported].join(", ");
-    throw new BadRequest(`Operator ${op} is not supported by ${adapterName}. Supported: ${list}`);
+    throw new BadRequest(
+      `Operator ${op} is not supported by ${adapterName}. Supported: ${list}`,
+      undefined,
+      undefined,
+      `Rewrite the where clause using only the operators supported by ${adapterName}, or filter in application code after fetching.`,
+    );
   }
 }

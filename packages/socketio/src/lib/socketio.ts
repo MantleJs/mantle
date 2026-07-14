@@ -17,8 +17,6 @@ export interface SocketioOptions {
   path?: string;
 }
 
-type ListenFn = (port: number, callback?: () => void) => HttpServer;
-
 const STANDARD_METHODS = ["find", "get", "create", "update", "patch", "remove"] as const;
 
 // ─── Channel classes ──────────────────────────────────────────────────────────
@@ -211,8 +209,17 @@ function wireSocketEvents(app: MantleApplication, io: Server): void {
 
   app.set("__channelFactory", (name: string | string[]) => registry.get(name));
 
-  // Cross-transport broadcast via channels (opt-in: no publisher = no event sent)
+  // Cross-transport broadcast via channels (opt-in: no publisher = no event sent).
+  // When a before hook sets params.rooms, the event goes only to those named channels.
   app.on("service:event", (path: unknown, event: unknown, result: unknown, params: unknown) => {
+    const eventName = `${path as string} ${event as string}`;
+    const rooms = (params as ServiceParams | undefined)?.rooms;
+
+    if (rooms !== undefined && (typeof rooms === "string" || rooms.length > 0)) {
+      broadcastToChannels(io, [registry.get(rooms)], eventName, result);
+      return;
+    }
+
     const publisher =
       tryGetPublisher(app, path as string) ??
       app.get<ChannelPublisher<unknown> | undefined>("__globalPublisher");
@@ -223,7 +230,7 @@ function wireSocketEvents(app: MantleApplication, io: Server): void {
     const channels = toChannelArray(publisher(result, ctx));
     if (!channels.length) return;
 
-    broadcastToChannels(io, channels, `${path as string} ${event as string}`, result);
+    broadcastToChannels(io, channels, eventName, result);
   });
 
   const connections = new Map<string, Record<string, unknown>>();
@@ -292,15 +299,15 @@ function wireSocketEvents(app: MantleApplication, io: Server): void {
 
 export function socketio(options?: SocketioOptions): MantlePlugin {
   return (app: MantleApplication): void => {
-    const originalListen = (app as unknown as Record<string, unknown>)["listen"];
-    if (typeof originalListen !== "function") {
-      throw new GeneralError("@mantlejs/socketio requires @mantlejs/express to be configured first");
+    if (typeof (app as unknown as Record<string, unknown>)["listen"] !== "function") {
+      throw new GeneralError(
+        "@mantlejs/socketio requires an HTTP transport (@mantlejs/express, @mantlejs/koa, or @mantlejs/http) to be configured first",
+      );
     }
 
-    (app as unknown as Record<string, unknown>)["listen"] = (port: number, callback?: () => void): HttpServer => {
-      const httpServer = (originalListen as ListenFn)(port, callback);
-
-      const io = new Server(httpServer, {
+    // Transports emit "http:server" with the Node server when listen() is called.
+    app.on("http:server", (httpServer: unknown) => {
+      const io = new Server(httpServer as HttpServer, {
         path: options?.path ?? "/socket.io",
         ...(options?.timeout !== undefined ? { pingTimeout: options.timeout } : {}),
         ...options?.serverOptions,
@@ -308,8 +315,6 @@ export function socketio(options?: SocketioOptions): MantlePlugin {
 
       app.set("socketio", io);
       wireSocketEvents(app, io);
-
-      return httpServer;
-    };
+    });
   };
 }

@@ -209,10 +209,21 @@ Always throw a typed error — never a plain `new Error()`.
 | `NotImplemented`    | 501         | `not-implemented`    |
 | `Unavailable`       | 503         | `unavailable`        |
 
-All errors accept `(message?, data?, errors?)` and serialize via `.toJSON()`.
+All errors accept `(message?, data?, errors?, hint?)` and serialize via `.toJSON()`.
 
 ```typescript
 throw new Conflict("Email already exists", { field: "email" });
+```
+
+The optional `hint` is actionable guidance for the caller — what to change so the request succeeds. It is included in `toJSON()`, so HTTP error responses carry it to clients (human or agent):
+
+```typescript
+throw new BadRequest(
+  "Operator $regex is not supported by knex",
+  undefined,
+  undefined,
+  "Rewrite the where clause using only the supported operators, or filter in application code.",
+);
 ```
 
 ---

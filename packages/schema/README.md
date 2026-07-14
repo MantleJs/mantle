@@ -182,6 +182,30 @@ app.service("users").hooks({
 
 ---
 
+### `querySyntax(entitySchema, options?)`
+
+Derives a **query** schema from an entity schema, following the `RepositoryService` query convention: every entity field accepts either a bare value or an operator object (`$gt`, `$gte`, `$lt`, `$lte`, `$ne`, `$in`, `$nin` — plus `$like`, `$notlike`, `$ilike` on string fields), and the reserved keys `$limit`, `$skip`, `$sort`, `$select`, `$or`, `$and` are typed to match. Unknown fields and unknown operators are rejected.
+
+A plain entity schema rejects operator objects (`{ age: { $gt: 21 } }` is not a valid `User`) — use `querySyntax` for the `query` target instead:
+
+```typescript
+import { querySyntax, validate } from "@mantlejs/schema";
+
+const UserQuery = querySyntax(UserSchema, { maxLimit: 100 });
+
+app.service("users").hooks({
+  before: { find: [validate(UserQuery, { target: "query", coerce: true })] },
+});
+```
+
+With `coerce: true`, query-string values are converted to the field's declared type before validation — `?age[$gt]=21&$limit=10` validates with `21` and `10` as numbers, ready for `RepositoryService`.
+
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| `maxLimit` | `number` | unlimited | Upper bound enforced on `$limit` |
+
+---
+
 ### `resolver(map, options?)`
 
 After hook. Iterates the field map and calls each resolver with the current field value, the full record, the hook context, and an optional shared context. Returning `undefined` removes the field entirely. Supports single records (`T`), arrays (`T[]`), and paginated results (`Paginated<T>`).

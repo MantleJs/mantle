@@ -95,13 +95,20 @@ describe("PineconeRepository", () => {
       );
     });
 
-    it("maps matched records to domain entities", async () => {
+    it("maps matched records to domain entities with the match score as _score", async () => {
       const { idx, app } = makeSetup();
       idx.query.mockResolvedValue({
         matches: [{ id: "1", score: 0.9, metadata: { title: "Doc", category: "tech" } }],
       });
       const result = await new TestRepo(app).findSimilar([0.1], 5);
-      expect(result).toEqual([{ id: "1", title: "Doc", category: "tech" }]);
+      expect(result).toEqual([{ id: "1", title: "Doc", category: "tech", _score: 0.9 }]);
+    });
+
+    it("defaults _score to 0 when Pinecone omits the score", async () => {
+      const { idx, app } = makeSetup();
+      idx.query.mockResolvedValue({ matches: [{ id: "1", metadata: { title: "Doc" } }] });
+      const result = await new TestRepo(app).findSimilar([0.1], 5);
+      expect(result[0]?._score).toBe(0);
     });
 
     it("wraps errors as GeneralError", async () => {

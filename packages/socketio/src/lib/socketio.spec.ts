@@ -27,10 +27,15 @@ const { Server } = await import("socket.io");
 
 const mockHttpServer = {};
 
+// Mimics an HTTP transport: listen() sets and emits "http:server" per the transport contract.
 function makeApp(withListen = true) {
   const app = mantle();
   if (withListen) {
-    (app as unknown as Record<string, unknown>)["listen"] = vi.fn().mockReturnValue(mockHttpServer);
+    (app as unknown as Record<string, unknown>)["listen"] = vi.fn().mockImplementation(() => {
+      app.set("http:server", mockHttpServer);
+      app.emit("http:server", mockHttpServer);
+      return mockHttpServer;
+    });
   }
   return app;
 }
@@ -85,7 +90,7 @@ describe("socketio() — plugin setup", () => {
     mockSocketsMap.clear();
   });
 
-  it("throws GeneralError if express() was not configured first", () => {
+  it("throws GeneralError if no HTTP transport was configured first", () => {
     const app = makeApp(false);
     expect(() => app.configure(socketio())).toThrow(GeneralError);
   });
@@ -97,7 +102,7 @@ describe("socketio() — plugin setup", () => {
     expect(app.get("socketio")).toBe(mockIo);
   });
 
-  it("creates Server with the http.Server returned by express listen", () => {
+  it("creates Server with the http.Server emitted by the transport", () => {
     const app = makeApp();
     app.configure(socketio());
     callListen(app);
@@ -487,6 +492,31 @@ describe("socketio() — channel broadcasting (opt-in)", () => {
 
     await app.service("messages").create({ text: "Hello" });
     expect(socket.emit).toHaveBeenCalledWith("messages created", expect.any(Object));
+  });
+
+  it("params.rooms broadcasts only to the named channels, even without a publisher", async () => {
+    const inRoom = makeSocket("in-room");
+    captureConnectionHandler()(inRoom);
+    const roomConn = app
+      .channel("everyone")
+      .connections.find((c) => c["__socketId"] === "in-room") as Record<string, unknown>;
+    app.channel("admins").join(roomConn);
+
+    const svc = makeService();
+    app.use("messages", svc as never);
+    await app.service("messages").create({ text: "Hello" }, { provider: "rest", rooms: ["admins"] });
+
+    expect(inRoom.emit).toHaveBeenCalledWith("messages created", expect.any(Object));
+    expect(socket.emit).not.toHaveBeenCalled(); // not in "admins"
+  });
+
+  it("params.rooms overrides the configured publisher", async () => {
+    const svc = makeService();
+    app.use("messages", svc as never);
+    app.publish(() => app.channel("everyone")); // would reach `socket`
+
+    await app.service("messages").create({ text: "Hello" }, { provider: "rest", rooms: "empty-room" });
+    expect(socket.emit).not.toHaveBeenCalled();
   });
 
   it("cross-transport: REST mutation triggers socket broadcast", async () => {

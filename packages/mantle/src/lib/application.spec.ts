@@ -524,6 +524,39 @@ describe("Service events", () => {
     expect(events).toHaveLength(0);
   });
 
+  it("emits 'service:event' for a custom method listed in ServiceOptions.events", async () => {
+    const app = mantle();
+    app.use(
+      "docs",
+      {
+        ...makeUserService(),
+        similar: async (data: unknown) => [{ id: 1, echoed: data }],
+      } as Partial<Service<User>>,
+      { methods: ["find", "similar"], events: ["similar"] },
+    );
+    const events: unknown[] = [];
+    app.on("service:event", (...args) => events.push(args));
+    await app.service<User>("docs").dispatch("similar", { name: "x" });
+    expect(events).toHaveLength(1);
+    expect(events[0]).toEqual(["docs", "similar", expect.any(Array), expect.any(Object)]);
+  });
+
+  it("does NOT emit 'service:event' for a custom method absent from ServiceOptions.events", async () => {
+    const app = mantle();
+    app.use(
+      "docs",
+      {
+        ...makeUserService(),
+        similar: async (data: unknown) => [{ id: 1, echoed: data }],
+      } as Partial<Service<User>>,
+      { methods: ["find", "similar"] },
+    );
+    const events: unknown[] = [];
+    app.on("service:event", (...args) => events.push(args));
+    await app.service<User>("docs").dispatch("similar", { name: "x" });
+    expect(events).toHaveLength(0);
+  });
+
   it("includes params in the 'service:event' payload", async () => {
     const app = mantle();
     app.use("users", makeUserService());

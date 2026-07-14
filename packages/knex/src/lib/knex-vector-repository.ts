@@ -30,10 +30,11 @@ export abstract class KnexVectorRepository<T extends Record<string, unknown>, D 
 
   /**
    * Find the top-K records most similar to the given embedding vector.
-   * Results include a synthetic `_distance` column with the computed distance.
-   * Generates: SELECT *, <col> <op> $1::vector AS _distance FROM <table> ORDER BY <col> <op> $1::vector LIMIT $2
+   * Results include a synthetic `_score` column with the computed pgvector distance —
+   * LOWER is more similar (it is a distance, not a similarity).
+   * Generates: SELECT *, <col> <op> $1::vector AS _score FROM <table> ORDER BY <col> <op> $1::vector LIMIT $2
    */
-  async findSimilar(vector: number[], topK: number, params?: QueryParams): Promise<T[]> {
+  async findSimilar(vector: number[], topK: number, params?: QueryParams): Promise<Array<T & { _score: number }>> {
     this.assertPostgres();
     try {
       const vectorLiteral = this.toVectorLiteral(vector);
@@ -46,9 +47,11 @@ export abstract class KnexVectorRepository<T extends Record<string, unknown>, D 
         query = query.offset(params.skip);
       }
       query = query.orderByRaw(`?? ${op} ?::vector`, [this.vectorColumn, vectorLiteral]).limit(topK);
-      return (await query.select(
-        this.knex.raw(`*, ?? ${op} ?::vector AS _distance`, [this.vectorColumn, vectorLiteral]),
-      )) as T[];
+      const rows = (await query.select(
+        this.knex.raw(`*, ?? ${op} ?::vector AS _score`, [this.vectorColumn, vectorLiteral]),
+      )) as Array<T & { _score: number }>;
+      /** @deprecated `_distance` mirrors `_score` for one release — read `_score` instead. */
+      return rows.map((row) => ({ ...row, _distance: row._score }));
     } catch (err) {
       if (err instanceof GeneralError) throw err;
       throw this.wrapError(err);

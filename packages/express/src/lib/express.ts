@@ -14,6 +14,9 @@ export function express(existingApp?: Application): MantlePlugin {
       res.setHeader("x-correlation-id", correlationId);
       withContext({ correlationId }, next);
     });
+    // Transport-neutral contract — plugins mount raw routes via "http:router".
+    app.set("http:router", expressApp);
+    /** @deprecated Read "http:router" instead. Kept for one release. */
     app.set("express", expressApp);
 
     let errorHandlerAttached = false;
@@ -44,7 +47,10 @@ export function express(existingApp?: Application): MantlePlugin {
 
     (app as unknown as Record<string, unknown>)["listen"] = (port: number, callback?: () => void) => {
       ensureErrorHandler();
-      return expressApp.listen(port, callback);
+      const server = expressApp.listen(port, callback);
+      app.set("http:server", server);
+      app.emit("http:server", server);
+      return server;
     };
   };
 }

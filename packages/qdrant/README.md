@@ -115,6 +115,10 @@ Subclasses must declare `collectionName` and `vectorSize`. All `VectorRepository
 | `upsertVector(id, vector, data)`       | Attach (or replace) the embedding for a record              |
 | `deleteVector(id)`                     | Delete the record and its embedding (alias for `deleteById`)|
 
+Every `findSimilar` result carries the Qdrant match score as `_score`. **Higher is more similar** for
+`Cosine` and `Dot` collections (the default here is `Cosine`); for `Euclid` collections Qdrant reports a
+distance, where lower is more similar.
+
 #### `Repository<T>` methods
 
 | Method                 | Description                                              |

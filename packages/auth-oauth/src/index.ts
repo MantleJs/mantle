@@ -6,3 +6,5 @@ export type {
   AuthUrlParams,
   CodeExchangeParams,
 } from "./lib/types.js";
+export { createStateStore } from "./lib/state-store.js";
+export type { OAuthStateStore, OAuthStateData } from "./lib/state-store.js";

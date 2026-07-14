@@ -83,6 +83,17 @@ Subclasses must implement `toVector()`. All other `Repository<T>` methods are pr
 | `index`     | `Index`  | —           | A Pinecone `Index` instance (required)    |
 | `namespace` | `string` | `undefined` | Pinecone namespace to scope operations to |
 
+#### `VectorRepository<T>` methods
+
+| Method                                 | Description                                                 |
+| -------------------------------------- | ----------------------------------------------------------- |
+| `findSimilar(vector, topK, params?)`   | ANN search — returns the top-K most similar records         |
+| `upsertVector(id, vector, data)`       | Attach (or replace) the embedding for a record              |
+| `deleteVector(id)`                     | Delete the record and its embedding (alias for `deleteById`)|
+
+Every `findSimilar` result carries the Pinecone match score as `_score` — **higher is more similar**
+(similarity, not distance, for the common `cosine`/`dotproduct` metrics).
+
 #### Inherited from `Repository<T, D>`
 
 | Method                 | Description                                              |

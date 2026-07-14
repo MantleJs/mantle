@@ -102,7 +102,7 @@ describe("KnexVectorRepository", () => {
       const { knexFn, app } = makeSetup([]);
       await new TestVectorRepo(app).findSimilar([0.1, 0.2, 0.3], 5);
       expect((knexFn as unknown as Record<string, unknown>)["raw"]).toHaveBeenCalledWith(
-        "*, ?? <=> ?::vector AS _distance",
+        "*, ?? <=> ?::vector AS _score",
         ["embedding", "[0.1,0.2,0.3]"],
       );
     });
@@ -119,11 +119,11 @@ describe("KnexVectorRepository", () => {
       expect(qb["limit"]).toHaveBeenCalledWith(10);
     });
 
-    it("returns the rows from the query", async () => {
-      const rows = [{ id: "1", title: "Doc", embedding: "[0.1]", _distance: 0.05 }];
+    it("returns the rows with _score, mirroring it into the deprecated _distance", async () => {
+      const rows = [{ id: "1", title: "Doc", embedding: "[0.1]", _score: 0.05 }];
       const { app } = makeSetup(rows);
       const result = await new TestVectorRepo(app).findSimilar([0.1], 5);
-      expect(result).toEqual(rows);
+      expect(result).toEqual([{ id: "1", title: "Doc", embedding: "[0.1]", _score: 0.05, _distance: 0.05 }]);
     });
 
     it("applies where clause from params", async () => {
@@ -143,7 +143,7 @@ describe("KnexVectorRepository", () => {
       await new TestVectorRepoL2(app).findSimilar([0.1], 5);
       expect(qb["orderByRaw"]).toHaveBeenCalledWith("?? <-> ?::vector", ["embedding", "[0.1]"]);
       expect((knexFn as unknown as Record<string, unknown>)["raw"]).toHaveBeenCalledWith(
-        "*, ?? <-> ?::vector AS _distance",
+        "*, ?? <-> ?::vector AS _score",
         ["embedding", "[0.1]"],
       );
     });

@@ -51,7 +51,8 @@ export abstract class PineconeRepository<T extends Record<string, unknown>, D = 
 
   // ─── VectorRepository methods ─────────────────────────────────────────────
 
-  async findSimilar(vector: number[], topK: number, params?: QueryParams): Promise<T[]> {
+  /** Every result carries the Pinecone match score as `_score` — HIGHER is more similar. */
+  async findSimilar(vector: number[], topK: number, params?: QueryParams): Promise<Array<T & { _score: number }>> {
     try {
       const response = await this.index.query({
         vector,
@@ -59,9 +60,10 @@ export abstract class PineconeRepository<T extends Record<string, unknown>, D = 
         includeMetadata: true,
         ...(params?.where ? { filter: toPineconeFilter(params.where as WhereClause) } : {}),
       });
-      return (response.matches ?? []).map((m) =>
-        this.fromRecord(m.id, (m.metadata ?? {}) as Record<string, unknown>),
-      );
+      return (response.matches ?? []).map((m) => ({
+        ...this.fromRecord(m.id, (m.metadata ?? {}) as Record<string, unknown>),
+        _score: m.score ?? 0,
+      }));
     } catch (err) {
       throw this.wrapError(err);
     }

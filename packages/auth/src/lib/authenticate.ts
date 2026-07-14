@@ -1,10 +1,19 @@
 import type { HookContext, HookFunction } from "@mantlejs/mantle";
-import { NotAuthenticated } from "@mantlejs/mantle";
+import { NotAuthenticated, NotFound } from "@mantlejs/mantle";
 import type { AuthEngine, JwtPayload } from "./types.js";
 
-export function authenticate(strategy: string): HookFunction {
+export interface AuthenticateOptions {
+  /**
+   * Service path to resolve the authenticated user record from. When set, `params.user`
+   * becomes `app.service(entity).get(payload.sub)` (internal call, no provider) and the raw
+   * JWT payload moves to `params.authPayload`. When omitted, `params.user` is the raw payload.
+   */
+  entity?: string;
+}
+
+export function authenticate(strategy: string, options: AuthenticateOptions = {}): HookFunction {
   if (strategy === "jwt") {
-    return authenticateJwt;
+    return (context: HookContext) => authenticateJwt(context, options);
   }
 
   return async (context: HookContext): Promise<HookContext> => {
@@ -19,7 +28,7 @@ export function authenticate(strategy: string): HookFunction {
   };
 }
 
-async function authenticateJwt(context: HookContext): Promise<HookContext> {
+async function authenticateJwt(context: HookContext, options: AuthenticateOptions): Promise<HookContext> {
   // Internal calls (no provider) bypass JWT verification
   if (!context.params.provider) return context;
 
@@ -49,6 +58,25 @@ async function authenticateJwt(context: HookContext): Promise<HookContext> {
     payload = engine.verifyJwt(token);
   } catch {
     throw new NotAuthenticated("Invalid or expired token");
+  }
+
+  if (options.entity !== undefined) {
+    if (payload.sub === undefined) {
+      throw new NotAuthenticated("Token has no subject to resolve a user from");
+    }
+    let user: unknown;
+    try {
+      // Internal call — no provider, so service hooks treat it as trusted
+      user = await context.app.service(options.entity).get(String(payload.sub));
+    } catch (err) {
+      if (err instanceof NotFound) {
+        throw new NotAuthenticated("User for this token no longer exists");
+      }
+      throw err;
+    }
+    context.params.user = user as Record<string, unknown>;
+    context.params.authPayload = payload;
+    return context;
   }
 
   context.params.user = payload;

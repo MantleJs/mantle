@@ -130,7 +130,7 @@ app.service("notifications").publish((data, ctx) => [
 
 ### `socketio(options?)`
 
-Returns a `MantlePlugin`. Call via `app.configure(socketio(options))`. Must be configured after `express()`.
+Returns a `MantlePlugin`. Call via `app.configure(socketio(options))`. Must be configured after an HTTP transport (`express()`, `koa()`, or `http()`) — the plugin attaches to the Node server the transport emits via the `"http:server"` app event when `listen()` is called.
 
 ```typescript
 app.configure(
@@ -191,6 +191,25 @@ Registers a **per-service publisher**. Takes precedence over the global publishe
 app.service("messages").publish((data, ctx) => {
   const userId = (ctx.params.user as { id: number } | undefined)?.id;
   return userId ? app.channel(`user/${userId}`) : null;
+});
+```
+
+---
+
+### `params.rooms` — per-call broadcast targeting
+
+A before hook (or an internal caller) can set `params.rooms` to a channel name or array of names. When set, the mutation's event is broadcast **only to those channels**, bypassing any configured publisher. No publisher is required — `rooms` is its own opt-in.
+
+```typescript
+app.service("messages").hooks({
+  before: {
+    create: [
+      async (ctx) => {
+        ctx.params.rooms = [`conversation/${(ctx.data as { conversationId: string }).conversationId}`];
+        return ctx;
+      },
+    ],
+  },
 });
 ```
 

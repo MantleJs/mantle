@@ -2,7 +2,15 @@ import { randomUUID } from "crypto";
 import KoaLib from "koa";
 import Router from "@koa/router";
 import bodyParser from "@koa/bodyparser";
-import type { MantleApplication, MantlePlugin, ServiceOptions } from "@mantlejs/mantle";
+import type {
+  HttpRequestLike,
+  HttpResponseLike,
+  HttpRouteHandler,
+  HttpRouterLike,
+  MantleApplication,
+  MantlePlugin,
+  ServiceOptions,
+} from "@mantlejs/mantle";
 import { withContext } from "@mantlejs/mantle";
 import { mountServiceRoutes } from "./routes.js";
 import { errorHandler } from "./error-handler.js";
@@ -10,6 +18,56 @@ import { errorHandler } from "./error-handler.js";
 export interface KoaOptions {
   /** Existing Koa application instance. When omitted, a new one is created. */
   app?: InstanceType<typeof KoaLib>;
+}
+
+/** Structural subset of Koa's context used by the HttpRouterLike adapter. */
+interface KoaCtxLike {
+  protocol: string;
+  query: Record<string, unknown>;
+  headers: Record<string, string | string[] | undefined>;
+  status: number;
+  body: unknown;
+  get(field: string): string;
+  redirect(url: string): void;
+}
+
+/** Adapt @koa/router to the transport-neutral express-style HttpRouterLike contract. */
+function toHttpRouter(router: Router): HttpRouterLike {
+  const adapt =
+    (handler: HttpRouteHandler) =>
+    async (ctx: KoaCtxLike): Promise<void> => {
+      const req: HttpRequestLike = {
+        protocol: ctx.protocol,
+        query: ctx.query as Record<string, unknown>,
+        headers: ctx.headers as Record<string, string | string[] | undefined>,
+        get: (header) => ctx.get(header) || undefined,
+      };
+      const res: HttpResponseLike = {
+        status(code) {
+          ctx.status = code;
+          return this;
+        },
+        json(body) {
+          ctx.body = body;
+        },
+        redirect(url) {
+          ctx.redirect(url);
+        },
+      };
+      await new Promise<void>((resolve, reject) => {
+        const next = (err?: unknown): void => (err ? reject(err) : resolve());
+        Promise.resolve(handler(req, res, next)).then(() => resolve(), reject);
+      });
+    };
+
+  return {
+    get: (path, handler) => {
+      router.get(path, adapt(handler));
+    },
+    post: (path, handler) => {
+      router.post(path, adapt(handler));
+    },
+  };
 }
 
 export function koa(options: KoaOptions = {}): MantlePlugin {
@@ -26,6 +84,9 @@ export function koa(options: KoaOptions = {}): MantlePlugin {
     });
 
     const router = new Router();
+    // Transport-neutral contract — plugins mount raw routes via "http:router".
+    app.set("http:router", toHttpRouter(router));
+    /** @deprecated Read "http:router" / "http:server" instead. Kept for one release. */
     app.set("koa", koaApp);
     app.set("koa:router", router);
 
@@ -47,7 +108,10 @@ export function koa(options: KoaOptions = {}): MantlePlugin {
       koaApp.use(router.routes());
       koaApp.use(router.allowedMethods());
       const server = koaApp.listen(port, callback);
+      app.set("http:server", server);
+      /** @deprecated Read "http:server" instead. Kept for one release. */
       app.set("server", server);
+      app.emit("http:server", server);
       return server;
     };
   };

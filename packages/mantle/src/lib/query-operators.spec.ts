@@ -25,6 +25,16 @@ describe("assertOperators", () => {
     );
   });
 
+  it("carries an actionable hint on the operator error", () => {
+    try {
+      assertOperators({ age: { $get: 21 } }, SUPPORTED, "test-adapter");
+      expect.unreachable("should have thrown");
+    } catch (err) {
+      expect((err as BadRequest).hint).toMatch(/test-adapter/);
+      expect((err as BadRequest).toJSON()["hint"]).toBeDefined();
+    }
+  });
+
   it("throws for an unsupported top-level logical operator", () => {
     expect(() => assertOperators({ $nor: [{ a: 1 }] }, SUPPORTED, "test-adapter")).toThrow(BadRequest);
   });

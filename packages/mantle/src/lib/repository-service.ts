@@ -158,7 +158,12 @@ export class RepositoryService<T, D = Partial<T>> implements Service<T, D> {
   private assertField(field: string): void {
     const allowed = this.options.fields;
     if (allowed && !allowed.includes(field)) {
-      throw new BadRequest(`Field '${field}' is not queryable. Allowed: ${allowed.join(", ")}`);
+      throw new BadRequest(
+        `Field '${field}' is not queryable. Allowed: ${allowed.join(", ")}`,
+        undefined,
+        undefined,
+        `Query one of the allowed fields, or add '${field}' to RepositoryServiceOptions.fields on the server.`,
+      );
     }
   }
 

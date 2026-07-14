@@ -102,13 +102,13 @@ describe("QdrantRepository", () => {
       );
     });
 
-    it("maps scored points to domain entities", async () => {
+    it("maps scored points to domain entities with the match score as _score", async () => {
       const { client, app } = makeSetup();
       client.search.mockResolvedValue([
         { id: "1", score: 0.9, payload: { title: "Doc", category: "tech" } },
       ]);
       const result = await new TestRepo(app).findSimilar([0.1, 0.2, 0.3], 5);
-      expect(result).toEqual([{ id: "1", title: "Doc", category: "tech" }]);
+      expect(result).toEqual([{ id: "1", title: "Doc", category: "tech", _score: 0.9 }]);
     });
 
     it("wraps errors as GeneralError", async () => {

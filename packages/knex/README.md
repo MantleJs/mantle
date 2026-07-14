@@ -119,6 +119,16 @@ await repo.withTransaction(async (txRepo) => {
 
 ---
 
+### `KnexVectorRepository<T, D>` (pgvector)
+
+Extends `KnexRepository` with `VectorRepository<T>` support on PostgreSQL via [pgvector](https://github.com/pgvector/pgvector). Set `vectorColumn` (default `"embedding"`) and optionally `distanceOperator` (`"<=>"` cosine, `"<->"` L2, `"<#>"` inner product).
+
+Every `findSimilar` result carries the computed pgvector distance as `_score` — **lower is more
+similar** (it is a distance, not a similarity, unlike the Pinecone/Qdrant adapters where higher
+wins). The same value is mirrored to the deprecated `_distance` field for one release.
+
+---
+
 ### `QueryParams` — supported `where` operators
 
 ```typescript

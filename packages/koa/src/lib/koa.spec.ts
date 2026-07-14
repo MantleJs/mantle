@@ -3,7 +3,7 @@ import type { Server } from "node:http";
 import KoaLib from "koa";
 import { mantle, getContext } from "@mantlejs/mantle";
 import { BadRequest, NotFound } from "@mantlejs/mantle";
-import type { ServiceParams } from "@mantlejs/mantle";
+import type { HttpRouterLike, ServiceParams } from "@mantlejs/mantle";
 import { koa } from "./koa.js";
 
 async function startApp(configure: (app: ReturnType<typeof mantle>) => void): Promise<{
@@ -69,6 +69,68 @@ describe("koa adapter", () => {
       const existingKoa = new KoaLib();
       const app = mantle().configure(koa({ app: existingKoa }));
       expect(app.get("koa")).toBe(existingKoa);
+    });
+
+    it("registers the transport-neutral 'http:router'", () => {
+      const app = mantle().configure(koa());
+      const router = app.get<HttpRouterLike>("http:router");
+      expect(typeof router.get).toBe("function");
+      expect(typeof router.post).toBe("function");
+    });
+  });
+
+  describe("http:router raw routes", () => {
+    it("serves an express-style handler mounted via 'http:router'", async () => {
+      let stop: (() => Promise<void>) | undefined;
+      try {
+        const { port, stop: s } = await startApp((app) => {
+          const router = app.get<HttpRouterLike>("http:router");
+          router.get("/raw", async (req, res) => {
+            res.json({ q: req.query["x"], proto: req.protocol });
+          });
+        });
+        stop = s;
+        const res = await fetch(`http://localhost:${port}/raw?x=1`);
+        expect(res.status).toBe(200);
+        expect(await res.json()).toEqual({ q: "1", proto: "http" });
+      } finally {
+        await stop?.();
+      }
+    });
+
+    it("redirects via res.redirect from a raw handler", async () => {
+      let stop: (() => Promise<void>) | undefined;
+      try {
+        const { port, stop: s } = await startApp((app) => {
+          const router = app.get<HttpRouterLike>("http:router");
+          router.get("/go", (_req, res) => {
+            res.redirect("https://example.com/target");
+          });
+        });
+        stop = s;
+        const res = await fetch(`http://localhost:${port}/go`, { redirect: "manual" });
+        expect(res.status).toBe(302);
+        expect(res.headers.get("location")).toBe("https://example.com/target");
+      } finally {
+        await stop?.();
+      }
+    });
+
+    it("routes handler errors through next(err) to the koa error handler", async () => {
+      let stop: (() => Promise<void>) | undefined;
+      try {
+        const { port, stop: s } = await startApp((app) => {
+          const router = app.get<HttpRouterLike>("http:router");
+          router.get("/boom", (_req, _res, next) => {
+            next(new BadRequest("nope"));
+          });
+        });
+        stop = s;
+        const res = await fetch(`http://localhost:${port}/boom`);
+        expect(res.status).toBe(400);
+      } finally {
+        await stop?.();
+      }
     });
   });
 
@@ -422,6 +484,7 @@ describe("koa adapter", () => {
       const server = innerApp.listen(0) as Server;
       await new Promise<void>((resolve) => server.once("listening", resolve));
       expect(innerApp.get("server")).toBe(server);
+      expect(innerApp.get("http:server")).toBe(server);
       await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
     });
   });

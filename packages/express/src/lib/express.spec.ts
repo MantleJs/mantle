@@ -1,4 +1,4 @@
-import { createServer } from "node:http";
+import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import type { Application } from "express";
 import { mantle, getContext, RepositoryService } from "@mantlejs/mantle";
@@ -53,6 +53,25 @@ describe("express adapter", () => {
     it("stores an express application on app.get('express')", () => {
       const app = mantle().configure(express());
       expect(app.get("express")).toBeDefined();
+    });
+
+    it("registers the transport-neutral 'http:router' (the express app itself)", () => {
+      const app = mantle().configure(express());
+      expect(app.get("http:router")).toBe(app.get("express"));
+    });
+
+    it("sets and emits 'http:server' when listen() is called", async () => {
+      const app = mantle().configure(express());
+      const emitted: unknown[] = [];
+      app.on("http:server", (server) => emitted.push(server));
+      const server = (app as unknown as { listen: (port: number) => Server }).listen(0);
+      await new Promise<void>((resolve) => server.once("listening", resolve));
+      try {
+        expect(app.get("http:server")).toBe(server);
+        expect(emitted).toEqual([server]);
+      } finally {
+        await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
+      }
     });
   });
 

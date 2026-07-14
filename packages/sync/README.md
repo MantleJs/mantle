@@ -28,6 +28,16 @@ Each instance generates a random `instanceId` (UUID) at startup. Messages receiv
 
 Broker failures (publish errors, subscribe failures) are non-fatal: they are logged via `app.get('logger')` if a logger is configured, and execution continues.
 
+### Delivery semantics: at-most-once
+
+Events are delivered **at most once** — there is no persistence, acknowledgment, or replay. A message is lost when:
+
+- the broker connection is down at publish time (the error is logged and execution continues);
+- an instance is restarting, or subscribes after the message was published (pub/sub has no backlog);
+- a WebSocket client is disconnected or reconnecting when its instance fans the event out.
+
+Design consequence: **clients must not treat the event stream as a source of truth.** Treat events as cache-invalidation hints and refetch on reconnect. The planned `@mantlejs/client` emits a `reconnect` event for exactly this, and `@mantlejs/react` will call `queryClient.invalidateQueries()` on it, bounding the staleness a missed event can cause. If you need guaranteed delivery, put a real queue (or an outbox table) behind your service instead of relying on `service:event` fan-out.
+
 ### Adapters
 
 | Adapter | Source | Transport |

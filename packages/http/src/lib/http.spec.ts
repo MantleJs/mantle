@@ -2,7 +2,7 @@ import type { AddressInfo } from "node:net";
 import type { Server } from "node:http";
 import { mantle, getContext } from "@mantlejs/mantle";
 import { BadRequest, NotFound } from "@mantlejs/mantle";
-import type { ServiceParams } from "@mantlejs/mantle";
+import type { HttpRouterLike, ServiceParams } from "@mantlejs/mantle";
 import { http } from "./http.js";
 
 async function startApp(configure: (app: ReturnType<typeof mantle>) => void): Promise<{
@@ -66,6 +66,62 @@ describe("http adapter", () => {
     it("stores fetchHandler on the app", () => {
       const app = mantle().configure(http());
       expect(typeof app.get("fetchHandler")).toBe("function");
+    });
+
+    it("registers the transport-neutral 'http:router'", () => {
+      const app = mantle().configure(http());
+      const router = app.get<HttpRouterLike>("http:router");
+      expect(typeof router.get).toBe("function");
+      expect(typeof router.post).toBe("function");
+    });
+  });
+
+  describe("http:router raw routes", () => {
+    it("serves an express-style handler mounted via 'http:router'", async () => {
+      const { port, stop } = await startApp((app) => {
+        const router = app.get<HttpRouterLike>("http:router");
+        router.get("/raw", (req, res) => {
+          res.json({ q: req.query["x"], proto: req.protocol });
+        });
+      });
+      try {
+        const res = await fetch(`http://localhost:${port}/raw?x=1`);
+        expect(res.status).toBe(200);
+        expect(await res.json()).toEqual({ q: "1", proto: "http" });
+      } finally {
+        await stop();
+      }
+    });
+
+    it("redirects via res.redirect from a raw handler", async () => {
+      const { port, stop } = await startApp((app) => {
+        const router = app.get<HttpRouterLike>("http:router");
+        router.get("/go", (_req, res) => {
+          res.redirect("https://example.com/target");
+        });
+      });
+      try {
+        const res = await fetch(`http://localhost:${port}/go`, { redirect: "manual" });
+        expect(res.status).toBe(302);
+        expect(res.headers.get("location")).toBe("https://example.com/target");
+      } finally {
+        await stop();
+      }
+    });
+
+    it("routes handler errors through next(err) to the error response", async () => {
+      const { port, stop } = await startApp((app) => {
+        const router = app.get<HttpRouterLike>("http:router");
+        router.get("/boom", (_req, _res, next) => {
+          next(new BadRequest("nope"));
+        });
+      });
+      try {
+        const res = await fetch(`http://localhost:${port}/boom`);
+        expect(res.status).toBe(400);
+      } finally {
+        await stop();
+      }
     });
   });
 
@@ -459,6 +515,7 @@ describe("http adapter", () => {
       const server = innerApp.listen(0) as Server;
       await new Promise<void>((resolve) => server.once("listening", resolve));
       expect(innerApp.get("server")).toBe(server);
+      expect(innerApp.get("http:server")).toBe(server);
       await new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve())));
     });
   });

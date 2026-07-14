@@ -55,7 +55,8 @@ export abstract class QdrantRepository<T extends Record<string, unknown>, D = Pa
 
   // ─── VectorRepository methods ─────────────────────────────────────────────
 
-  async findSimilar(vector: number[], topK: number, params?: QueryParams): Promise<T[]> {
+  /** Every result carries the Qdrant match score as `_score` — HIGHER is more similar for Cosine/Dot collections. */
+  async findSimilar(vector: number[], topK: number, params?: QueryParams): Promise<Array<T & { _score: number }>> {
     try {
       const filter = params?.where ? toQdrantFilter(params.where as WhereClause) : undefined;
       const results = await this.client.search(this.collectionName, {
@@ -64,7 +65,10 @@ export abstract class QdrantRepository<T extends Record<string, unknown>, D = Pa
         with_payload: true,
         ...(filter ? { filter: filter as never } : {}),
       });
-      return results.map((r) => this.fromPoint(r.id, (r.payload ?? {}) as Record<string, unknown>));
+      return results.map((r) => ({
+        ...this.fromPoint(r.id, (r.payload ?? {}) as Record<string, unknown>),
+        _score: r.score,
+      }));
     } catch (err) {
       throw this.wrapError(err);
     }
