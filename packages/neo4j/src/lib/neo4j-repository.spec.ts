@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { Neo4jRepository } from "./neo4j-repository.js";
+import { NEO4J_OPERATORS } from "./neo4j-where.js";
 import { BadRequest, NotFound } from "@mantlejs/mantle";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -218,6 +219,16 @@ describe("Neo4jRepository", () => {
       });
       const result = await repo.cypher<Person>("MATCH (n:Person) RETURN n");
       expect(result[0]).toEqual(node.properties);
+    });
+  });
+
+  describe("describe()", () => {
+    it("reports the exact operator set assertOperators accepts", () => {
+      const caps = repo.describe();
+      expect(caps.adapter).toBe("@mantlejs/neo4j");
+      expect(new Set(caps.operators)).toEqual(NEO4J_OPERATORS);
+      expect(caps.pagination).toBe("offset");
+      expect(caps.fullTextSearch).toBe(false);
     });
   });
 });

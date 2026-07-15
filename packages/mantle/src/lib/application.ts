@@ -12,7 +12,9 @@ import type {
   MantleOptions,
   MantlePlugin,
   Paginated,
+  RepositoryCapabilities,
   Service,
+  ServiceDescriptor,
   ServiceHandle,
   ServiceOptions,
   ServiceParams,
@@ -203,6 +205,30 @@ class ServiceHandleImpl<T> implements ServiceHandle<T> {
 
   async dispatch(method: string, data?: Partial<T>, id?: Id, params?: ServiceParams): Promise<T | T[] | Paginated<T>> {
     return this.runPipeline(method, params, id, data);
+  }
+
+  describe(): ServiceDescriptor {
+    const standardEvents = this.options.methods
+      .map((method) => SERVICE_EVENTS[method])
+      .filter((event): event is string => event !== undefined);
+    const customEvents = this.options.events.filter((event) => !DEFAULT_EVENTS.includes(event));
+
+    const service = this.service as { describe?: () => RepositoryCapabilities | undefined };
+    const capabilities = typeof service.describe === "function" ? service.describe() : undefined;
+
+    // Auth hooks (e.g. @mantlejs/auth authenticate()) mark themselves with an `authStrategy` property.
+    const authRequired = (this.hookConfig.before?.all ?? []).some(
+      (hook) => typeof (hook as { authStrategy?: unknown }).authStrategy === "string",
+    );
+
+    return {
+      path: this.path,
+      methods: [...this.options.methods],
+      events: [...standardEvents, ...customEvents],
+      ...(this.schema !== undefined ? { schema: this.schema } : {}),
+      ...(capabilities !== undefined ? { capabilities } : {}),
+      authRequired,
+    };
   }
 }
 

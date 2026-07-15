@@ -1,8 +1,24 @@
-import { BadRequest } from "@mantlejs/mantle";
+import { assertOperators, BadRequest } from "@mantlejs/mantle";
 
 type Primitive = string | number | boolean | null;
 type WhereValue = Primitive | Primitive[] | Record<string, unknown>;
 export type WhereClause = Record<string, WhereValue>;
+
+/** All query operators supported by the Neo4j adapter. */
+export const NEO4J_OPERATORS: ReadonlySet<string> = new Set([
+  "$lt",
+  "$lte",
+  "$gt",
+  "$gte",
+  "$ne",
+  "$in",
+  "$nin",
+  "$like",
+  "$notlike",
+  "$ilike",
+  "$or",
+  "$and",
+]);
 
 const VALID_FIELD_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
@@ -47,6 +63,7 @@ export interface WhereResult {
  *   { $and: [...] }           → (a AND b AND ...)
  */
 export function toNeo4jWhere(where: WhereClause, alias = "n"): WhereResult {
+  assertOperators(where, NEO4J_OPERATORS, "@mantlejs/neo4j");
   const params: Record<string, unknown> = {};
   let counter = 0;
 

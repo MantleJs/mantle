@@ -61,6 +61,24 @@ export interface Service<T, D = Partial<T>> {
   remove(id: Id, params?: ServiceParams): Promise<T>;
 }
 
+/**
+ * Machine-readable description of what a repository adapter can do. Returned by
+ * `Repository.describe()` so tooling (OpenAPI generation, `/_services` introspection,
+ * agents) can discover adapter capabilities without trial-and-error queries.
+ */
+export interface RepositoryCapabilities {
+  /** Package name of the adapter, e.g. "@mantlejs/knex". */
+  adapter: string;
+  /** Exactly the `$`-operators the adapter's where-clause translator accepts — the same set its `assertOperators` call enforces. */
+  operators: string[];
+  /** Pagination styles the adapter supports through `QueryParams`. */
+  pagination: "offset" | "cursor" | "both";
+  /** Whether the adapter exposes native full-text search. */
+  fullTextSearch: boolean;
+  /** When present, returns true if the given where clause forces a full scan (e.g. DynamoDB Scan instead of Query). */
+  scanning?: (where: Record<string, unknown>) => boolean;
+}
+
 export interface Repository<T, D = Partial<T>> {
   findAll(params?: QueryParams): Promise<T[]>;
   findById(id: Id): Promise<T | null>;
@@ -70,6 +88,8 @@ export interface Repository<T, D = Partial<T>> {
   patchById(id: Id, data: D): Promise<T>;
   deleteById(id: Id): Promise<T>;
   count(params?: QueryParams): Promise<number>;
+  /** Optional capability introspection. All @mantlejs adapters implement it; user repositories may omit it. */
+  describe?(): RepositoryCapabilities;
 }
 
 export interface VectorRepository<T extends Record<string, unknown>, D = Partial<T>> extends Repository<T, D> {
@@ -100,6 +120,8 @@ export interface GraphRepository<T extends Record<string, unknown>> {
   deleteNode(id: Id): Promise<T>;
   /** Execute a raw graph query */
   cypher<R = T>(query: string, params?: Record<string, unknown>): Promise<R[]>;
+  /** Optional capability introspection. All @mantlejs adapters implement it; user repositories may omit it. */
+  describe?(): RepositoryCapabilities;
 }
 
 /** Minimal express-compatible request passed to `HttpRouterLike` handlers. */
@@ -177,9 +199,27 @@ export interface MantleOptions {
 
 export type MantlePlugin = (app: MantleApplication) => void | Promise<void>;
 
+/**
+ * Machine-readable description of a registered service, returned by `ServiceHandle.describe()`
+ * and served by the transports' opt-in `GET /_services` introspection endpoint.
+ */
+export interface ServiceDescriptor {
+  path: string;
+  methods: string[];
+  /** Event names this service emits: the standard created/updated/patched/removed set filtered by registered methods, plus custom `ServiceOptions.events`. */
+  events: string[];
+  /** The `ServiceOptions.schema` stored at registration (JSON Schema, e.g. via TypeBox). */
+  schema?: unknown;
+  /** The underlying repository's capabilities, when the service exposes them (see `RepositoryService.describe()`). */
+  capabilities?: RepositoryCapabilities;
+  /** True when an auth hook (a hook carrying an `authStrategy` property, e.g. `authenticate("jwt")`) is registered in `before.all`. */
+  authRequired?: boolean;
+}
+
 export interface ServiceHandle<T> extends Service<T> {
   hooks(config: HookConfig<T>): this;
   dispatch(method: string, data?: Partial<T>, id?: Id, params?: ServiceParams): Promise<T | T[] | Paginated<T>>;
+  describe(): ServiceDescriptor;
   readonly schema?: unknown;
   readonly methods: string[];
   publish(publisher: ChannelPublisher<T>): this;

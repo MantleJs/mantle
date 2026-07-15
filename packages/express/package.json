@@ -33,7 +33,7 @@
     "api"
   ],
   "peerDependencies": {
-    "@mantlejs/mantle": "^0.1.0",
+    "@mantlejs/mantle": "^0.0.1",
     "express": "^5.0.0"
   }
 }

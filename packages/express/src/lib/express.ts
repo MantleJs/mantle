@@ -5,7 +5,15 @@ import { withContext } from "@mantlejs/mantle";
 import { mountServiceRoutes } from "./routes.js";
 import { errorHandler } from "./error-handler.js";
 
-export function express(existingApp?: Application): MantlePlugin {
+export interface ExpressOptions {
+  /**
+   * Mount an introspection endpoint (default `GET /_services`) returning a
+   * `ServiceDescriptor[]` for every registered service. Off by default.
+   */
+  introspection?: boolean | { path?: string };
+}
+
+export function express(existingApp?: Application, options: ExpressOptions = {}): MantlePlugin {
   return (app: MantleApplication): void => {
     const expressApp: Application = existingApp ?? expressLib();
     expressApp.use(expressLib.json());
@@ -18,6 +26,15 @@ export function express(existingApp?: Application): MantlePlugin {
     app.set("http:router", expressApp);
     /** @deprecated Read "http:router" instead. Kept for one release. */
     app.set("express", expressApp);
+
+    const servicePaths: string[] = [];
+    if (options.introspection) {
+      const introspectionPath =
+        (typeof options.introspection === "object" ? options.introspection.path : undefined) ?? "/_services";
+      expressApp.get(introspectionPath, (_req, res) => {
+        res.json(servicePaths.map((path) => app.service(path).describe()));
+      });
+    }
 
     let errorHandlerAttached = false;
 
@@ -39,6 +56,7 @@ export function express(existingApp?: Application): MantlePlugin {
         return app;
       }
       originalUse(path, service, options);
+      servicePaths.push(path as string);
       mountServiceRoutes(expressApp, app, path as string, options ?? {});
       // Defer error handler registration so it always sits after all routes
       setImmediate(ensureErrorHandler);

@@ -1,8 +1,8 @@
 import type { QdrantClient } from "@qdrant/js-client-rest";
-import type { Id, QueryParams, VectorRepository } from "@mantlejs/mantle";
+import type { Id, QueryParams, RepositoryCapabilities, VectorRepository } from "@mantlejs/mantle";
 import { GeneralError, NotFound } from "@mantlejs/mantle";
 import type { MantleApplication } from "@mantlejs/mantle";
-import { toQdrantFilter } from "./qdrant-filter.js";
+import { toQdrantFilter, QDRANT_OPERATORS } from "./qdrant-filter.js";
 import type { WhereClause } from "./qdrant-filter.js";
 
 const SCROLL_PAGE_SIZE = 100;
@@ -51,6 +51,15 @@ export abstract class QdrantRepository<T extends Record<string, unknown>, D = Pa
       });
     }
     this._collectionEnsured = true;
+  }
+
+  describe(): RepositoryCapabilities {
+    return {
+      adapter: "@mantlejs/qdrant",
+      operators: [...QDRANT_OPERATORS],
+      pagination: "offset",
+      fullTextSearch: false,
+    };
   }
 
   // ─── VectorRepository methods ─────────────────────────────────────────────

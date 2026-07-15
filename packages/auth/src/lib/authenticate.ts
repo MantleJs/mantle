@@ -12,20 +12,23 @@ export interface AuthenticateOptions {
 }
 
 export function authenticate(strategy: string, options: AuthenticateOptions = {}): HookFunction {
-  if (strategy === "jwt") {
-    return (context: HookContext) => authenticateJwt(context, options);
-  }
+  const hook: HookFunction =
+    strategy === "jwt"
+      ? (context: HookContext) => authenticateJwt(context, options)
+      : async (context: HookContext): Promise<HookContext> => {
+          if (!context.params.provider) return context;
+          const engine = context.app.get<AuthEngine>("auth");
+          if (!engine) {
+            throw new NotAuthenticated("Auth plugin is not configured");
+          }
+          const result = await engine.authenticate(strategy, context.data ?? {}, context.params);
+          context.params.user = result;
+          return context;
+        };
 
-  return async (context: HookContext): Promise<HookContext> => {
-    if (!context.params.provider) return context;
-    const engine = context.app.get<AuthEngine>("auth");
-    if (!engine) {
-      throw new NotAuthenticated("Auth plugin is not configured");
-    }
-    const result = await engine.authenticate(strategy, context.data ?? {}, context.params);
-    context.params.user = result;
-    return context;
-  };
+  // Marker consumed by ServiceHandle.describe() to report `authRequired` without
+  // @mantlejs/mantle depending on this package.
+  return Object.assign(hook, { authStrategy: strategy });
 }
 
 async function authenticateJwt(context: HookContext, options: AuthenticateOptions): Promise<HookContext> {

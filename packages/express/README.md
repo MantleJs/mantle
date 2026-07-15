@@ -26,7 +26,7 @@ app.listen(3030, () => console.log("Listening on port 3030"));
 
 ## API
 
-### `express(existingApp?)`
+### `express(existingApp?, options?)`
 
 Returns a `MantlePlugin`. When applied via `app.configure(express())`, it:
 
@@ -34,6 +34,13 @@ Returns a `MantlePlugin`. When applied via `app.configure(express())`, it:
 - Patches `app.use()` so that every service registration automatically mounts REST routes.
 - Attaches an error handler after all routes are registered.
 - Adds `app.listen(port, callback?)` as a shorthand for `expressApp.listen(...)`.
+- Optionally mounts a `GET /_services` introspection endpoint (see below).
+
+#### `ExpressOptions`
+
+| Field           | Type                             | Default | Description                                                        |
+| --------------- | -------------------------------- | ------- | ------------------------------------------------------------------ |
+| `introspection` | `boolean \| { path?: string }`   | `false` | Mount the introspection endpoint; pass `{ path }` to customize it. |
 
 Pass an existing Express app if you need to share middleware or configure Express yourself:
 
@@ -72,6 +79,23 @@ Each method in `options.methods` is mapped to an HTTP route:
 Custom methods (any name beyond the six standard ones) are mounted as `POST /path/:method` and routed through `ServiceHandle.dispatch()`.
 
 Query string parameters are passed to the service as `params.query`. Request headers are available as `params.headers`. `params.provider` is always `"rest"` for HTTP-originated calls.
+
+---
+
+### Introspection endpoint
+
+Opt in to a machine-readable service catalog:
+
+```typescript
+app.configure(express(undefined, { introspection: true }));
+// or with a custom path:
+app.configure(express(undefined, { introspection: { path: "/__meta" } }));
+```
+
+`GET /_services` (or the custom path) then returns a `ServiceDescriptor[]` — one entry per
+registered service with `path`, `methods`, `events`, `schema`, the repository's `capabilities`
+(when the service exposes them, e.g. `RepositoryService`), and `authRequired`. Off by default;
+without the option the route 404s.
 
 ---
 

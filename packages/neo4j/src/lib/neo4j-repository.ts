@@ -1,8 +1,8 @@
 import type { Driver, Session } from "neo4j-driver";
-import type { Id, QueryParams, GraphRepository } from "@mantlejs/mantle";
+import type { Id, QueryParams, GraphRepository, RepositoryCapabilities } from "@mantlejs/mantle";
 import { BadRequest, GeneralError, MantleError, NotFound } from "@mantlejs/mantle";
 import type { MantleApplication } from "@mantlejs/mantle";
-import { assertValidFieldName, toNeo4jWhere } from "./neo4j-where.js";
+import { assertValidFieldName, toNeo4jWhere, NEO4J_OPERATORS } from "./neo4j-where.js";
 import type { WhereClause } from "./neo4j-where.js";
 
 /**
@@ -29,6 +29,15 @@ export abstract class Neo4jRepository<T extends Record<string, unknown>> impleme
   constructor(app: MantleApplication) {
     this.driver = app.get<Driver>("neo4j");
     this.database = app.get<string>("neo4j:database") ?? "neo4j";
+  }
+
+  describe(): RepositoryCapabilities {
+    return {
+      adapter: "@mantlejs/neo4j",
+      operators: [...NEO4J_OPERATORS],
+      pagination: "offset",
+      fullTextSearch: false,
+    };
   }
 
   // ─── Session helpers ──────────────────────────────────────────────────────

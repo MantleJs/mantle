@@ -1,6 +1,6 @@
 import type { SupabaseClient, RealtimePostgresChangesPayload } from "@supabase/supabase-js";
-import type { Id, QueryParams, Repository } from "@mantlejs/mantle";
-import { BadRequest, Conflict, Forbidden, GeneralError, NotFound } from "@mantlejs/mantle";
+import type { Id, QueryParams, Repository, RepositoryCapabilities } from "@mantlejs/mantle";
+import { assertOperators, BadRequest, Conflict, Forbidden, GeneralError, NotFound } from "@mantlejs/mantle";
 import type { MantleApplication } from "@mantlejs/mantle";
 
 /** Internal type for the chainable PostgREST query builder returned by `client.from()`. */
@@ -17,6 +17,22 @@ interface PgError {
   code?: string;
   message?: string;
 }
+
+/** All query operators supported by the Supabase adapter. */
+export const SUPABASE_OPERATORS: ReadonlySet<string> = new Set([
+  "$lt",
+  "$lte",
+  "$gt",
+  "$gte",
+  "$ne",
+  "$in",
+  "$nin",
+  "$like",
+  "$notlike",
+  "$ilike",
+  "$or",
+  "$and",
+]);
 
 /**
  * Abstract base class for Supabase-backed repositories.
@@ -173,6 +189,7 @@ export abstract class SupabaseRepository<T extends Record<string, unknown>, D = 
   }
 
   private applyWhere(query: AnyQuery, where: Record<string, unknown>): AnyQuery {
+    assertOperators(where, SUPABASE_OPERATORS, "@mantlejs/supabase");
     for (const [key, value] of Object.entries(where)) {
       if (key === "$or" && Array.isArray(value)) {
         const parts = (value as Record<string, unknown>[]).map((clause) => this.buildOrPart(clause));
@@ -279,6 +296,15 @@ export abstract class SupabaseRepository<T extends Record<string, unknown>, D = 
       throw new BadRequest(`Unsupported query operator: ${op}`);
     }
     return pgOp;
+  }
+
+  describe(): RepositoryCapabilities {
+    return {
+      adapter: "@mantlejs/supabase",
+      operators: [...SUPABASE_OPERATORS],
+      pagination: "offset",
+      fullTextSearch: false,
+    };
   }
 
   // ─── Repository implementation ─────────────────────────────────────────────

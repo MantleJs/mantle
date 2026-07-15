@@ -332,3 +332,10 @@ describe("sanitizeUser()", () => {
     expect(result.result).toBeUndefined();
   });
 });
+
+describe("authenticate() hook marker", () => {
+  it("carries an authStrategy property so ServiceHandle.describe() can report authRequired", () => {
+    expect((authenticate("jwt") as unknown as { authStrategy: string }).authStrategy).toBe("jwt");
+    expect((authenticate("local") as unknown as { authStrategy: string }).authStrategy).toBe("local");
+  });
+});

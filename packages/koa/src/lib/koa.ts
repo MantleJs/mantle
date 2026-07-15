@@ -18,6 +18,11 @@ import { errorHandler } from "./error-handler.js";
 export interface KoaOptions {
   /** Existing Koa application instance. When omitted, a new one is created. */
   app?: InstanceType<typeof KoaLib>;
+  /**
+   * Mount an introspection endpoint (default `GET /_services`) returning a
+   * `ServiceDescriptor[]` for every registered service. Off by default.
+   */
+  introspection?: boolean | { path?: string };
 }
 
 /** Structural subset of Koa's context used by the HttpRouterLike adapter. */
@@ -90,6 +95,16 @@ export function koa(options: KoaOptions = {}): MantlePlugin {
     app.set("koa", koaApp);
     app.set("koa:router", router);
 
+    const servicePaths: string[] = [];
+    if (options.introspection) {
+      const introspectionPath =
+        (typeof options.introspection === "object" ? options.introspection.path : undefined) ?? "/_services";
+      router.get(introspectionPath, (ctx: KoaCtxLike) => {
+        ctx.status = 200;
+        ctx.body = servicePaths.map((path) => app.service(path).describe());
+      });
+    }
+
     const originalUse = (app.use as unknown as (...args: unknown[]) => MantleApplication).bind(app);
     (app as unknown as Record<string, unknown>)["use"] = function (
       path: string | unknown,
@@ -100,6 +115,7 @@ export function koa(options: KoaOptions = {}): MantlePlugin {
         return app;
       }
       originalUse(path, service, serviceOptions);
+      servicePaths.push(path);
       mountServiceRoutes(router, app, path, serviceOptions ?? {});
       return app;
     };

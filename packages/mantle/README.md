@@ -102,8 +102,48 @@ interface Repository<T, D = Partial<T>> {
   patchById(id: Id, data: D): Promise<T>;
   deleteById(id: Id): Promise<T>;
   count(params?: QueryParams): Promise<number>;
+  describe?(): RepositoryCapabilities; // optional capability introspection
 }
 ```
+
+---
+
+### Introspection — `describe()`
+
+Machine-readable self-description at both layers, so tooling (OpenAPI generation, the transports'
+opt-in `/_services` endpoint, AI agents) can discover capabilities instead of probing by trial and error.
+
+#### `Repository.describe()` → `RepositoryCapabilities`
+
+Every @mantlejs adapter implements the optional `describe()`; user repositories may omit it.
+
+```typescript
+interface RepositoryCapabilities {
+  adapter: string; // package name, e.g. "@mantlejs/knex"
+  operators: string[]; // exactly the $-operators the adapter's where translator accepts
+  pagination: "offset" | "cursor" | "both";
+  fullTextSearch: boolean;
+  scanning?: (where: Record<string, unknown>) => boolean; // e.g. DynamoDB: true when the where clause forces a full Scan
+}
+```
+
+#### `ServiceHandle.describe()` → `ServiceDescriptor`
+
+```typescript
+const descriptor = app.service("users").describe();
+
+interface ServiceDescriptor {
+  path: string;
+  methods: string[];
+  events: string[]; // standard created/updated/patched/removed filtered by methods, plus custom ServiceOptions.events
+  schema?: unknown; // the stored ServiceOptions.schema (JSON Schema — a TypeBox schema works)
+  capabilities?: RepositoryCapabilities; // present when the service exposes describe() — RepositoryService wires this through
+  authRequired?: boolean; // true when a before.all hook carries an authStrategy marker, e.g. authenticate("jwt")
+}
+```
+
+The HTTP transports (`@mantlejs/express`, `@mantlejs/koa`, `@mantlejs/http`) can serve every
+registered service's descriptor at `GET /_services` via their opt-in `introspection` option.
 
 ---
 

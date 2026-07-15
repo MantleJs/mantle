@@ -569,3 +569,70 @@ describe("Service events", () => {
     expect(capturedParams?.rooms).toEqual(["admins"]);
   });
 });
+
+describe("ServiceHandle.describe()", () => {
+  it("returns path, default methods, and the standard events", () => {
+    const app = mantle();
+    app.use("/users", makeUserService());
+    const desc = app.service("users").describe();
+    expect(desc.path).toBe("users");
+    expect(desc.methods).toEqual(["find", "get", "create", "update", "patch", "remove"]);
+    expect(desc.events).toEqual(["created", "updated", "patched", "removed"]);
+    expect(desc.schema).toBeUndefined();
+    expect(desc.capabilities).toBeUndefined();
+    expect(desc.authRequired).toBe(false);
+  });
+
+  it("filters standard events by the registered methods", () => {
+    const app = mantle();
+    app.use("/users", makeUserService(), { methods: ["find", "get", "create"] });
+    const desc = app.service("users").describe();
+    expect(desc.methods).toEqual(["find", "get", "create"]);
+    expect(desc.events).toEqual(["created"]);
+  });
+
+  it("includes custom ServiceOptions.events after the standard ones", () => {
+    const app = mantle();
+    app.use("/users", makeUserService(), {
+      methods: ["find", "create", "promote"],
+      events: ["promote"],
+    });
+    const desc = app.service("users").describe();
+    expect(desc.events).toEqual(["created", "promote"]);
+  });
+
+  it("exposes the stored ServiceOptions.schema", () => {
+    const schema = { type: "object", properties: { name: { type: "string" } } };
+    const app = mantle();
+    app.use("/users", makeUserService(), { schema });
+    expect(app.service("users").describe().schema).toBe(schema);
+  });
+
+  it("includes capabilities when the service exposes a describe() method", () => {
+    const capabilities = {
+      adapter: "@mantlejs/test",
+      operators: ["$in"],
+      pagination: "offset" as const,
+      fullTextSearch: false,
+    };
+    const app = mantle();
+    const service = Object.assign(makeUserService(), { describe: () => capabilities });
+    app.use("/users", service);
+    expect(app.service("users").describe().capabilities).toBe(capabilities);
+  });
+
+  it("reports authRequired when a before.all hook carries an authStrategy marker", () => {
+    const app = mantle();
+    app.use("/users", makeUserService());
+    const authHook = Object.assign(async (ctx: HookContext<User>) => ctx, { authStrategy: "jwt" });
+    app.service<User>("users").hooks({ before: { all: [authHook] } });
+    expect(app.service("users").describe().authRequired).toBe(true);
+  });
+
+  it("does not report authRequired for unmarked before.all hooks", () => {
+    const app = mantle();
+    app.use("/users", makeUserService());
+    app.service<User>("users").hooks({ before: { all: [async (ctx) => ctx] } });
+    expect(app.service("users").describe().authRequired).toBe(false);
+  });
+});

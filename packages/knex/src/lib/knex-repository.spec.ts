@@ -3,6 +3,7 @@ import type { Knex } from "knex";
 import type { MantleApplication } from "@mantlejs/mantle";
 import { BadRequest, Conflict, Forbidden, GeneralError, NotFound, Unavailable, Unprocessable } from "@mantlejs/mantle";
 import { KnexRepository } from "./knex-repository.js";
+import { KNEX_OPERATORS } from "./knexify.js";
 
 interface User extends Record<string, unknown> {
   id: number;
@@ -338,6 +339,17 @@ describe("KnexRepository", () => {
       const { qb, app } = makeSetup([]);
       qb["select"].mockRejectedValue("string error");
       await expect(new TestRepo(app).findAll()).rejects.toBeInstanceOf(GeneralError);
+    });
+  });
+
+  describe("describe()", () => {
+    it("reports the exact operator set assertOperators accepts", () => {
+      const { app } = makeSetup([]);
+      const caps = new TestRepo(app).describe();
+      expect(caps.adapter).toBe("@mantlejs/knex");
+      expect(new Set(caps.operators)).toEqual(KNEX_OPERATORS);
+      expect(caps.pagination).toBe("offset");
+      expect(caps.fullTextSearch).toBe(false);
     });
   });
 });

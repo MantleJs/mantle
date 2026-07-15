@@ -9,6 +9,7 @@ vi.mock("@pinecone-database/pinecone", () => ({
 
 // Dynamic import AFTER the mock so the module uses the mocked Pinecone
 const { PineconeRepository } = await import("./pinecone-repository.js");
+const { PINECONE_OPERATORS } = await import("./pinecone-filter.js");
 
 interface Article extends Record<string, unknown> {
   id: string;
@@ -367,6 +368,17 @@ describe("PineconeRepository", () => {
       const { idx, app } = makeSetup();
       idx.fetch.mockRejectedValue("string error");
       await expect(new TestRepo(app).findById("1")).rejects.toBeInstanceOf(GeneralError);
+    });
+  });
+
+  describe("describe()", () => {
+    it("reports the exact operator set assertOperators accepts", () => {
+      const { app } = makeSetup();
+      const caps = new TestRepo(app).describe();
+      expect(caps.adapter).toBe("@mantlejs/pinecone");
+      expect(new Set(caps.operators)).toEqual(PINECONE_OPERATORS);
+      expect(caps.pagination).toBe("offset");
+      expect(caps.fullTextSearch).toBe(false);
     });
   });
 });

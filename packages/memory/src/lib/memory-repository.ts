@@ -1,5 +1,21 @@
-import type { Id, QueryParams, Repository } from "@mantlejs/mantle";
-import { NotFound } from "@mantlejs/mantle";
+import type { Id, QueryParams, Repository, RepositoryCapabilities } from "@mantlejs/mantle";
+import { assertOperators, NotFound } from "@mantlejs/mantle";
+
+/** All query operators supported by the in-memory adapter — the full Mantle operator set (it's the test reference). */
+export const MEMORY_OPERATORS: ReadonlySet<string> = new Set([
+  "$lt",
+  "$lte",
+  "$gt",
+  "$gte",
+  "$ne",
+  "$in",
+  "$nin",
+  "$like",
+  "$notlike",
+  "$ilike",
+  "$or",
+  "$and",
+]);
 
 export interface MemoryRepositoryOptions {
   /** Primary key field name. Default: 'id' */
@@ -47,6 +63,7 @@ export class MemoryRepository<T extends Record<string, unknown>> implements Repo
 
     if (params?.where) {
       const where = params.where;
+      assertOperators(where, MEMORY_OPERATORS, "@mantlejs/memory");
       results = results.filter((record) => matchesWhere(record, where));
     }
 
@@ -141,11 +158,21 @@ export class MemoryRepository<T extends Record<string, unknown>> implements Repo
     if (!params?.where) {
       return this._store.size;
     }
+    assertOperators(params.where, MEMORY_OPERATORS, "@mantlejs/memory");
     let count = 0;
     for (const record of this._store.values()) {
       if (matchesWhere(record, params.where)) count++;
     }
     return count;
+  }
+
+  describe(): RepositoryCapabilities {
+    return {
+      adapter: "@mantlejs/memory",
+      operators: [...MEMORY_OPERATORS],
+      pagination: "offset",
+      fullTextSearch: false,
+    };
   }
 }
 

@@ -187,7 +187,7 @@ them before the Phase 4 item 8 release cut.
 Formerly deferred; pulled into Phase 4. D-1 and D-2 should land before the `@mantlejs/openapi` session (Phase 4
 item 4) so the generator can consume them; D-4 needs `@mantlejs/client` (Phase 4 item 1) to exist first.
 
-- [ ] **D-1. `Repository.describe()` capability introspection (Q4)**
+- [x] **D-1. `Repository.describe()` capability introspection (Q4)**
   Add to `@mantlejs/mantle` (`packages/mantle/src/lib/types.ts`): a `RepositoryCapabilities` interface —
   `{ adapter: string; operators: string[]; pagination: "offset" | "cursor" | "both"; fullTextSearch: boolean; scanning?: (where: Record<string, unknown>) => boolean }`
   — and an optional `describe?(): RepositoryCapabilities` on `Repository<T>` (optional so existing user repositories
@@ -198,7 +198,7 @@ item 4) so the generator can consume them; D-4 needs `@mantlejs/client` (Phase 4
   **Accept:** per-adapter spec asserting `describe().operators` exactly matches what `assertOperators` accepts;
   dynamodb spec for `scanning()` on key vs non-key wheres.
 
-- [ ] **D-2. `ServiceHandle.describe()` + opt-in `/_services` endpoint + event enumeration (§6.2, §5.3)**
+- [x] **D-2. `ServiceHandle.describe()` + opt-in `/_services` endpoint + event enumeration (§6.2, §5.3)**
   Add `describe(): ServiceDescriptor` to `ServiceHandle` (`packages/mantle/src/lib/types.ts:140-147`):
   `{ path, methods, events, schema, capabilities?, authRequired? }` — `schema` is the stored `ServiceOptions.schema`
   (JSON Schema via TypeBox — this finally consumes the stored-but-unused field, `types.ts:130-131`); `events` lists

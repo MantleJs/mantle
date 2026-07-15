@@ -1,5 +1,5 @@
 import type { Knex } from "knex";
-import type { Id, QueryParams, Repository } from "@mantlejs/mantle";
+import type { Id, QueryParams, Repository, RepositoryCapabilities } from "@mantlejs/mantle";
 import {
   BadRequest,
   Conflict,
@@ -10,7 +10,7 @@ import {
   Unprocessable,
 } from "@mantlejs/mantle";
 import type { MantleApplication } from "@mantlejs/mantle";
-import { knexify } from "./knexify.js";
+import { knexify, KNEX_OPERATORS } from "./knexify.js";
 import type { WhereClause } from "./knexify.js";
 
 export abstract class KnexRepository<T extends Record<string, unknown>, D = Partial<T>> implements Repository<T, D> {
@@ -28,6 +28,15 @@ export abstract class KnexRepository<T extends Record<string, unknown>, D = Part
   /** Raw query builder for this table, respecting any active transaction. */
   get db(): Knex.QueryBuilder {
     return this.qb(this.tableName);
+  }
+
+  describe(): RepositoryCapabilities {
+    return {
+      adapter: "@mantlejs/knex",
+      operators: [...KNEX_OPERATORS],
+      pagination: "offset",
+      fullTextSearch: false,
+    };
   }
 
   /**

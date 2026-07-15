@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { SupabaseRepository } from "./supabase-repository.js";
+import { SupabaseRepository, SUPABASE_OPERATORS } from "./supabase-repository.js";
 import { NotFound, Conflict, BadRequest, Forbidden, GeneralError } from "@mantlejs/mantle";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -473,6 +473,23 @@ describe("SupabaseRepository", () => {
         message: "unknown",
       });
       expect(err).toBeInstanceOf(GeneralError);
+    });
+  });
+
+  describe("describe()", () => {
+    it("reports the exact operator set assertOperators accepts", () => {
+      const caps = repo.describe();
+      expect(caps.adapter).toBe("@mantlejs/supabase");
+      expect(new Set(caps.operators)).toEqual(SUPABASE_OPERATORS);
+      expect(caps.pagination).toBe("offset");
+      expect(caps.fullTextSearch).toBe(false);
+    });
+
+    it("findAll rejects an unsupported operator naming the adapter", async () => {
+      fromMock.mockReturnValue(makeQuery({ data: [] }));
+      await expect(repo.findAll({ where: { name: { $regex: "^A" } } })).rejects.toMatchObject({
+        message: expect.stringContaining("@mantlejs/supabase"),
+      });
     });
   });
 });

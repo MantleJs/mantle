@@ -529,3 +529,51 @@ describe("express adapter", () => {
     });
   });
 });
+
+describe("introspection endpoint", () => {
+  it("GET /_services returns 404 by default", async () => {
+    const app = mantle().configure(express());
+    app.use("users", new TestUserService());
+    const { port, stop } = await startServer(app.get<Application>("express"));
+    try {
+      const res = await fetch(`http://localhost:${port}/_services`);
+      expect(res.status).toBe(404);
+    } finally {
+      await stop();
+    }
+  });
+
+  it("GET /_services serves ServiceDescriptor JSON when enabled", async () => {
+    const app = mantle().configure(express(undefined, { introspection: true }));
+    app.use("users", new TestUserService(), { methods: ["find", "get", "create"] });
+    const { port, stop } = await startServer(app.get<Application>("express"));
+    try {
+      const res = await fetch(`http://localhost:${port}/_services`);
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as Array<{ path: string; methods: string[]; events: string[] }>;
+      expect(body).toHaveLength(1);
+      expect(body[0]).toMatchObject({
+        path: "users",
+        methods: ["find", "get", "create"],
+        events: ["created"],
+        authRequired: false,
+      });
+    } finally {
+      await stop();
+    }
+  });
+
+  it("honors a custom introspection path", async () => {
+    const app = mantle().configure(express(undefined, { introspection: { path: "/__meta" } }));
+    app.use("users", new TestUserService());
+    const { port, stop } = await startServer(app.get<Application>("express"));
+    try {
+      expect((await fetch(`http://localhost:${port}/_services`)).status).toBe(404);
+      const res = await fetch(`http://localhost:${port}/__meta`);
+      expect(res.status).toBe(200);
+      expect(((await res.json()) as Array<{ path: string }>)[0].path).toBe("users");
+    } finally {
+      await stop();
+    }
+  });
+});

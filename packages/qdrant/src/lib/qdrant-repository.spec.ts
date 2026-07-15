@@ -7,6 +7,7 @@ vi.mock("@qdrant/js-client-rest", () => ({
 }));
 
 const { QdrantRepository } = await import("./qdrant-repository.js");
+const { QDRANT_OPERATORS } = await import("./qdrant-filter.js");
 
 interface Article extends Record<string, unknown> {
   id: string;
@@ -386,6 +387,17 @@ describe("QdrantRepository", () => {
       const { client, app } = makeSetup();
       client.retrieve.mockRejectedValue("string error");
       await expect(new TestRepo(app).findById("1")).rejects.toBeInstanceOf(GeneralError);
+    });
+  });
+
+  describe("describe()", () => {
+    it("reports the exact operator set assertOperators accepts", () => {
+      const { app } = makeSetup();
+      const caps = new TestRepo(app).describe();
+      expect(caps.adapter).toBe("@mantlejs/qdrant");
+      expect(new Set(caps.operators)).toEqual(QDRANT_OPERATORS);
+      expect(caps.pagination).toBe("offset");
+      expect(caps.fullTextSearch).toBe(false);
     });
   });
 });

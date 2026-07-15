@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { BadRequest, NotFound, RepositoryService } from "@mantlejs/mantle";
-import { MemoryRepository } from "./memory-repository.js";
+import { BadRequest, mantle, NotFound, RepositoryService } from "@mantlejs/mantle";
+import { MemoryRepository, MEMORY_OPERATORS } from "./memory-repository.js";
 
 // B-2 acceptance suite: all six Service methods over the real MemoryRepository
 // (the reference adapter with full operator support).
@@ -127,5 +127,27 @@ describe("RepositoryService over MemoryRepository", () => {
       await expect(locked.find({ query: { active: "true" } })).rejects.toBeInstanceOf(BadRequest);
       await expect(locked.find({ query: { name: "Alice" } })).resolves.toMatchObject({ total: 1 });
     });
+  });
+});
+
+// D-2 acceptance: a RepositoryService over MemoryRepository registered on a mantle app
+// yields a full ServiceDescriptor — methods, events, schema, and repository capabilities.
+describe("ServiceHandle.describe() over RepositoryService + MemoryRepository", () => {
+  it("yields a descriptor with correct methods, events, schema, and operators", () => {
+    const app = mantle();
+    const memoryRepo = new MemoryRepository<User>({ timestamps: false }).seed(SEED);
+    app.use("/users", new RepositoryService<User>(memoryRepo, { schema: userSchema }), {
+      methods: ["find", "get", "create", "patch", "remove"],
+      schema: userSchema,
+    });
+
+    const desc = app.service("users").describe();
+    expect(desc.path).toBe("users");
+    expect(desc.methods).toEqual(["find", "get", "create", "patch", "remove"]);
+    expect(desc.events).toEqual(["created", "patched", "removed"]);
+    expect(desc.schema).toBe(userSchema);
+    expect(desc.capabilities?.adapter).toBe("@mantlejs/memory");
+    expect(new Set(desc.capabilities?.operators)).toEqual(MEMORY_OPERATORS);
+    expect(desc.authRequired).toBe(false);
   });
 });

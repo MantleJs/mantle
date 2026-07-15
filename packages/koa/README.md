@@ -115,9 +115,27 @@ Side effects:
 
 #### `KoaOptions`
 
-| Field | Type                       | Default | Description                                              |
-| ----- | -------------------------- | ------- | -------------------------------------------------------- |
-| `app` | `Koa` (Koa instance)       | —       | Existing Koa application. A new one is created if omitted. |
+| Field           | Type                           | Default | Description                                                        |
+| --------------- | ------------------------------ | ------- | ------------------------------------------------------------------ |
+| `app`           | `Koa` (Koa instance)           | —       | Existing Koa application. A new one is created if omitted.         |
+| `introspection` | `boolean \| { path?: string }` | `false` | Mount the introspection endpoint; pass `{ path }` to customize it. |
+
+---
+
+### Introspection endpoint
+
+Opt in to a machine-readable service catalog:
+
+```typescript
+app.configure(koa({ introspection: true }));
+// or with a custom path:
+app.configure(koa({ introspection: { path: "/__meta" } }));
+```
+
+`GET /_services` (or the custom path) then returns a `ServiceDescriptor[]` — one entry per
+registered service with `path`, `methods`, `events`, `schema`, the repository's `capabilities`
+(when the service exposes them, e.g. `RepositoryService`), and `authRequired`. Off by default;
+without the option the route 404s.
 
 ---
 

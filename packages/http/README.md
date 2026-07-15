@@ -135,9 +135,24 @@ createServer(handler).listen(3030);
 
 ## API
 
-### `http()`
+### `http(options?)`
 
 Returns a `MantlePlugin` that registers the HTTP transport on the application.
+
+#### `HttpOptions`
+
+| Field           | Type                           | Default | Description                                                        |
+| --------------- | ------------------------------ | ------- | ------------------------------------------------------------------ |
+| `introspection` | `boolean \| { path?: string }` | `false` | Mount the introspection endpoint; pass `{ path }` to customize it. |
+
+With `introspection` enabled, `GET /_services` (or the custom path) returns a `ServiceDescriptor[]` —
+one entry per registered service with `path`, `methods`, `events`, `schema`, the repository's
+`capabilities` (when the service exposes them, e.g. `RepositoryService`), and `authRequired`.
+Off by default; without the option the route 404s.
+
+```typescript
+app.configure(http({ introspection: true }));
+```
 
 After calling `app.configure(http())`:
 
@@ -168,13 +183,18 @@ Utility exported for use in other adapters or middleware. Maps a `MantleError` (
 ## Types
 
 ```typescript
-import type { NodeHttpHandler, FetchHandler } from "@mantlejs/http";
+import type { NodeHttpHandler, FetchHandler, HttpOptions } from "@mantlejs/http";
 
 // Node.js handler
 type NodeHttpHandler = (req: IncomingMessage, res: ServerResponse) => void;
 
 // Edge / Fetch API handler
 type FetchHandler = (request: Request) => Promise<Response>;
+
+// Options accepted by http()
+interface HttpOptions {
+  introspection?: boolean | { path?: string };
+}
 ```
 
 ---

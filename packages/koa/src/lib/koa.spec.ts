@@ -489,3 +489,57 @@ describe("koa adapter", () => {
     });
   });
 });
+
+describe("introspection endpoint", () => {
+  async function startWith(options?: Parameters<typeof koa>[0]): Promise<{ port: number; stop: () => Promise<void> }> {
+    const app = mantle().configure(koa(options));
+    app.use("users", new TestUserService(), { methods: ["find", "get", "create"] });
+    const server = app.listen(0) as Server;
+    await new Promise<void>((resolve) => server.once("listening", resolve));
+    const port = (server.address() as AddressInfo).port;
+    return {
+      port,
+      stop: () => new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve()))),
+    };
+  }
+
+  it("GET /_services returns 404 by default", async () => {
+    const { port, stop } = await startWith();
+    try {
+      const res = await fetch(`http://localhost:${port}/_services`);
+      expect(res.status).toBe(404);
+    } finally {
+      await stop();
+    }
+  });
+
+  it("GET /_services serves ServiceDescriptor JSON when enabled", async () => {
+    const { port, stop } = await startWith({ introspection: true });
+    try {
+      const res = await fetch(`http://localhost:${port}/_services`);
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as Array<{ path: string; methods: string[]; events: string[] }>;
+      expect(body).toHaveLength(1);
+      expect(body[0]).toMatchObject({
+        path: "users",
+        methods: ["find", "get", "create"],
+        events: ["created"],
+        authRequired: false,
+      });
+    } finally {
+      await stop();
+    }
+  });
+
+  it("honors a custom introspection path", async () => {
+    const { port, stop } = await startWith({ introspection: { path: "/__meta" } });
+    try {
+      expect((await fetch(`http://localhost:${port}/_services`)).status).toBe(404);
+      const res = await fetch(`http://localhost:${port}/__meta`);
+      expect(res.status).toBe(200);
+      expect(((await res.json()) as Array<{ path: string }>)[0].path).toBe("users");
+    } finally {
+      await stop();
+    }
+  });
+});

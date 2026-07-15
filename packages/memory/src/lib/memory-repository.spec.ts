@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { MemoryRepository } from "./memory-repository.js";
+import { MemoryRepository, MEMORY_OPERATORS } from "./memory-repository.js";
 import { NotFound } from "@mantlejs/mantle";
 
 interface User {
@@ -301,6 +301,23 @@ describe("MemoryRepository", () => {
       const r = new MemoryRepository<User>({ autoId: false });
       const user = await r.save({ id: "manual-id", name: "Alice", email: "alice@example.com", age: 30 });
       expect(user.id).toBe("manual-id");
+    });
+  });
+
+  describe("describe()", () => {
+    it("reports the exact operator set assertOperators accepts", () => {
+      const caps = repo.describe();
+      expect(caps.adapter).toBe("@mantlejs/memory");
+      expect(new Set(caps.operators)).toEqual(MEMORY_OPERATORS);
+      expect(caps.pagination).toBe("offset");
+      expect(caps.fullTextSearch).toBe(false);
+    });
+
+    it("findAll rejects an unsupported operator naming the adapter", async () => {
+      repo.seed([{ id: "1", name: "Alice", email: "alice@example.com", age: 30 }]);
+      await expect(repo.findAll({ where: { name: { $regex: "^A" } } })).rejects.toMatchObject({
+        message: expect.stringContaining("@mantlejs/memory"),
+      });
     });
   });
 });

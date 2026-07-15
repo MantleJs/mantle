@@ -112,9 +112,27 @@ function toHttpRouter(router: Router): HttpRouterLike {
   };
 }
 
-export function http(): MantlePlugin {
+export interface HttpOptions {
+  /**
+   * Mount an introspection endpoint (default `GET /_services`) returning a
+   * `ServiceDescriptor[]` for every registered service. Off by default.
+   */
+  introspection?: boolean | { path?: string };
+}
+
+export function http(options: HttpOptions = {}): MantlePlugin {
   return (app: MantleApplication): void => {
     const router = new Router();
+
+    const servicePaths: string[] = [];
+    if (options.introspection) {
+      const introspectionPath =
+        (typeof options.introspection === "object" ? options.introspection.path : undefined) ?? "/_services";
+      router.add("GET", introspectionPath, async () => ({
+        status: 200,
+        body: servicePaths.map((path) => app.service(path).describe()),
+      }));
+    }
 
     const httpHandler: NodeHttpHandler = (req, res) => {
       void (async () => {
@@ -187,6 +205,7 @@ export function http(): MantlePlugin {
         return app;
       }
       originalUse(path, service, serviceOptions);
+      servicePaths.push(path);
       mountServiceRoutes(router, app, path, serviceOptions ?? {});
       return app;
     };

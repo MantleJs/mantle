@@ -1,4 +1,4 @@
-import type { Id, Paginated, QueryParams, Repository, Service, ServiceParams } from "./types.js";
+import type { Id, Paginated, QueryParams, Repository, RepositoryCapabilities, Service, ServiceParams } from "./types.js";
 import { BadRequest, NotFound } from "./errors.js";
 
 export interface RepositoryServiceOptions {
@@ -95,6 +95,11 @@ export class RepositoryService<T, D = Partial<T>> implements Service<T, D> {
 
   async remove(id: Id, _params?: ServiceParams): Promise<T> {
     return this.repository.deleteById(id);
+  }
+
+  /** Surface the underlying repository's capabilities so `ServiceHandle.describe()` can include them. */
+  describe(): RepositoryCapabilities | undefined {
+    return this.repository.describe?.();
   }
 
   // ─── Query translation ─────────────────────────────────────────────────────

@@ -12,10 +12,10 @@ import {
   type TransactWriteItem,
 } from "@aws-sdk/client-dynamodb";
 import { marshall, unmarshall } from "@aws-sdk/util-dynamodb";
-import type { Id, QueryParams, Repository } from "@mantlejs/mantle";
+import type { Id, QueryParams, Repository, RepositoryCapabilities } from "@mantlejs/mantle";
 import { BadRequest, Conflict, Forbidden, GeneralError, NotFound, Unavailable } from "@mantlejs/mantle";
 import type { MantleApplication } from "@mantlejs/mantle";
-import { dynamodbify, buildKeyCondition } from "./dynamodbify.js";
+import { dynamodbify, buildKeyCondition, DYNAMODB_OPERATORS } from "./dynamodbify.js";
 import type { WhereClause } from "./dynamodbify.js";
 
 export interface DynamoQueryParams extends QueryParams {
@@ -98,6 +98,18 @@ export abstract class DynamoDbRepository<T extends Record<string, unknown>, D = 
       );
     }
     return marshall({ [this.partitionKey]: id }, { removeUndefinedValues: true });
+  }
+
+  describe(): RepositoryCapabilities {
+    return {
+      adapter: "@mantlejs/dynamodb",
+      operators: [...DYNAMODB_OPERATORS],
+      pagination: "both",
+      fullTextSearch: false,
+      // Mirrors the Query-vs-Scan branch in findAll(): Query is only possible when a
+      // sort key is defined and the where clause pins the partition key.
+      scanning: (where) => !(this.sortKey && where[this.partitionKey] !== undefined),
+    };
   }
 
   // ─── Repository implementation ────────────────────────────────────────────

@@ -2,6 +2,7 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import type { MantleApplication } from "@mantlejs/mantle";
 import { BadRequest, Conflict, Forbidden, GeneralError, NotFound, Unavailable } from "@mantlejs/mantle";
 import { DynamoDbRepository } from "./dynamodb-repository.js";
+import { DYNAMODB_OPERATORS } from "./dynamodbify.js";
 
 // ─── Mock AWS SDK ─────────────────────────────────────────────────────────────
 
@@ -414,6 +415,37 @@ describe("DynamoDbRepository", () => {
     it("non-Error throws → GeneralError", async () => {
       mockSend.mockRejectedValue("string error");
       await expect(new UserRepo(app).findAll()).rejects.toBeInstanceOf(GeneralError);
+    });
+  });
+
+  describe("describe()", () => {
+    class CompositeRepo extends DynamoDbRepository<User> {
+      readonly tableName = "events";
+      override readonly partitionKey = "pk";
+      override readonly sortKey = "sk";
+    }
+
+    it("reports the exact operator set assertOperators accepts", () => {
+      const caps = new UserRepo(app).describe();
+      expect(caps.adapter).toBe("@mantlejs/dynamodb");
+      expect(new Set(caps.operators)).toEqual(DYNAMODB_OPERATORS);
+      expect(caps.pagination).toBe("both");
+      expect(caps.fullTextSearch).toBe(false);
+    });
+
+    it("scanning() is false when the where clause pins the partition key on a composite-key table", () => {
+      const caps = new CompositeRepo(app).describe();
+      expect(caps.scanning?.({ pk: "user#1", createdAt: { $gt: "2024" } })).toBe(false);
+    });
+
+    it("scanning() is true when the where clause lacks the partition key", () => {
+      const caps = new CompositeRepo(app).describe();
+      expect(caps.scanning?.({ createdAt: { $gt: "2024" } })).toBe(true);
+    });
+
+    it("scanning() is true without a sort key (Query is never used)", () => {
+      const caps = new UserRepo(app).describe();
+      expect(caps.scanning?.({ id: "1" })).toBe(true);
     });
   });
 });

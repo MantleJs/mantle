@@ -1,9 +1,9 @@
 import { Pinecone, Index } from "@pinecone-database/pinecone";
 import type { RecordMetadata } from "@pinecone-database/pinecone";
-import type { Id, QueryParams, VectorRepository } from "@mantlejs/mantle";
+import type { Id, QueryParams, RepositoryCapabilities, VectorRepository } from "@mantlejs/mantle";
 import { GeneralError, NotFound } from "@mantlejs/mantle";
 import type { MantleApplication } from "@mantlejs/mantle";
-import { toPineconeFilter } from "./pinecone-filter.js";
+import { toPineconeFilter, PINECONE_OPERATORS } from "./pinecone-filter.js";
 import type { WhereClause } from "./pinecone-filter.js";
 
 const FETCH_BATCH_SIZE = 1000;
@@ -47,6 +47,15 @@ export abstract class PineconeRepository<T extends Record<string, unknown>, D = 
       this._index = this.client.index({ name: this.indexName, namespace: this.namespace });
     }
     return this._index;
+  }
+
+  describe(): RepositoryCapabilities {
+    return {
+      adapter: "@mantlejs/pinecone",
+      operators: [...PINECONE_OPERATORS],
+      pagination: "offset",
+      fullTextSearch: false,
+    };
   }
 
   // ─── VectorRepository methods ─────────────────────────────────────────────
