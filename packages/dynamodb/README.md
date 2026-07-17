@@ -188,13 +188,14 @@ class UserRepository extends DynamoDbRepository<User> {
 | `partitionKey` | `string`                                 | `"id"`      | Partition key attribute name                                             |
 | `sortKey`      | `string \| undefined`                    | `undefined` | Sort key attribute name (composite key tables)                           |
 | `timestamps`   | `boolean`                                | `true`      | Auto-write `createdAt` / `updatedAt` ISO-8601 strings                    |
-| `lastKey`      | `Record<string, AttributeValue> \| undefined` | `undefined` | `LastEvaluatedKey` from the most recent paginated `findAll()` call |
+| `lastKey`      | `Record<string, AttributeValue> \| undefined` | `undefined` | **Deprecated** — use `findPage()`. `LastEvaluatedKey` from the most recent paginated `findAll()` call |
 
 #### Methods (from `Repository<T>`)
 
 | Method                 | Description                                                          |
 | ---------------------- | -------------------------------------------------------------------- |
-| `findAll(params?)`     | Scan (or Query when PK is in where). Pass `_startKey` for cursor pagination. |
+| `findAll(params?)`     | Scan (or Query when PK is in where). Supports `skip`/`limit` offsets. |
+| `findPage(params?)`    | One page via native cursor pagination — see below                    |
 | `findById(id)`         | GetItem by partition key (or composite key)                          |
 | `save(data)`           | PutItem — auto-generates UUID when no `partitionKey` is set          |
 | `saveAll(data[])`      | BatchWriteItem in chunks of 25 — auto-generates UUIDs as needed      |
@@ -206,21 +207,33 @@ class UserRepository extends DynamoDbRepository<User> {
 
 #### Cursor pagination
 
-DynamoDB uses cursor-based pagination. After calling `findAll()`, check `repo.lastKey` for the next page cursor:
+DynamoDB is natively cursor-paginated. Use `findPage()` — each page carries an opaque `cursor`
+(the `LastEvaluatedKey`, base64-JSON encoded); pass it back to fetch the next page:
 
 ```typescript
 const repo = new PostRepository(app);
 
 // First page
-const page1 = await repo.findAll({ limit: 20 });
+const page1 = await repo.findPage({ limit: 20 });
 
-// Next page — pass lastKey as _startKey
-if (repo.lastKey) {
-  const page2 = await repo.findAll({ limit: 20, _startKey: repo.lastKey });
+// Next page — pass the cursor from the previous page
+if (page1.cursor) {
+  const page2 = await repo.findPage({ limit: 20, cursor: page1.cursor });
 }
 ```
 
-`skip` performs in-memory offset (scans all pages) — use cursor pagination for large tables.
+`findPage()` is stateless — the cursor lives entirely in the returned page, so concurrent calls on one
+repository instance never interfere. It uses Query when a `sortKey` is defined and the where clause pins
+the partition key, otherwise Scan. `skip` and `sort` are rejected with `BadRequest` (offsets and
+cross-page ordering don't compose with cursors — use `findAll()` for those). Note that with a filtering
+`where`, DynamoDB applies `limit` *before* filtering, so a page may hold fewer than `limit` items while
+`cursor` is still set.
+
+> **Deprecated:** the previous mechanism — reading `repo.lastKey` after `findAll()` and passing it back
+> as `_startKey` — still works but shares mutable state on the repository instance. It will be removed
+> in the next minor release.
+
+`skip` on `findAll()` performs in-memory offset (scans all pages) — use `findPage()` for large tables.
 
 #### Transactions
 

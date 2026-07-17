@@ -79,6 +79,16 @@ export interface RepositoryCapabilities {
   scanning?: (where: Record<string, unknown>) => boolean;
 }
 
+/**
+ * One page of a cursor-paginated result set, returned by `Repository.findPage()`.
+ * `cursor` is an opaque adapter-specific token; pass it back as `params.cursor`
+ * to fetch the next page. Absent when there are no further pages.
+ */
+export interface CursorPage<T> {
+  data: T[];
+  cursor?: string;
+}
+
 export interface Repository<T, D = Partial<T>> {
   findAll(params?: QueryParams): Promise<T[]>;
   findById(id: Id): Promise<T | null>;
@@ -88,6 +98,13 @@ export interface Repository<T, D = Partial<T>> {
   patchById(id: Id, data: D): Promise<T>;
   deleteById(id: Id): Promise<T>;
   count(params?: QueryParams): Promise<number>;
+  /**
+   * Optional cursor pagination. Implemented by adapters whose backend is natively cursored
+   * (DynamoDB, Qdrant, Pinecone) — `describe().pagination` reports `"cursor"` or `"both"` when
+   * available. Stateless: the cursor lives entirely in the returned page, so concurrent calls
+   * on one repository instance never interfere.
+   */
+  findPage?(params?: QueryParams & { cursor?: string }): Promise<CursorPage<T>>;
   /** Optional capability introspection. All @mantlejs adapters implement it; user repositories may omit it. */
   describe?(): RepositoryCapabilities;
 }

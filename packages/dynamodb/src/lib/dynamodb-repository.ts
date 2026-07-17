@@ -12,14 +12,18 @@ import {
   type TransactWriteItem,
 } from "@aws-sdk/client-dynamodb";
 import { marshall, unmarshall } from "@aws-sdk/util-dynamodb";
-import type { Id, QueryParams, Repository, RepositoryCapabilities } from "@mantlejs/mantle";
-import { BadRequest, Conflict, Forbidden, GeneralError, NotFound, Unavailable } from "@mantlejs/mantle";
+import type { CursorPage, Id, QueryParams, Repository, RepositoryCapabilities } from "@mantlejs/mantle";
+import { BadRequest, Conflict, Forbidden, GeneralError, MantleError, NotFound, Unavailable } from "@mantlejs/mantle";
 import type { MantleApplication } from "@mantlejs/mantle";
 import { dynamodbify, buildKeyCondition, DYNAMODB_OPERATORS } from "./dynamodbify.js";
 import type { WhereClause } from "./dynamodbify.js";
 
 export interface DynamoQueryParams extends QueryParams {
-  /** Cursor for the next page. Pass the `lastKey` from the previous `findAll()` call. */
+  /**
+   * Cursor for the next page. Pass the `lastKey` from the previous `findAll()` call.
+   * @deprecated Use `findPage()` with its string `cursor` instead — `lastKey`/`_startKey` share
+   * mutable state on the repository instance. Will be removed in the next minor release.
+   */
   _startKey?: Record<string, AttributeValue>;
 }
 
@@ -51,7 +55,11 @@ export abstract class DynamoDbRepository<T extends Record<string, unknown>, D = 
    */
   readonly timestamps: boolean = true;
 
-  /** The `LastEvaluatedKey` from the most recent paginated `findAll()` call. Use as `_startKey` on the next call. */
+  /**
+   * The `LastEvaluatedKey` from the most recent paginated `findAll()` call. Use as `_startKey` on the next call.
+   * @deprecated Use `findPage()` instead — its cursor travels in the returned page, so concurrent
+   * calls on one instance cannot corrupt each other. Will be removed in the next minor release.
+   */
   lastKey?: Record<string, AttributeValue>;
 
   /** Buffered write operations when running inside `withTransaction()`. */
@@ -129,6 +137,114 @@ export abstract class DynamoDbRepository<T extends Record<string, unknown>, D = 
       return await this.scanItems(params);
     } catch (err) {
       throw this.wrapError(err);
+    }
+  }
+
+  /**
+   * Fetch one page of results using native DynamoDB cursor pagination. The returned `cursor`
+   * is the `LastEvaluatedKey` encoded as base64 JSON — pass it back as `params.cursor` for the
+   * next page. Stateless: unlike `lastKey`, nothing is stored on the repository instance.
+   *
+   * Uses Query when a sort key is defined and the where clause pins the partition key,
+   * otherwise Scan. `skip` and `sort` are rejected — offsets and cross-page ordering don't
+   * compose with cursors.
+   */
+  async findPage(params?: QueryParams & { cursor?: string }): Promise<CursorPage<T>> {
+    if (params?.skip != null) {
+      throw new BadRequest(
+        "skip is not supported by findPage() on @mantlejs/dynamodb.",
+        undefined,
+        undefined,
+        "Cursor pagination replaces offsets — iterate pages via the returned cursor, or use findAll() with skip/limit.",
+      );
+    }
+    if (params?.sort) {
+      throw new BadRequest(
+        "sort is not supported by findPage() on @mantlejs/dynamodb.",
+        undefined,
+        undefined,
+        "DynamoDB pages cannot be ordered across page boundaries. Sort key order applies natively; for other orderings use findAll().",
+      );
+    }
+
+    const exclusiveStartKey = params?.cursor !== undefined ? this.decodeCursor(params.cursor) : undefined;
+    const where = params?.where as WhereClause | undefined;
+
+    let expressionNames: Record<string, string> | undefined;
+    let projectionExpression: string | undefined;
+
+    try {
+      let keyConditionExpression: string | undefined;
+      let filterExpression: string | undefined;
+      let expressionValues: Record<string, AttributeValue> | undefined;
+
+      const useQuery = Boolean(where && this.sortKey && where[this.partitionKey] !== undefined);
+      if (useQuery) {
+        const built = buildKeyCondition(this.partitionKey, this.sortKey, where as WhereClause);
+        keyConditionExpression = built.keyCondition || undefined;
+        filterExpression = built.filterCondition;
+        expressionNames = Object.keys(built.names).length > 0 ? built.names : undefined;
+        expressionValues = Object.keys(built.values).length > 0 ? built.values : undefined;
+      } else if (where) {
+        const built = dynamodbify(where);
+        filterExpression = built.expression || undefined;
+        if (filterExpression) {
+          expressionNames = Object.keys(built.names).length > 0 ? built.names : undefined;
+          expressionValues = Object.keys(built.values).length > 0 ? built.values : undefined;
+        }
+      }
+
+      if (params?.select && params.select.length > 0) {
+        const aliases: string[] = [];
+        expressionNames = expressionNames ?? {};
+        for (const field of params.select) {
+          const alias = `#sel_${field}`;
+          expressionNames[alias] = field;
+          aliases.push(alias);
+        }
+        projectionExpression = aliases.join(", ");
+      }
+
+      const input = {
+        TableName: this.tableName,
+        FilterExpression: filterExpression,
+        ExpressionAttributeNames: expressionNames,
+        ExpressionAttributeValues: expressionValues,
+        ProjectionExpression: projectionExpression,
+        ExclusiveStartKey: exclusiveStartKey,
+        Limit: params?.limit,
+      };
+
+      const result = await this.client.send(
+        useQuery
+          ? new QueryCommand({ ...input, KeyConditionExpression: keyConditionExpression })
+          : new ScanCommand(input),
+      );
+
+      const data = (result.Items ?? []).map((item) => this.fromItem(item as Record<string, AttributeValue>));
+      const lastEvaluatedKey = result.LastEvaluatedKey as Record<string, AttributeValue> | undefined;
+      return { data, cursor: lastEvaluatedKey ? this.encodeCursor(lastEvaluatedKey) : undefined };
+    } catch (err) {
+      throw this.wrapError(err);
+    }
+  }
+
+  private encodeCursor(key: Record<string, AttributeValue>): string {
+    return Buffer.from(JSON.stringify(key), "utf8").toString("base64url");
+  }
+
+  private decodeCursor(cursor: string): Record<string, AttributeValue> {
+    try {
+      const parsed: unknown = JSON.parse(Buffer.from(cursor, "base64url").toString("utf8"));
+      if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) throw new Error("not an object");
+      return parsed as Record<string, AttributeValue>;
+    } catch {
+      throw new BadRequest(
+        "Invalid cursor.",
+        undefined,
+        undefined,
+        "Pass the cursor string returned by the previous findPage() call, unmodified.",
+      );
     }
   }
 
@@ -585,6 +701,7 @@ export abstract class DynamoDbRepository<T extends Record<string, unknown>, D = 
   }
 
   protected wrapError(err: unknown): Error {
+    if (err instanceof MantleError) return err;
     if (!(err instanceof Error)) return new GeneralError("An unknown DynamoDB error occurred");
     const name = (err as { name?: string }).name ?? "";
     const code = (err as { code?: string }).code ?? "";

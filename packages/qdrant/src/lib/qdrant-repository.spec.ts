@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { MantleApplication } from "@mantlejs/mantle";
-import { GeneralError, NotFound } from "@mantlejs/mantle";
+import { BadRequest, GeneralError, NotFound } from "@mantlejs/mantle";
 
 vi.mock("@qdrant/js-client-rest", () => ({
   QdrantClient: vi.fn(),
@@ -390,13 +390,68 @@ describe("QdrantRepository", () => {
     });
   });
 
+  describe("findPage", () => {
+    it("traverses pages via the returned cursor, mapping Qdrant's next_page_offset", async () => {
+      const { client, app } = makeSetup();
+      const repo = new TestRepo(app);
+      client.scroll.mockResolvedValueOnce({
+        points: [{ id: "1", payload: { title: "A", category: "x" } }],
+        next_page_offset: "point-2",
+      });
+
+      const page1 = await repo.findPage({ limit: 1 });
+      expect(page1.data).toEqual([{ id: "1", title: "A", category: "x" }]);
+      expect(page1.cursor).toBeDefined();
+      expect(client.scroll).toHaveBeenCalledWith("articles", { limit: 1, with_payload: true });
+
+      client.scroll.mockResolvedValueOnce({
+        points: [{ id: "2", payload: { title: "B", category: "y" } }],
+        next_page_offset: null,
+      });
+      const page2 = await repo.findPage({ limit: 1, cursor: page1.cursor });
+      expect(page2.data[0].id).toBe("2");
+      expect(page2.cursor).toBeUndefined();
+      expect(client.scroll).toHaveBeenLastCalledWith("articles", { limit: 1, offset: "point-2", with_payload: true });
+    });
+
+    it("passes the where clause as a Qdrant filter and defaults the page size", async () => {
+      const { client, app } = makeSetup();
+      await new TestRepo(app).findPage({ where: { category: "tech" } });
+      expect(client.scroll).toHaveBeenCalledWith(
+        "articles",
+        expect.objectContaining({
+          limit: 100,
+          filter: { must: [{ key: "category", match: { value: "tech" } }] },
+        }),
+      );
+    });
+
+    it("rejects skip with BadRequest", async () => {
+      const { client, app } = makeSetup();
+      await expect(new TestRepo(app).findPage({ skip: 5 })).rejects.toBeInstanceOf(BadRequest);
+      expect(client.scroll).not.toHaveBeenCalled();
+    });
+
+    it("rejects sort with BadRequest", async () => {
+      const { client, app } = makeSetup();
+      await expect(new TestRepo(app).findPage({ sort: { title: "asc" } })).rejects.toBeInstanceOf(BadRequest);
+      expect(client.scroll).not.toHaveBeenCalled();
+    });
+
+    it("rejects a malformed cursor with BadRequest before hitting Qdrant", async () => {
+      const { client, app } = makeSetup();
+      await expect(new TestRepo(app).findPage({ cursor: "garbage!!" })).rejects.toBeInstanceOf(BadRequest);
+      expect(client.scroll).not.toHaveBeenCalled();
+    });
+  });
+
   describe("describe()", () => {
     it("reports the exact operator set assertOperators accepts", () => {
       const { app } = makeSetup();
       const caps = new TestRepo(app).describe();
       expect(caps.adapter).toBe("@mantlejs/qdrant");
       expect(new Set(caps.operators)).toEqual(QDRANT_OPERATORS);
-      expect(caps.pagination).toBe("offset");
+      expect(caps.pagination).toBe("both");
       expect(caps.fullTextSearch).toBe(false);
     });
   });

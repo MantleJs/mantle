@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { MantleApplication } from "@mantlejs/mantle";
-import { GeneralError, NotFound } from "@mantlejs/mantle";
+import { BadRequest, GeneralError, NotFound } from "@mantlejs/mantle";
 
 vi.mock("@pinecone-database/pinecone", () => ({
   Pinecone: vi.fn(),
@@ -371,13 +371,61 @@ describe("PineconeRepository", () => {
     });
   });
 
+  describe("findPage", () => {
+    it("traverses pages via Pinecone's paginationToken as the cursor", async () => {
+      const { idx, app } = makeSetup();
+      const repo = new TestRepo(app);
+      idx.listPaginated.mockResolvedValueOnce({ vectors: [{ id: "1" }], pagination: { next: "tok-2" } });
+      idx.fetch.mockResolvedValueOnce({ records: { "1": { id: "1", metadata: { title: "A" } } } });
+
+      const page1 = await repo.findPage({ limit: 1 });
+      expect(page1.data).toEqual([{ id: "1", title: "A" }]);
+      expect(page1.cursor).toBe("tok-2");
+      expect(idx.listPaginated).toHaveBeenCalledWith({ limit: 1 });
+
+      idx.listPaginated.mockResolvedValueOnce({ vectors: [{ id: "2" }], pagination: undefined });
+      idx.fetch.mockResolvedValueOnce({ records: { "2": { id: "2", metadata: { title: "B" } } } });
+      const page2 = await repo.findPage({ limit: 1, cursor: page1.cursor });
+      expect(page2.data[0].id).toBe("2");
+      expect(page2.cursor).toBeUndefined();
+      expect(idx.listPaginated).toHaveBeenLastCalledWith({ limit: 1, paginationToken: "tok-2" });
+    });
+
+    it("defaults the page size and returns an empty page without fetching", async () => {
+      const { idx, app } = makeSetup();
+      idx.listPaginated.mockResolvedValue({ vectors: [], pagination: undefined });
+      const page = await new TestRepo(app).findPage();
+      expect(page).toEqual({ data: [], cursor: undefined });
+      expect(idx.listPaginated).toHaveBeenCalledWith({ limit: 100 });
+      expect(idx.fetch).not.toHaveBeenCalled();
+    });
+
+    it("rejects where with BadRequest — the list API cannot filter", async () => {
+      const { idx, app } = makeSetup();
+      await expect(new TestRepo(app).findPage({ where: { category: "tech" } })).rejects.toBeInstanceOf(BadRequest);
+      expect(idx.listPaginated).not.toHaveBeenCalled();
+    });
+
+    it("rejects skip with BadRequest", async () => {
+      const { idx, app } = makeSetup();
+      await expect(new TestRepo(app).findPage({ skip: 3 })).rejects.toBeInstanceOf(BadRequest);
+      expect(idx.listPaginated).not.toHaveBeenCalled();
+    });
+
+    it("rejects sort with BadRequest", async () => {
+      const { idx, app } = makeSetup();
+      await expect(new TestRepo(app).findPage({ sort: { title: "asc" } })).rejects.toBeInstanceOf(BadRequest);
+      expect(idx.listPaginated).not.toHaveBeenCalled();
+    });
+  });
+
   describe("describe()", () => {
     it("reports the exact operator set assertOperators accepts", () => {
       const { app } = makeSetup();
       const caps = new TestRepo(app).describe();
       expect(caps.adapter).toBe("@mantlejs/pinecone");
       expect(new Set(caps.operators)).toEqual(PINECONE_OPERATORS);
-      expect(caps.pagination).toBe("offset");
+      expect(caps.pagination).toBe("both");
       expect(caps.fullTextSearch).toBe(false);
     });
   });

@@ -211,7 +211,11 @@ item 4) so the generator can consume them; D-4 needs `@mantlejs/client` (Phase 4
   **Accept:** spec: a `RepositoryService` over `@mantlejs/memory` with a TypeBox schema yields a descriptor with
   correct methods/events/operators; express spec that `/_services` 404s by default and serves JSON when enabled.
 
-- [ ] **D-3. Cursor pagination `findPage()` / deprecate DynamoDB `lastKey` (Q6)**
+- [x] **D-3. Cursor pagination `findPage()` / deprecate DynamoDB `lastKey` (Q6)**
+  *(Resolved: `CursorPage<T>` + optional `findPage()` in core; implemented in dynamodb (base64-JSON
+  `LastEvaluatedKey`, Query-or-Scan, `lastKey`/`_startKey` deprecated), qdrant (scroll offset), and
+  pinecone (`paginationToken`); knex/supabase omit it and `describe().pagination` reports availability.
+  `skip`/`sort` — and `where` on pinecone — are rejected per the A-3 fail-loud convention.)*
   Add to core types: `CursorPage<T> = { data: T[]; cursor?: string }` and optional
   `findPage?(params?: QueryParams & { cursor?: string }): Promise<CursorPage<T>>` on `Repository<T>`.
   Implement where the backend is natively cursored: DynamoDB (encode `LastEvaluatedKey` as base64 JSON in `cursor`,

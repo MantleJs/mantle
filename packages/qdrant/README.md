@@ -124,6 +124,7 @@ distance, where lower is more similar.
 | Method                 | Description                                              |
 | ---------------------- | -------------------------------------------------------- |
 | `findAll(params?)`     | Scroll through records with optional filtering & sorting |
+| `findPage(params?)`    | One page via native scroll cursors — pass the returned `cursor` back for the next page. `skip`/`sort` are rejected with `BadRequest` (Qdrant cannot combine `order_by` with scroll cursors) |
 | `findById(id)`         | Fetch a single record by ID; returns `null` if not found |
 | `save(data)`           | Insert with a zero-vector placeholder                    |
 | `saveAll(data[])`      | Batch insert (single Qdrant upsert call)                 |

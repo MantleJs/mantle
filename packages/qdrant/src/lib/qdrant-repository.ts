@@ -1,6 +1,6 @@
 import type { QdrantClient } from "@qdrant/js-client-rest";
-import type { Id, QueryParams, RepositoryCapabilities, VectorRepository } from "@mantlejs/mantle";
-import { GeneralError, NotFound } from "@mantlejs/mantle";
+import type { CursorPage, Id, QueryParams, RepositoryCapabilities, VectorRepository } from "@mantlejs/mantle";
+import { BadRequest, GeneralError, MantleError, NotFound } from "@mantlejs/mantle";
 import type { MantleApplication } from "@mantlejs/mantle";
 import { toQdrantFilter, QDRANT_OPERATORS } from "./qdrant-filter.js";
 import type { WhereClause } from "./qdrant-filter.js";
@@ -57,7 +57,7 @@ export abstract class QdrantRepository<T extends Record<string, unknown>, D = Pa
     return {
       adapter: "@mantlejs/qdrant",
       operators: [...QDRANT_OPERATORS],
-      pagination: "offset",
+      pagination: "both",
       fullTextSearch: false,
     };
   }
@@ -146,6 +146,67 @@ export abstract class QdrantRepository<T extends Record<string, unknown>, D = Pa
       return skip > 0 ? all.slice(skip) : all;
     } catch (err) {
       throw this.wrapError(err);
+    }
+  }
+
+  /**
+   * Fetch one page of results using Qdrant's native scroll pagination. The returned `cursor`
+   * encodes Qdrant's `next_page_offset`; pass it back as `params.cursor` for the next page.
+   * `skip` and `sort` are rejected — Qdrant does not return a next-page offset when `order_by`
+   * is in play, and offsets don't compose with cursors.
+   */
+  async findPage(params?: QueryParams & { cursor?: string }): Promise<CursorPage<T>> {
+    if (params?.skip != null) {
+      throw new BadRequest(
+        "skip is not supported by findPage() on @mantlejs/qdrant.",
+        undefined,
+        undefined,
+        "Cursor pagination replaces offsets — iterate pages via the returned cursor, or use findAll() with skip/limit.",
+      );
+    }
+    if (params?.sort) {
+      throw new BadRequest(
+        "sort is not supported by findPage() on @mantlejs/qdrant.",
+        undefined,
+        undefined,
+        "Qdrant cannot combine order_by with scroll cursors. Use findAll() when ordering matters.",
+      );
+    }
+
+    const offset = params?.cursor !== undefined ? this.decodeCursor(params.cursor) : undefined;
+
+    try {
+      const filter = params?.where ? toQdrantFilter(params.where as WhereClause) : undefined;
+      const result = await this.client.scroll(this.collectionName, {
+        ...(filter ? { filter: filter as never } : {}),
+        limit: params?.limit ?? SCROLL_PAGE_SIZE,
+        ...(offset != null ? { offset: offset as never } : {}),
+        with_payload: true,
+      });
+      const data = result.points.map((p) => this.fromPoint(p.id, (p.payload ?? {}) as Record<string, unknown>));
+      const next = result.next_page_offset as string | number | null | undefined;
+      return { data, cursor: next != null ? this.encodeCursor(next) : undefined };
+    } catch (err) {
+      throw this.wrapError(err);
+    }
+  }
+
+  private encodeCursor(offset: string | number): string {
+    return Buffer.from(JSON.stringify(offset), "utf8").toString("base64url");
+  }
+
+  private decodeCursor(cursor: string): string | number {
+    try {
+      const parsed: unknown = JSON.parse(Buffer.from(cursor, "base64url").toString("utf8"));
+      if (typeof parsed !== "string" && typeof parsed !== "number") throw new Error("not a point offset");
+      return parsed;
+    } catch {
+      throw new BadRequest(
+        "Invalid cursor.",
+        undefined,
+        undefined,
+        "Pass the cursor string returned by the previous findPage() call, unmodified.",
+      );
     }
   }
 
@@ -306,6 +367,7 @@ export abstract class QdrantRepository<T extends Record<string, unknown>, D = Pa
   }
 
   protected wrapError(err: unknown): Error {
+    if (err instanceof MantleError) return err;
     if (err instanceof Error) return new GeneralError(err.message);
     return new GeneralError("An unknown Qdrant error occurred");
   }

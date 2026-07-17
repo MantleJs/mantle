@@ -1,12 +1,13 @@
 import { Pinecone, Index } from "@pinecone-database/pinecone";
 import type { RecordMetadata } from "@pinecone-database/pinecone";
-import type { Id, QueryParams, RepositoryCapabilities, VectorRepository } from "@mantlejs/mantle";
-import { GeneralError, NotFound } from "@mantlejs/mantle";
+import type { CursorPage, Id, QueryParams, RepositoryCapabilities, VectorRepository } from "@mantlejs/mantle";
+import { BadRequest, GeneralError, MantleError, NotFound } from "@mantlejs/mantle";
 import type { MantleApplication } from "@mantlejs/mantle";
 import { toPineconeFilter, PINECONE_OPERATORS } from "./pinecone-filter.js";
 import type { WhereClause } from "./pinecone-filter.js";
 
 const FETCH_BATCH_SIZE = 1000;
+const LIST_PAGE_SIZE = 100;
 
 /**
  * A Mantle `VectorRepository<T>` implementation backed by a Pinecone vector index.
@@ -53,7 +54,7 @@ export abstract class PineconeRepository<T extends Record<string, unknown>, D = 
     return {
       adapter: "@mantlejs/pinecone",
       operators: [...PINECONE_OPERATORS],
-      pagination: "offset",
+      pagination: "both",
       fullTextSearch: false,
     };
   }
@@ -134,6 +135,51 @@ export abstract class PineconeRepository<T extends Record<string, unknown>, D = 
       if (pageIds.length === 0) return [];
 
       return this.fetchByIds(pageIds);
+    } catch (err) {
+      throw this.wrapError(err);
+    }
+  }
+
+  /**
+   * Fetch one page of records using Pinecone's native list pagination. The returned `cursor`
+   * is Pinecone's opaque `paginationToken`; pass it back as `params.cursor` for the next page.
+   * `where`, `skip`, and `sort` are rejected — Pinecone's list API enumerates IDs only and
+   * cannot filter or order.
+   */
+  async findPage(params?: QueryParams & { cursor?: string }): Promise<CursorPage<T>> {
+    if (params?.where) {
+      throw new BadRequest(
+        "where is not supported by findPage() on @mantlejs/pinecone.",
+        undefined,
+        undefined,
+        "Pinecone's list API cannot filter by metadata. Use findAll() with where, or findSimilar() for filtered vector search.",
+      );
+    }
+    if (params?.skip != null) {
+      throw new BadRequest(
+        "skip is not supported by findPage() on @mantlejs/pinecone.",
+        undefined,
+        undefined,
+        "Cursor pagination replaces offsets — iterate pages via the returned cursor, or use findAll() with skip/limit.",
+      );
+    }
+    if (params?.sort) {
+      throw new BadRequest(
+        "sort is not supported by findPage() on @mantlejs/pinecone.",
+        undefined,
+        undefined,
+        "Pinecone's list API returns IDs in index order. Use findAll() when ordering matters.",
+      );
+    }
+
+    try {
+      const page = await this.index.listPaginated({
+        limit: params?.limit ?? LIST_PAGE_SIZE,
+        ...(params?.cursor !== undefined ? { paginationToken: params.cursor } : {}),
+      });
+      const ids = (page.vectors ?? []).map((v) => v.id).filter((id): id is string => Boolean(id));
+      const data = ids.length > 0 ? await this.fetchByIds(ids) : [];
+      return { data, cursor: page.pagination?.next };
     } catch (err) {
       throw this.wrapError(err);
     }
@@ -265,6 +311,7 @@ export abstract class PineconeRepository<T extends Record<string, unknown>, D = 
   }
 
   protected wrapError(err: unknown): Error {
+    if (err instanceof MantleError) return err;
     if (err instanceof Error) return new GeneralError(err.message);
     return new GeneralError("An unknown Pinecone error occurred");
   }

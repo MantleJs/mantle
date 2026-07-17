@@ -102,9 +102,19 @@ interface Repository<T, D = Partial<T>> {
   patchById(id: Id, data: D): Promise<T>;
   deleteById(id: Id): Promise<T>;
   count(params?: QueryParams): Promise<number>;
+  findPage?(params?: QueryParams & { cursor?: string }): Promise<CursorPage<T>>; // optional cursor pagination
   describe?(): RepositoryCapabilities; // optional capability introspection
 }
+
+interface CursorPage<T> {
+  data: T[];
+  cursor?: string; // opaque adapter token — pass back as params.cursor for the next page; absent on the last page
+}
 ```
+
+`findPage()` is implemented by adapters whose backend is natively cursored (DynamoDB, Qdrant, Pinecone) —
+`describe().pagination` reports `"cursor"` or `"both"` when it is available. It is stateless: the cursor
+lives entirely in the returned page, so concurrent calls on one repository instance never interfere.
 
 ---
 

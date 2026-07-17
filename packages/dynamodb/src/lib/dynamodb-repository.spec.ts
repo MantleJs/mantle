@@ -418,6 +418,88 @@ describe("DynamoDbRepository", () => {
     });
   });
 
+  describe("findPage", () => {
+    const item = (id: string, name: string) => ({ id: { S: id }, name: { S: name }, email: { S: `${id}@x.com` } });
+    const encodeCursor = (key: Record<string, unknown>) =>
+      Buffer.from(JSON.stringify(key), "utf8").toString("base64url");
+
+    it("traverses pages via the returned cursor without overlap and without touching instance state", async () => {
+      const repo = new UserRepo(app);
+      mockSend.mockResolvedValueOnce({ Items: [item("1", "Alice"), item("2", "Bob")], LastEvaluatedKey: { id: { S: "2" } } });
+
+      const page1 = await repo.findPage({ limit: 2 });
+      expect(page1.data.map((u) => u.id)).toEqual(["1", "2"]);
+      expect(page1.cursor).toBeDefined();
+      expect(repo.lastKey).toBeUndefined();
+      expect(mockSend.mock.calls[0][0].input).toMatchObject({ Limit: 2 });
+      expect(mockSend.mock.calls[0][0].input.ExclusiveStartKey).toBeUndefined();
+
+      mockSend.mockResolvedValueOnce({ Items: [item("3", "Carol")] });
+      const page2 = await repo.findPage({ limit: 2, cursor: page1.cursor });
+      expect(page2.data.map((u) => u.id)).toEqual(["3"]);
+      expect(page2.cursor).toBeUndefined();
+      expect(repo.lastKey).toBeUndefined();
+      expect(mockSend.mock.calls[1][0].input.ExclusiveStartKey).toEqual({ id: { S: "2" } });
+    });
+
+    it("concurrent findPage calls on one instance do not interfere", async () => {
+      const repo = new UserRepo(app);
+      mockSend.mockImplementation((cmd: { input: { ExclusiveStartKey?: Record<string, unknown> } }) => {
+        const start = cmd.input.ExclusiveStartKey;
+        return start
+          ? Promise.resolve({ Items: [item("B", "FromCursor")] })
+          : Promise.resolve({ Items: [item("A", "FromStart")], LastEvaluatedKey: { id: { S: "A" } } });
+      });
+
+      const [fromStart, fromCursor] = await Promise.all([
+        repo.findPage({ limit: 1 }),
+        repo.findPage({ limit: 1, cursor: encodeCursor({ id: { S: "A" } }) }),
+      ]);
+      expect(fromStart.data[0].id).toBe("A");
+      expect(fromStart.cursor).toBe(encodeCursor({ id: { S: "A" } }));
+      expect(fromCursor.data[0].id).toBe("B");
+      expect(fromCursor.cursor).toBeUndefined();
+      expect(repo.lastKey).toBeUndefined();
+    });
+
+    it("applies the where clause as a FilterExpression when scanning", async () => {
+      mockSend.mockResolvedValue({ Items: [] });
+      await new UserRepo(app).findPage({ where: { name: "Alice" } });
+      const input = mockSend.mock.calls[0][0].input;
+      expect(input.FilterExpression).toBeDefined();
+      expect(input.KeyConditionExpression).toBeUndefined();
+    });
+
+    it("uses Query when a sort key is defined and the where clause pins the partition key", async () => {
+      class CompositePageRepo extends DynamoDbRepository<User> {
+        readonly tableName = "events";
+        override readonly partitionKey = "pk";
+        override readonly sortKey = "sk";
+      }
+      mockSend.mockResolvedValue({ Items: [] });
+      await new CompositePageRepo(app).findPage({ where: { pk: "user#1" } });
+      const cmd = mockSend.mock.calls[0][0];
+      expect(cmd.constructor.name).toBe("QueryCommand");
+      expect(cmd.input.KeyConditionExpression).toBeDefined();
+      expect(cmd.input.ExclusiveStartKey).toBeUndefined();
+    });
+
+    it("rejects skip with BadRequest", async () => {
+      await expect(new UserRepo(app).findPage({ skip: 5 })).rejects.toBeInstanceOf(BadRequest);
+      expect(mockSend).not.toHaveBeenCalled();
+    });
+
+    it("rejects sort with BadRequest", async () => {
+      await expect(new UserRepo(app).findPage({ sort: { name: "asc" } })).rejects.toBeInstanceOf(BadRequest);
+      expect(mockSend).not.toHaveBeenCalled();
+    });
+
+    it("rejects a malformed cursor with BadRequest before hitting DynamoDB", async () => {
+      await expect(new UserRepo(app).findPage({ cursor: "not-base64-json!!" })).rejects.toBeInstanceOf(BadRequest);
+      expect(mockSend).not.toHaveBeenCalled();
+    });
+  });
+
   describe("describe()", () => {
     class CompositeRepo extends DynamoDbRepository<User> {
       readonly tableName = "events";

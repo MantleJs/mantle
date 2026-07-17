@@ -99,6 +99,7 @@ Every `findSimilar` result carries the Pinecone match score as `_score` — **hi
 | Method                 | Description                                              |
 | ---------------------- | -------------------------------------------------------- |
 | `findAll(params?)`     | List all records, with optional `QueryParams` filtering  |
+| `findPage(params?)`    | One page via Pinecone's native `paginationToken` as the `cursor`. `where`/`skip`/`sort` are rejected with `BadRequest` — the list API cannot filter or order |
 | `findById(id)`         | Fetch a single record by ID; returns `null` if not found |
 | `save(data)`           | Insert a new record (generates embedding via `toVector`) |
 | `saveAll(data[])`      | Batch insert multiple records                            |
