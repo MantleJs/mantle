@@ -3,7 +3,13 @@ export type RouteHandler = (
   body: unknown,
   query: Record<string, string | string[]>,
   headers: Record<string, string>,
-) => Promise<{ status: number; body: unknown; headers?: Record<string, string> }>;
+) => Promise<{
+  status: number;
+  body: unknown;
+  headers?: Record<string, string>;
+  /** When true, `body` is a pre-serialized string sent as-is (Content-Type comes from `headers`). */
+  raw?: boolean;
+}>;
 
 interface RouteEntry {
   method: string;

@@ -70,6 +70,7 @@ mantle/
 │   ├── memory/          @mantlejs/memory       In-memory Repository<T> for testing/prototyping
 │   ├── config/          @mantlejs/config       Environment-aware configuration loading
 │   ├── socketio/        @mantlejs/socketio     Socket.IO transport adapter
+│   ├── openapi/         @mantlejs/openapi      OpenAPI 3.1 document generation + Swagger UI
 │   ├── sync/            @mantlejs/sync         Cross-instance event sync (Redis/Supabase Realtime)
 │   ├── cli/             @mantlejs/cli          Command-line interface — scaffold projects/services/hooks
 │   └── create-mantle/   create-mantle          `npm create mantle` project initializer
@@ -105,6 +106,7 @@ mantle/
 | @mantlejs/memory        | @mantlejs/mantle                              |
 | @mantlejs/config        | @mantlejs/mantle                              |
 | @mantlejs/socketio      | @mantlejs/mantle                              |
+| @mantlejs/openapi       | @mantlejs/mantle                              |
 | @mantlejs/sync          | @mantlejs/mantle                              |
 | @mantlejs/cli           | nothing (standalone code generator)           |
 | create-mantle           | @mantlejs/cli                                 |

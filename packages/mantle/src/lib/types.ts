@@ -137,6 +137,12 @@ export interface HttpResponseLike {
   status(code: number): this;
   json(body: unknown): void;
   redirect(url: string): void;
+  /**
+   * Send a raw pre-serialized string body (e.g. an HTML page). Strings starting with "<"
+   * are served as text/html, otherwise text/plain — mirroring Express's `res.send()`.
+   * Optional: Express provides it natively; the koa/http adapters implement it.
+   */
+  send?(body: string): void;
 }
 
 export type HttpRouteHandler = (

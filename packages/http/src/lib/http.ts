@@ -43,7 +43,13 @@ async function dispatch(
   headers: Record<string, string>,
   body: unknown,
   correlationId: string,
-): Promise<{ status: number; body: unknown; headers?: Record<string, string>; correlationId: string }> {
+): Promise<{
+  status: number;
+  body: unknown;
+  headers?: Record<string, string>;
+  raw?: boolean;
+  correlationId: string;
+}> {
   return withContext({ correlationId }, async () => {
     const matched = router.match(method, pathname);
     if (!matched) {
@@ -71,6 +77,7 @@ function toHttpRouter(router: Router): HttpRouterLike {
       let status = 200;
       let responseBody: unknown = null;
       let redirectUrl: string | undefined;
+      let rawBody: string | undefined;
 
       const req: HttpRequestLike = {
         protocol: headers["x-forwarded-proto"] ?? "http",
@@ -89,6 +96,9 @@ function toHttpRouter(router: Router): HttpRouterLike {
         redirect(url) {
           redirectUrl = url;
         },
+        send(body) {
+          rawBody = body;
+        },
       };
 
       await new Promise<void>((resolve, reject) => {
@@ -97,7 +107,14 @@ function toHttpRouter(router: Router): HttpRouterLike {
       });
 
       if (redirectUrl !== undefined) {
-        return { status: 302, body: null, headers: { Location: redirectUrl } };
+        const headers: Record<string, string> = { Location: redirectUrl };
+        return { status: 302, body: null, headers };
+      }
+      if (rawBody !== undefined) {
+        const headers: Record<string, string> = {
+          "Content-Type": rawBody.trimStart().startsWith("<") ? "text/html; charset=utf-8" : "text/plain; charset=utf-8",
+        };
+        return { status, body: rawBody, headers, raw: true };
       }
       return { status, body: responseBody };
     };
@@ -143,14 +160,14 @@ export function http(options: HttpOptions = {}): MantlePlugin {
           const headers = req.headers as Record<string, string>;
           const body = await parseBody(req);
           const result = await dispatch(router, req.method ?? "GET", url.pathname, query, headers, body, correlationId);
-          const json = JSON.stringify(result.body);
+          const payload = result.raw ? String(result.body) : JSON.stringify(result.body);
           res.writeHead(result.status, {
             "Content-Type": "application/json",
-            "Content-Length": Buffer.byteLength(json),
+            "Content-Length": Buffer.byteLength(payload),
             "x-correlation-id": result.correlationId,
             ...result.headers,
           });
-          res.end(json);
+          res.end(payload);
         } catch (err) {
           const errRes = toErrorResponse(err);
           const json = JSON.stringify(errRes.body);
@@ -180,7 +197,7 @@ export function http(options: HttpOptions = {}): MantlePlugin {
       }
 
       const result = await dispatch(router, request.method, url.pathname, query, headers, body, correlationId);
-      return new Response(JSON.stringify(result.body), {
+      return new Response(result.raw ? String(result.body) : JSON.stringify(result.body), {
         status: result.status,
         headers: {
           "Content-Type": "application/json",

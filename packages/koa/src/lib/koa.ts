@@ -58,6 +58,10 @@ function toHttpRouter(router: Router): HttpRouterLike {
         redirect(url) {
           ctx.redirect(url);
         },
+        send(body) {
+          // Koa infers text/html for strings starting with "<", text/plain otherwise.
+          ctx.body = body;
+        },
       };
       await new Promise<void>((resolve, reject) => {
         const next = (err?: unknown): void => (err ? reject(err) : resolve());

@@ -72,6 +72,7 @@ Dependencies always point inward. Nothing in Domain or Application layers knows 
 | `@mantlejs/config`      | Environment-aware configuration loading with optional schema validation              |
 | `@mantlejs/sync`        | Cross-instance event sync — broadcasts `service:event` emissions across processes via Redis (DragonflyDB-compatible) or Supabase Realtime |
 | `@mantlejs/socketio`    | Socket.IO transport adapter — real-time WebSocket events via the Mantle hook pipeline |
+| `@mantlejs/openapi`     | OpenAPI 3.1 document generation from registered services, with optional Swagger UI    |
 | `create-mantle`         | Project initializer — scaffold a new Mantle application via `npm create mantle`       |
 
 ## Quick Start

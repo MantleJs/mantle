@@ -19,7 +19,7 @@ Work through these in order. Each item maps to a package spec in the Phase 4 PRD
 - [ ] **3. Implement `@mantlejs/mongodb`**
   New package. `mongodb(options)` configure plugin opens one `MongoClient` (Atlas or self-hosted, replica-set required for transactions), stores it on `app`. `MongoRepository<T, D>` abstract class implements `Repository<T, D>` over the official `mongodb` driver (no Mongoose). Translate `QueryParams` operators directly to MongoDB filter syntax (`$lt`/`$lte`/`$gt`/`$gte`/`$in`/`$nin`/`$or`/`$and`/`$ne` map 1:1); `$like`/`$ilike`/`$notlike` throw `BadRequest` (not supported — use the raw `collection` escape hatch with `$regex` instead). Convert `Id` ↔ `ObjectId` at the repository boundary — callers only ever see string ids. Implement `withTransaction()` via `client.startSession().withTransaction()`. Export `mongodb`, `MongoRepository`, `MongoConfig`.
 
-- [ ] **4. Implement `@mantlejs/openapi`**
+- [x] **4. Implement `@mantlejs/openapi`**
   New package. `openapi(options)` configure plugin walks `app`'s registered services, reads each `ServiceHandle.methods`, detects `@mantlejs/schema` `validate()` hooks (via the schema attached for introspection) to populate request/response schemas, and detects `authenticate('jwt')` in `before.all` to mark paths as requiring `bearerAuth`. Assembles an OpenAPI 3.1 document (`paths`, `components.schemas`, `components.securitySchemes`) and serves it at `options.specPath` (default `/openapi.json`); optionally mounts a Swagger UI page at `options.docsPath`. Services without a detected schema still appear in the spec with a generic `object` schema — never skip or error for missing schema coverage. Export `openapi`, `OpenApiOptions`.
 
 - [ ] **5. Implement batch requests — server + client**
