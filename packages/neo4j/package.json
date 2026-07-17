@@ -35,6 +35,6 @@
   ],
   "peerDependencies": {
     "@mantlejs/mantle": "^0.0.1",
-    "neo4j-driver": "^5.0.0"
+    "neo4j-driver": "^5.0.0 || ^6.0.0"
   }
 }

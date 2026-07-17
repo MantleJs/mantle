@@ -1,6 +1,11 @@
 # @mantlejs/auth-oauth
 
-Shared OAuth 2.0 base for [Mantle JS](https://github.com/mantlejs/mantle). Provides the state management, PKCE, find-or-create user logic, and Express route registration that all OAuth strategy packages (`auth-google`, `auth-github`, etc.) build on. Not used directly by application code.
+Shared OAuth 2.0 base for [Mantle JS](https://github.com/mantlejs/mantle). Provides the state management, PKCE, find-or-create user logic, and route registration that all OAuth strategy packages (`auth-google`, `auth-github`, etc.) build on. Not used directly by application code.
+
+Protocol plumbing — authorization URL construction, token exchange, PKCE derivation — is delegated to
+[Arctic](https://arcticjs.dev) as an implementation dependency (see
+[ADR-002](../../docs/decisions/adr-002-arctic-oauth-internals.md)); strategy packages hand-write only
+profile normalization.
 
 ---
 
@@ -30,7 +35,7 @@ interface OAuthProvider {
 
 ### `createOAuthPlugin`
 
-The factory that wires a provider into Mantle. It registers two Express routes (`GET /auth/{providerKey}` and `GET /auth/{providerKey}/callback`), manages PKCE state, performs find-or-create on the configured user service, and issues the Mantle JWT pair via `@mantlejs/auth`.
+The factory that wires a provider into Mantle. It registers two routes (`GET /auth/{providerKey}` and `GET /auth/{providerKey}/callback`) on the transport's `http:router`, manages PKCE state (generating the code verifier via Arctic; the provider derives the challenge), performs find-or-create on the configured user service, and issues the Mantle JWT pair via `@mantlejs/auth`.
 
 ### State store
 
@@ -59,42 +64,39 @@ On callback, the plugin calls `app.service(entity).find({ query: { [entityIdFiel
 
 ## Quick start (writing a new strategy)
 
+Arctic ships clients for ~60 providers — pick the matching class (or fall back to its generic
+`OAuth2Client` with explicit endpoints) and hand-write only the profile normalization:
+
 ```typescript
 import type { MantlePlugin } from "@mantlejs/mantle";
 import { GeneralError } from "@mantlejs/mantle";
+import { Discord } from "arctic"; // or OAuth2Client for providers Arctic doesn't ship
 import { createOAuthPlugin } from "@mantlejs/auth-oauth";
 import type { OAuthPluginConfig, OAuthProvider } from "@mantlejs/auth-oauth";
 
 export type MyStrategyConfig = OAuthPluginConfig;
 
 const myProvider: OAuthProvider = {
-  usePkce: false,
-  defaultScope: ["user"],
+  usePkce: false, // when true, buildAuthUrl receives a codeVerifier; Arctic derives the S256 challenge
+  defaultScope: ["identify", "email"],
 
   buildAuthUrl({ clientId, redirectUri, scope, state }) {
-    const params = new URLSearchParams({
-      client_id: clientId,
-      redirect_uri: redirectUri,
-      scope: scope.join(" "),
-      state,
-    });
-    return `https://provider.example.com/oauth/authorize?${params}`;
+    const client = new Discord(clientId, "", redirectUri); // secret unused for URL construction
+    return client.createAuthorizationURL(state, scope).toString();
   },
 
   async exchangeCode({ code, clientId, clientSecret, redirectUri }) {
-    const res = await fetch("https://provider.example.com/oauth/token", {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({ code, client_id: clientId, client_secret: clientSecret,
-        redirect_uri: redirectUri, grant_type: "authorization_code" }).toString(),
-    });
-    if (!res.ok) throw new GeneralError("Token exchange failed");
-    const data = await res.json() as Record<string, unknown>;
-    return data["access_token"] as string;
+    const client = new Discord(clientId, clientSecret, redirectUri);
+    try {
+      const tokens = await client.validateAuthorizationCode(code);
+      return tokens.accessToken();
+    } catch {
+      throw new GeneralError("Token exchange failed");
+    }
   },
 
   async fetchProfile(accessToken) {
-    const res = await fetch("https://api.provider.example.com/me", {
+    const res = await fetch("https://discord.com/api/users/@me", {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
     if (!res.ok) throw new GeneralError("Profile fetch failed");

@@ -16,7 +16,7 @@ npm install @mantlejs/auth-google
 
 ### PKCE
 
-Google Sign-In uses the authorization code flow with PKCE (Proof Key for Code Exchange). On each redirect request the plugin generates a fresh `code_verifier` and its `code_challenge` (SHA-256 / base64url). The verifier is stored server-side against a random `state` token and passed to the token exchange on callback.
+Google Sign-In uses the authorization code flow with PKCE (Proof Key for Code Exchange). On each redirect request the plugin generates a fresh `code_verifier` (via [Arctic](https://arcticjs.dev), which also derives the SHA-256 / base64url `code_challenge` — see [ADR-002](../../docs/decisions/adr-002-arctic-oauth-internals.md)). The verifier is stored server-side against a random `state` token and passed to the token exchange on callback.
 
 ### Find-or-create
 

@@ -1,8 +1,8 @@
 import type { HttpRouterLike, MantleApplication, MantlePlugin } from "@mantlejs/mantle";
 import { NotAuthenticated } from "@mantlejs/mantle";
 import type { AuthEngine } from "@mantlejs/auth";
+import { generateState, generateCodeVerifier } from "arctic";
 import type { OAuthProvider, OAuthPluginConfig } from "./types.js";
-import { generateState, generateCodeVerifier, generateCodeChallenge } from "./pkce.js";
 import { createStateStore } from "./state-store.js";
 import { findOrCreateUser } from "./find-or-create.js";
 
@@ -40,17 +40,11 @@ export function createOAuthPlugin(
       const host = req.get("host") ?? "";
       const redirectUri = `${req.protocol}://${host}${callbackPath}`;
 
-      let codeVerifier: string | undefined;
-      let codeChallenge: string | undefined;
-
-      if (provider.usePkce) {
-        codeVerifier = generateCodeVerifier();
-        codeChallenge = generateCodeChallenge(codeVerifier);
-      }
+      const codeVerifier = provider.usePkce ? generateCodeVerifier() : undefined;
 
       stateStore.set(state, { codeVerifier });
 
-      const authUrl = provider.buildAuthUrl({ clientId: config.clientId, redirectUri, scope, state, codeChallenge });
+      const authUrl = provider.buildAuthUrl({ clientId: config.clientId, redirectUri, scope, state, codeVerifier });
       res.redirect(authUrl);
     });
 

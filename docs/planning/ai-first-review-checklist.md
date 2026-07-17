@@ -240,7 +240,14 @@ item 4) so the generator can consume them; D-4 needs `@mantlejs/client` (Phase 4
   **Accept:** e2e-style spec: express + `VectorRepositoryService` over a stubbed vector repository; client
   `service("docs").similar({ vector, topK: 5 })` returns `_score`-bearing results through the full hook pipeline.
 
-- [ ] **D-5. ADR-002: adopt Arctic inside `auth-oauth` (review §3)**
+- [x] **D-5. ADR-002: adopt Arctic inside `auth-oauth` (review §3)**
+  *(Resolved with one user-approved deviation from the accept criteria: the specs asserted implementation
+  details — exact `fetch(url, options)` call shapes and hand-fed challenge propagation — that are
+  incompatible with Arctic's `Request`-based fetches, and `AuthUrlParams.codeChallenge` conflicted with
+  Arctic's verifier-based PKCE. Chosen: clean adoption — `AuthUrlParams.codeVerifier` replaces
+  `codeChallenge` (pre-release cut, ADR-002 documents it), `pkce.ts` deleted in favor of Arctic's
+  `generateState`/`generateCodeVerifier`, the three providers now delegate URL + exchange to Arctic with
+  profile fetching hand-written, and only implementation-detail spec assertions were updated.)*
   Write `docs/decisions/adr-002-arctic-oauth-internals.md` first (follow adr-001's format: Context / Decision /
   Options Considered / Consequences — the review's §3 is the source material). Then: add `arctic` as a dependency of
   `@mantlejs/auth-oauth`; keep `OAuthProvider` (`auth-oauth/src/lib/types.ts:23-29`) as the unchanged public

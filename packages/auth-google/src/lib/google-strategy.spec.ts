@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { GeneralError } from "@mantlejs/mantle";
 
@@ -13,15 +14,15 @@ const { createOAuthPlugin } = await import("@mantlejs/auth-oauth");
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function makeOkResponse(body: unknown) {
-  return {
-    ok: true,
-    json: vi.fn().mockResolvedValue(body),
-  };
+function makeOkResponse(body: unknown): Response {
+  return new Response(JSON.stringify(body), { status: 200, headers: { "Content-Type": "application/json" } });
 }
 
-function makeErrorResponse(status = 400) {
-  return { ok: false, status, json: vi.fn() };
+function makeErrorResponse(status = 400): Response {
+  return new Response(JSON.stringify({ error: "oauth_error" }), {
+    status,
+    headers: { "Content-Type": "application/json" },
+  });
 }
 
 // ─── googleStrategy() ────────────────────────────────────────────────────────
@@ -88,13 +89,14 @@ describe("googleProvider.buildAuthUrl()", () => {
       redirectUri: "https://app.example.com/auth/google/callback",
       scope: ["openid", "profile"],
       state: "abc123",
-      codeChallenge: "challenge-xyz",
+      codeVerifier: "verifier-xyz",
     });
+    const expectedChallenge = createHash("sha256").update("verifier-xyz").digest("base64url");
     expect(url).toContain("https://accounts.google.com/o/oauth2/v2/auth");
     expect(url).toContain("client_id=cid");
     expect(url).toContain("response_type=code");
     expect(url).toContain("state=abc123");
-    expect(url).toContain("code_challenge=challenge-xyz");
+    expect(url).toContain(`code_challenge=${expectedChallenge}`);
     expect(url).toContain("code_challenge_method=S256");
   });
 
@@ -137,10 +139,9 @@ describe("googleProvider.exchangeCode()", () => {
       codeVerifier: "verifier",
     });
 
-    expect(fetchMock).toHaveBeenCalledWith(
-      "https://oauth2.googleapis.com/token",
-      expect.objectContaining({ method: "POST" }),
-    );
+    const request = fetchMock.mock.calls[0]?.[0] as Request;
+    expect(request.url).toBe("https://oauth2.googleapis.com/token");
+    expect(request.method).toBe("POST");
     expect(token).toBe("gtoken123");
   });
 

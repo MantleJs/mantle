@@ -13,15 +13,15 @@ const { createOAuthPlugin } = await import("@mantlejs/auth-oauth");
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function makeOkResponse(body: unknown) {
-  return {
-    ok: true,
-    json: vi.fn().mockResolvedValue(body),
-  };
+function makeOkResponse(body: unknown): Response {
+  return new Response(JSON.stringify(body), { status: 200, headers: { "Content-Type": "application/json" } });
 }
 
-function makeErrorResponse(status = 400) {
-  return { ok: false, status, json: vi.fn() };
+function makeErrorResponse(status = 400): Response {
+  return new Response(JSON.stringify({ error: "oauth_error" }), {
+    status,
+    headers: { "Content-Type": "application/json" },
+  });
 }
 
 // ─── facebookStrategy() ──────────────────────────────────────────────────────
@@ -89,20 +89,20 @@ describe("facebookProvider.buildAuthUrl()", () => {
       scope: ["email", "public_profile"],
       state: "abc123",
     });
-    expect(url).toContain("https://www.facebook.com/v18.0/dialog/oauth");
+    expect(url).toContain("https://www.facebook.com/v16.0/dialog/oauth");
     expect(url).toContain("client_id=cid");
     expect(url).toContain("response_type=code");
     expect(url).toContain("state=abc123");
   });
 
-  it("encodes scope as a comma-separated string", () => {
+  it("encodes scope as a space-separated string", () => {
     const url = provider.buildAuthUrl({
       clientId: "cid",
       redirectUri: "https://app.example.com/cb",
       scope: ["email", "public_profile"],
       state: "s",
     });
-    expect(url).toContain("scope=email%2Cpublic_profile");
+    expect(url).toContain("scope=email+public_profile");
   });
 
   it("sets usePkce to false", () => {
@@ -123,7 +123,7 @@ describe("facebookProvider.exchangeCode()", () => {
     provider = vi.mocked(createOAuthPlugin).mock.calls[0]?.[1] as typeof provider;
   });
 
-  it("GETs the Facebook token endpoint with query params and returns access_token", async () => {
+  it("POSTs to the Facebook token endpoint and returns access_token", async () => {
     fetchMock.mockResolvedValue(makeOkResponse({ access_token: "fbtoken123" }));
 
     const token = await provider.exchangeCode({
@@ -133,9 +133,9 @@ describe("facebookProvider.exchangeCode()", () => {
       redirectUri: "https://app.example.com/cb",
     });
 
-    expect(fetchMock).toHaveBeenCalledWith(
-      expect.stringContaining("https://graph.facebook.com/v18.0/oauth/access_token"),
-    );
+    const request = fetchMock.mock.calls[0]?.[0] as Request;
+    expect(request.url).toBe("https://graph.facebook.com/v16.0/oauth/access_token");
+    expect(request.method).toBe("POST");
     expect(token).toBe("fbtoken123");
   });
 

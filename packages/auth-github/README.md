@@ -16,7 +16,7 @@ npm install @mantlejs/auth-github
 
 ### Authorization code flow
 
-GitHub Sign-In uses the standard authorization code flow (without PKCE — GitHub does not support it for server-side apps). On each redirect request the plugin generates a random `state` token stored server-side for CSRF protection and passed through the OAuth exchange.
+GitHub Sign-In uses the standard authorization code flow (without PKCE — GitHub does not support it for server-side apps). On each redirect request the plugin generates a random `state` token stored server-side for CSRF protection and passed through the OAuth exchange. URL construction and token exchange go through [Arctic](https://arcticjs.dev) (see [ADR-002](../../docs/decisions/adr-002-arctic-oauth-internals.md)); the token request authenticates with HTTP Basic credentials.
 
 ### Find-or-create
 

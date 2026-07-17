@@ -11,7 +11,11 @@ export interface AuthUrlParams {
   redirectUri: string;
   scope: string[];
   state: string;
-  codeChallenge?: string;
+  /**
+   * PKCE code verifier, present when the provider declares `usePkce`. The provider derives
+   * the S256 code challenge from it (Arctic does this internally in `createAuthorizationURL`).
+   */
+  codeVerifier?: string;
 }
 
 export interface CodeExchangeParams {

@@ -13,15 +13,15 @@ const { createOAuthPlugin } = await import("@mantlejs/auth-oauth");
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function makeOkResponse(body: unknown) {
-  return {
-    ok: true,
-    json: vi.fn().mockResolvedValue(body),
-  };
+function makeOkResponse(body: unknown): Response {
+  return new Response(JSON.stringify(body), { status: 200, headers: { "Content-Type": "application/json" } });
 }
 
-function makeErrorResponse(status = 400) {
-  return { ok: false, status, json: vi.fn() };
+function makeErrorResponse(status = 400): Response {
+  return new Response(JSON.stringify({ error: "oauth_error" }), {
+    status,
+    headers: { "Content-Type": "application/json" },
+  });
 }
 
 // ─── githubStrategy() ────────────────────────────────────────────────────────
@@ -133,10 +133,9 @@ describe("githubProvider.exchangeCode()", () => {
       redirectUri: "https://app.example.com/cb",
     });
 
-    expect(fetchMock).toHaveBeenCalledWith(
-      "https://github.com/login/oauth/access_token",
-      expect.objectContaining({ method: "POST" }),
-    );
+    const request = fetchMock.mock.calls[0]?.[0] as Request;
+    expect(request.url).toBe("https://github.com/login/oauth/access_token");
+    expect(request.method).toBe("POST");
     expect(token).toBe("ghtoken123");
   });
 

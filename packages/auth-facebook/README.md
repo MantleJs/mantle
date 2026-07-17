@@ -16,7 +16,7 @@ npm install @mantlejs/auth-facebook
 
 ### Authorization code flow
 
-Facebook Sign-In uses the standard OAuth 2.0 authorization code flow (without PKCE — Facebook does not require it for server-side apps). On redirect the plugin builds the authorization URL with a random `state` token to prevent CSRF. The state is verified on callback before the code is exchanged.
+Facebook Sign-In uses the standard OAuth 2.0 authorization code flow (without PKCE — Facebook does not require it for server-side apps). On redirect the plugin builds the authorization URL with a random `state` token to prevent CSRF. The state is verified on callback before the code is exchanged. URL construction and token exchange go through [Arctic](https://arcticjs.dev), which pins the Graph API version (see [ADR-002](../../docs/decisions/adr-002-arctic-oauth-internals.md)).
 
 ### Find-or-create
 

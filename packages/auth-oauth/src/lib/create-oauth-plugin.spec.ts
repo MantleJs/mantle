@@ -11,10 +11,9 @@ const mockStateStore = {
   cleanup: vi.fn(),
 };
 
-vi.mock("./pkce.js", () => ({
+vi.mock("arctic", () => ({
   generateState: vi.fn().mockReturnValue("fixed-state"),
   generateCodeVerifier: vi.fn().mockReturnValue("fixed-verifier"),
-  generateCodeChallenge: vi.fn().mockReturnValue("fixed-challenge"),
 }));
 
 vi.mock("./state-store.js", () => ({
@@ -198,7 +197,7 @@ describe("createOAuthPlugin()", () => {
       expect(res.redirect).toHaveBeenCalledWith("https://provider.example.com/auth");
     });
 
-    it("passes PKCE challenge to buildAuthUrl when usePkce is true", () => {
+    it("passes the PKCE code verifier to buildAuthUrl when usePkce is true", () => {
       const provider = makeProvider({ usePkce: true });
       const router = makeRouter();
       const app = makeApp(makeEngine(), router);
@@ -206,11 +205,11 @@ describe("createOAuthPlugin()", () => {
       router.route("/auth/test")(makeReq(), makeRes(), vi.fn());
 
       expect(provider.buildAuthUrl).toHaveBeenCalledWith(
-        expect.objectContaining({ codeChallenge: "fixed-challenge" }),
+        expect.objectContaining({ codeVerifier: "fixed-verifier" }),
       );
     });
 
-    it("does not include codeChallenge when usePkce is false", () => {
+    it("does not include codeVerifier when usePkce is false", () => {
       const provider = makeProvider({ usePkce: false });
       const router = makeRouter();
       const app = makeApp(makeEngine(), router);
@@ -218,7 +217,7 @@ describe("createOAuthPlugin()", () => {
       router.route("/auth/test")(makeReq(), makeRes(), vi.fn());
 
       expect(provider.buildAuthUrl).toHaveBeenCalledWith(
-        expect.objectContaining({ codeChallenge: undefined }),
+        expect.objectContaining({ codeVerifier: undefined }),
       );
     });
 

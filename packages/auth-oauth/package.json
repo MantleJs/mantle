@@ -30,10 +30,11 @@
     "oauth2"
   ],
   "dependencies": {
+    "arctic": "^3.7.0",
     "tslib": "^2.3.0"
   },
   "peerDependencies": {
-    "@mantlejs/mantle": "^0.0.1",
-    "@mantlejs/auth": "^0.0.1"
+    "@mantlejs/auth": "^0.0.1",
+    "@mantlejs/mantle": "^0.0.1"
   }
 }
