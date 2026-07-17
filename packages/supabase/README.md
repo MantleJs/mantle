@@ -193,6 +193,22 @@ Changes are emitted as `service:event` on the app event bus:
 | `UPDATE`       | `patched`    |
 | `DELETE`       | `removed`    |
 
+##### External events carry `{ external: true }`
+
+These re-emissions did **not** pass through the hook pipeline — no before/after hooks ran, no
+validation, no `params.user`. So their params argument is `{ external: true }` (typed on
+`ServiceParams`), letting event consumers (socket.io broadcasts, `@mantlejs/sync`, custom listeners)
+distinguish them from hook-pipeline events and, for example, skip authorization-derived filtering
+that assumes hook context.
+
+##### Why `UPDATE` maps to `patched` — never `updated`
+
+In Mantle, `updated` means "a caller replaced the full record via `update()`" while `patched` means
+"some fields changed". A WAL-level `UPDATE` only tells us the row's new state — the intent (full
+replace vs. partial mutation) is unknowable from outside the service layer. `patched` is the honest,
+conservative claim: consumers reacting to `patched` must already tolerate partial change, whereas
+mislabeling a partial write as `updated` would let them assume every field was intentionally set.
+
 #### `protected wrapError(err)`
 
 Maps Supabase / PostgreSQL error codes to typed `MantleError` subclasses. Call it in custom query methods to keep error handling consistent.

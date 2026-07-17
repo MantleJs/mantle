@@ -41,6 +41,8 @@ export interface ServiceParams {
   connection?: Record<string, unknown>;
   /** Rooms to broadcast mutation events to. If set by a before hook, the socket.io transport will broadcast only to these rooms instead of all clients. */
   rooms?: string | string[];
+  /** True on `service:event` emissions that did NOT pass through the hook pipeline — e.g. Supabase change-feed re-emissions of direct DB mutations. */
+  external?: boolean;
   [key: string]: unknown;
 }
 

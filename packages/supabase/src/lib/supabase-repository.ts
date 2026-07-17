@@ -78,7 +78,9 @@ export abstract class SupabaseRepository<T extends Record<string, unknown>, D = 
   /**
    * When true, subscribes to Postgres Changes for this table and re-emits
    * direct DB mutations (PostgREST, migrations, Supabase Studio) as Mantle
-   * `service:event` emissions on the app event bus.
+   * `service:event` emissions on the app event bus. These emissions carry
+   * `{ external: true }` as their params so consumers can distinguish them
+   * from hook-pipeline events; external UPDATEs always map to `"patched"`.
    * @default false
    */
   readonly listenToChanges: boolean = false;
@@ -126,7 +128,7 @@ export abstract class SupabaseRepository<T extends Record<string, unknown>, D = 
             this.tableName,
             mantleEvent,
             record,
-            {},
+            { external: true },
           );
         },
       )

@@ -283,7 +283,10 @@ item 4) so the generator can consume them; D-4 needs `@mantlejs/client` (Phase 4
   **Accept:** no `cypher` identifier remains in `packages/mantle` or `packages/neo4j` source; existing neo4j specs
   pass against `raw()`.
 
-- [ ] **D-9. Mark Supabase change-feed re-emissions as external (E7)**
+- [x] **D-9. Mark Supabase change-feed re-emissions as external (E7)**
+  *(Resolved: change-feed emissions now carry `{ external: true }` — the flag is typed as
+  `ServiceParams.external` in core — and the supabase README documents both the marker and the
+  UPDATE→`patched` rationale.)*
   `packages/supabase/src/lib/supabase-repository.ts:108-114` re-emits DB changes as `service:event` with `{}`
   params, indistinguishable from hook-pipeline events. Emit `{ external: true }` as the params argument instead, and
   document in the supabase README why external `UPDATE`s map to `"patched"` (never `"updated"`).

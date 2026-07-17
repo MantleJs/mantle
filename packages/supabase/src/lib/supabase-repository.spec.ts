@@ -359,7 +359,7 @@ describe("SupabaseRepository", () => {
       const row = { id: "1", name: "Alice", email: "alice@test.com" };
       if (!changeHandler) throw new Error("changeHandler not captured");
       changeHandler({ eventType: "INSERT", new: row, old: {} });
-      expect(emitMock).toHaveBeenCalledWith("service:event", "posts", "created", row, {});
+      expect(emitMock).toHaveBeenCalledWith("service:event", "posts", "created", row, { external: true });
     });
 
     it("emits service:event patched on UPDATE", async () => {
@@ -389,7 +389,7 @@ describe("SupabaseRepository", () => {
       const row = { id: "1", name: "Updated", email: "alice@test.com" };
       if (!changeHandler) throw new Error("changeHandler not captured");
       changeHandler({ eventType: "UPDATE", new: row, old: { id: "1" } });
-      expect(emitMock).toHaveBeenCalledWith("service:event", "posts", "patched", row, {});
+      expect(emitMock).toHaveBeenCalledWith("service:event", "posts", "patched", row, { external: true });
     });
 
     it("emits service:event removed on DELETE", async () => {
@@ -419,7 +419,7 @@ describe("SupabaseRepository", () => {
       const row = { id: "1", name: "Alice", email: "alice@test.com" };
       if (!changeHandler) throw new Error("changeHandler not captured");
       changeHandler({ eventType: "DELETE", new: {}, old: row });
-      expect(emitMock).toHaveBeenCalledWith("service:event", "posts", "removed", row, {});
+      expect(emitMock).toHaveBeenCalledWith("service:event", "posts", "removed", row, { external: true });
     });
 
     it("does not subscribe when listenToChanges=false (default)", async () => {
