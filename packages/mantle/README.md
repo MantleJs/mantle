@@ -197,6 +197,38 @@ Reserved keys inside `query` (everything else becomes the repository `where` cla
 
 ---
 
+### `VectorRepositoryService<T, D>` and the `similar` convention
+
+Services backed by a `VectorRepository<T>` expose vector search as a **custom method named `similar`**,
+registered in `app.use()` so transports mount it (custom methods dispatch as `POST /<path>/similar` and run
+the full hook pipeline). `VectorRepositoryService` is a `RepositoryService` with the method pre-wired to
+`repository.findSimilar()`:
+
+```typescript
+import { VectorRepositoryService } from "@mantlejs/mantle";
+
+app.use("docs", new VectorRepositoryService(new DocRepository(app), {
+  fields: ["category", "tags"], // whitelist applies to similar()'s where too
+  topK: { default: 10, max: 100 }, // missing topK gets default; requests are capped at max
+}), {
+  methods: ["find", "get", "create", "update", "patch", "remove", "similar"],
+});
+```
+
+```
+POST /docs/similar
+{ "vector": [0.12, -0.5, …], "topK": 5, "where": { "category": "tech" } }
+```
+
+Every result carries the adapter's native match metric as `_score` — whether higher or lower means "more
+similar" is adapter-specific; see the adapter README. A missing/non-numeric `vector`, a non-positive
+`topK`, or a `where` key outside `options.fields` throws `BadRequest` with a hint.
+
+Writing your own service instead? Follow the same convention: register `similar(data, params)` as a custom
+method and forward to `repository.findSimilar(data.vector, data.topK, { where: data.where })`.
+
+---
+
 ### Hooks
 
 Hooks are plain functions — no classes. They run in three phases: `before`, `after`, and `error`. The `all` key applies to every method in that phase.

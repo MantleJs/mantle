@@ -1,9 +1,9 @@
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import type { Application } from "express";
-import { mantle, getContext, RepositoryService } from "@mantlejs/mantle";
+import { mantle, getContext, RepositoryService, VectorRepositoryService } from "@mantlejs/mantle";
 import { BadRequest, NotFound } from "@mantlejs/mantle";
-import type { Id, Paginated, QueryParams, Repository, ServiceParams } from "@mantlejs/mantle";
+import type { HookContext, Id, Paginated, QueryParams, Repository, ServiceParams, VectorRepository } from "@mantlejs/mantle";
 import { express } from "./express.js";
 
 async function startServer(expressApp: Application): Promise<{ port: number; stop: () => Promise<void> }> {
@@ -523,6 +523,90 @@ describe("express adapter", () => {
         const body = (await res.json()) as Paginated<Person>;
         expect(body).toMatchObject({ total: 3, limit: 10, skip: 0 });
         expect(body.data.map((p) => p.name)).toEqual(["Alice", "Bob", "Carol"]);
+      } finally {
+        await stop();
+      }
+    });
+  });
+
+  // D-4 acceptance: the `similar` custom-method convention — a VectorRepositoryService
+  // over a stubbed vector repository, reached via POST /<path>/similar through the full
+  // hook pipeline, returning _score-bearing results.
+  describe("VectorRepositoryService similar() round-trip", () => {
+    interface Doc extends Record<string, unknown> {
+      id: string;
+      title: string;
+    }
+
+    function makeVectorRepo(): VectorRepository<Doc> {
+      const notInSpec = () => Promise.reject(new Error("not exercised in this spec"));
+      return {
+        findSimilar: async (vector: number[], topK: number) =>
+          [{ id: "1", title: `top-${topK} for [${vector.join(",")}]`, _score: 0.91 }],
+        upsertVector: notInSpec,
+        deleteVector: notInSpec,
+        findAll: async () => [],
+        findById: async () => null,
+        save: notInSpec,
+        saveAll: notInSpec,
+        updateById: notInSpec,
+        patchById: notInSpec,
+        deleteById: notInSpec,
+        count: async () => 0,
+      };
+    }
+
+    it("POST /docs/similar returns _score-bearing results through the hook pipeline", async () => {
+      const app = mantle().configure(express());
+      app.use("docs", new VectorRepositoryService<Doc>(makeVectorRepo()), {
+        methods: ["find", "get", "similar"],
+      });
+
+      let hookSawMethod: string | undefined;
+      app.service("docs").hooks({
+        before: {
+          all: [
+            (ctx: HookContext<Doc>) => {
+              hookSawMethod = ctx.method;
+              return ctx;
+            },
+          ],
+        },
+      });
+
+      const { port, stop } = await startServer(app.get<Application>("express"));
+      try {
+        const res = await fetch(`http://localhost:${port}/docs/similar`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ vector: [0.1, 0.2, 0.3], topK: 5 }),
+        });
+        expect(res.status).toBe(200);
+        const body = (await res.json()) as Array<Doc & { _score: number }>;
+        expect(body).toEqual([{ id: "1", title: "top-5 for [0.1,0.2,0.3]", _score: 0.91 }]);
+        expect(hookSawMethod).toBe("similar");
+      } finally {
+        await stop();
+      }
+    });
+
+    it("POST /docs/similar with a malformed body returns the typed 400", async () => {
+      const app = mantle().configure(express());
+      app.use("docs", new VectorRepositoryService<Doc>(makeVectorRepo()), {
+        methods: ["find", "similar"],
+      });
+
+      const { port, stop } = await startServer(app.get<Application>("express"));
+      try {
+        const res = await fetch(`http://localhost:${port}/docs/similar`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ vector: "not-an-array" }),
+        });
+        expect(res.status).toBe(400);
+        const body = (await res.json()) as { className: string; hint?: string };
+        expect(body.className).toBe("bad-request");
+        expect(body.hint).toBeDefined();
       } finally {
         await stop();
       }

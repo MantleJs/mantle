@@ -226,6 +226,11 @@ item 4) so the generator can consume them; D-4 needs `@mantlejs/client` (Phase 4
   without touching instance state; concurrent `findPage` calls on one repository instance don't interfere.
 
 - [ ] **D-4. `similar()` service-method convention + client wiring (Q5 remainder)**
+  *(Partially done: `VectorRepositoryService` ships in `@mantlejs/mantle` with `similar()` pre-wired to
+  `findSimilar` (vector/topK validation, `topK: { default, max }` option, field whitelist on `where`),
+  the convention is documented in the mantle README, and an express round-trip spec covers
+  `POST /docs/similar` through the hook pipeline. Remaining: `ServiceClient.similar(data)` — blocked
+  until `@mantlejs/client` exists; fold into Phase 4 item 1 alongside C-8's reconnect wiring.)*
   C-4 standardizes `_score`; this item makes vector search reachable. Convention: services backed by a
   `VectorRepository` register a custom method `similar(data: { vector: number[]; topK?: number; where?: … }, params)`
   via `app.use(path, svc, { methods: [..., "similar"] })`, forwarding to `repository.findSimilar` — document the

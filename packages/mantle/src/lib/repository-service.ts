@@ -172,7 +172,7 @@ export class RepositoryService<T, D = Partial<T>> implements Service<T, D> {
     }
   }
 
-  private assertFields(where: Record<string, unknown>): void {
+  protected assertFields(where: Record<string, unknown>): void {
     for (const [key, value] of Object.entries(where)) {
       if (key === "$or" || key === "$and") {
         if (Array.isArray(value)) {
