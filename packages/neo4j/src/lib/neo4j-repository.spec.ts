@@ -211,13 +211,13 @@ describe("Neo4jRepository", () => {
     });
   });
 
-  describe("cypher", () => {
+  describe("raw", () => {
     it("runs a raw query and returns results", async () => {
       const node = { properties: { id: "1", name: "Alice", age: 30 } };
       session.run.mockResolvedValueOnce({
         records: [{ get: (k: string) => (k === "n" ? node : undefined), keys: ["n"] }],
       });
-      const result = await repo.cypher<Person>("MATCH (n:Person) RETURN n");
+      const result = await repo.raw<Person>("MATCH (n:Person) RETURN n");
       expect(result[0]).toEqual(node.properties);
     });
   });

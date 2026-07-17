@@ -269,7 +269,10 @@ item 4) so the generator can consume them; D-4 needs `@mantlejs/client` (Phase 4
   **Accept:** shared spec fixture run against memory + supabase (mocked) proving dot-path equality and `$contains`
   agree; unsupported adapters throw naming the operator.
 
-- [ ] **D-8. Rename `GraphRepository.cypher()` to `raw()` (pre-release API fix)**
+- [x] **D-8. Rename `GraphRepository.cypher()` to `raw()` (pre-release API fix)**
+  *(Resolved: clean rename in the core interface and `Neo4jRepository`, no alias. The internal
+  `WhereResult.cypher` field became `clause` so no `cypher` identifier remains in either package's
+  source; neo4j README and the FeathersJS parity doc updated.)*
   The core graph contract (`packages/mantle/src/lib/types.ts:97-98`) names its escape hatch `cypher()` — a
   Neo4j-specific term leaked into the adapter-neutral interface. Any future graph adapter (ArangoDB/AQL, Neptune/
   Gremlin) would implement a method whose name is wrong. Rename to

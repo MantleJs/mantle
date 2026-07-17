@@ -111,21 +111,18 @@ export abstract class Neo4jRepository<T extends Record<string, unknown>> impleme
   async findNodes(params?: QueryParams): Promise<T[]> {
     try {
       return await this.run(async (session) => {
-        let cypher = `MATCH (n:${this.label})`;
+        let query = `MATCH (n:${this.label})`;
         let whereParams: Record<string, unknown> = {};
 
         if (params?.where) {
-          const { cypher: whereCypher, params: wp } = toNeo4jWhere(
-            params.where as WhereClause,
-            "n",
-          );
-          if (whereCypher && whereCypher !== "true") {
-            cypher += ` WHERE ${whereCypher}`;
+          const { clause, params: wp } = toNeo4jWhere(params.where as WhereClause, "n");
+          if (clause && clause !== "true") {
+            query += ` WHERE ${clause}`;
           }
           whereParams = wp;
         }
 
-        cypher += " RETURN n";
+        query += " RETURN n";
 
         if (params?.sort) {
           const sortParts = Object.entries(params.sort).map(([field, dir]) => {
@@ -135,17 +132,17 @@ export abstract class Neo4jRepository<T extends Record<string, unknown>> impleme
             }
             return `n.${field} ${dir.toUpperCase()}`;
           });
-          cypher += ` ORDER BY ${sortParts.join(", ")}`;
+          query += ` ORDER BY ${sortParts.join(", ")}`;
         }
 
         if (params?.skip != null) {
-          cypher += ` SKIP ${params.skip}`;
+          query += ` SKIP ${params.skip}`;
         }
         if (params?.limit != null) {
-          cypher += ` LIMIT ${params.limit}`;
+          query += ` LIMIT ${params.limit}`;
         }
 
-        const result = await session.run(cypher, whereParams);
+        const result = await session.run(query, whereParams);
         return result.records.map((r) => this.recordToNode(r));
       });
     } catch (err) {
@@ -204,7 +201,7 @@ export abstract class Neo4jRepository<T extends Record<string, unknown>> impleme
     }
   }
 
-  async cypher<R = T>(query: string, params?: Record<string, unknown>): Promise<R[]> {
+  async raw<R = T>(query: string, params?: Record<string, unknown>): Promise<R[]> {
     try {
       return await this.run(async (session) => {
         const result = await session.run(query, params ?? {});

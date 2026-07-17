@@ -135,8 +135,8 @@ export interface GraphRepository<T extends Record<string, unknown>> {
   traverse(startId: Id, relation: string, depth?: number): Promise<T[]>;
   /** Delete a node and all its relationships */
   deleteNode(id: Id): Promise<T>;
-  /** Execute a raw graph query */
-  cypher<R = T>(query: string, params?: Record<string, unknown>): Promise<R[]>;
+  /** Execute a raw query in the adapter's native graph language (Cypher for Neo4j, AQL for ArangoDB, …). */
+  raw<R = T>(query: string, params?: Record<string, unknown>): Promise<R[]>;
   /** Optional capability introspection. All @mantlejs adapters implement it; user repositories may omit it. */
   describe?(): RepositoryCapabilities;
 }

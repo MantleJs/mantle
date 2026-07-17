@@ -19,7 +19,7 @@ can do that a Mantle app can't?**
 | Authentication | JWT + local + OAuth (Passport-based) | ✅ JWT + local (Argon2id) + OAuth (Google, GitHub, Facebook, no Passport) | — |
 | Database adapters | Knex, Mongoose, MongoDB native, Objection, Sequelize | ✅ Knex (pg/mysql/sqlite/mssql), DynamoDB, Supabase | ➕ MongoDB (Atlas) |
 | Vector database support | ❌ none | ✅ Pinecone, Qdrant, pgvector | — |
-| Graph database support | ❌ none | ✅ Neo4j (`GraphRepository<T>`, raw `cypher()` escape hatch) | — |
+| Graph database support | ❌ none | ✅ Neo4j (`GraphRepository<T>`, `raw()` Cypher escape hatch) | — |
 | File uploads | `feathers-blob` / community | ✅ `@mantlejs/storage` (local, S3, GCS) — **write path only** | ➕ retrieve/delete/signed URLs |
 | Client SDK | `@feathersjs/client` (REST + Socket.io) | 🔶 Planned | ➕ `@mantlejs/client` |
 | Framework-specific hooks (React/Vue) | community (`feathers-vuex`, etc.) | 🔶 Planned | ➕ `@mantlejs/react` (TanStack Query) |

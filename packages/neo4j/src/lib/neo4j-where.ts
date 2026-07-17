@@ -34,7 +34,8 @@ export function assertValidFieldName(name: string): void {
 }
 
 export interface WhereResult {
-  cypher: string;
+  /** The Cypher WHERE expression, without the `WHERE` keyword. */
+  clause: string;
   params: Record<string, unknown>;
 }
 
@@ -176,6 +177,6 @@ export function toNeo4jWhere(where: WhereClause, alias = "n"): WhereResult {
     }
   }
 
-  const cypher = buildExpr(where);
-  return { cypher, params };
+  const clause = buildExpr(where);
+  return { clause, params };
 }

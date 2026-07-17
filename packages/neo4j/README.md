@@ -70,8 +70,8 @@ const aliceFriends = await repo.traverse(alice.id, "KNOWS", 1);
 // Filter nodes
 const seniors = await repo.findNodes({ where: { age: { $gte: 30 } } });
 
-// Raw Cypher
-const result = await repo.cypher<Person>(
+// Raw Cypher via the adapter-neutral raw() escape hatch
+const result = await repo.raw<Person>(
   "MATCH (n:Person) WHERE n.name STARTS WITH $prefix RETURN n",
   { prefix: "A" },
 );
@@ -132,7 +132,7 @@ Subclasses must declare `label`. All `GraphRepository<T>` methods are provided a
 | `createRelationship(fromId, toId, type, props?)`    | `MATCH (a), (b) WHERE … CREATE (a)-[r:TYPE $props]->(b)` |
 | `traverse(startId, relation, depth?)`               | `MATCH (start)-[r:TYPE*1..depth]->(n) RETURN n`           |
 | `deleteNode(id)`                                    | `MATCH (n:Label {id: $id}) DETACH DELETE n`               |
-| `cypher<R>(query, params?)`                         | Raw Cypher passthrough                                    |
+| `raw<R>(query, params?)`                            | Raw Cypher passthrough (the `GraphRepository` escape hatch) |
 
 #### `withTransaction(fn)`
 
@@ -182,7 +182,7 @@ import type { Neo4jOptions, WhereClause, WhereResult } from "@mantlejs/neo4j";
 | -------------- | --------------------------------------------- |
 | `Neo4jOptions` | Options passed to `neo4j()` plugin             |
 | `WhereClause`  | `QueryParams.where` clause type               |
-| `WhereResult`  | Return value of `toNeo4jWhere` — `{ cypher, params }` |
+| `WhereResult`  | Return value of `toNeo4jWhere` — `{ clause, params }` |
 
 ---
 
