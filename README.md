@@ -44,36 +44,37 @@ Dependencies always point inward. Nothing in Domain or Application layers knows 
 
 ## Packages
 
-| Package                 | Description                                                                           |
-| ----------------------- | ------------------------------------------------------------------------------------- |
-| `@mantlejs/mantle`        | Framework kernel — Service, Repository, hooks, errors. Zero external deps.            |
-| `@mantlejs/express`     | Express HTTP transport adapter                                                        |
-| `@mantlejs/koa`         | Koa HTTP transport adapter                                                            |
-| `@mantlejs/http`        | Zero-dependency HTTP transport adapter (Node.js handler + Fetch API / Edge Functions)    |
-| `@mantlejs/knex`        | SQL adapter via Knex.js (PostgreSQL, MySQL/MariaDB, SQLite3, MSSQL)                   |
-| `@mantlejs/dynamodb`    | Amazon DynamoDB adapter — `DynamoDbRepository` with full `QueryParams` support         |
-| `@mantlejs/supabase`    | Supabase adapter — `SupabaseRepository` backed by the Supabase JS client               |
-| `@mantlejs/pinecone`    | Pinecone vector database adapter — `PineconeRepository` with embedding support         |
-| `@mantlejs/qdrant`      | Qdrant vector database adapter — `QdrantRepository` with embedding support             |
-| `@mantlejs/neo4j`       | Neo4j graph database adapter — `Neo4jRepository` with full `QueryParams` support       |
-| `@mantlejs/auth`        | JWT engine + strategy runner                                                          |
-| `@mantlejs/auth-local`  | Local email+password strategy (Argon2id)                                              |
-| `@mantlejs/auth-oauth`  | Shared OAuth 2.0 base — state, PKCE, find-or-create, route registration               |
-| `@mantlejs/auth-google` | Google Sign-In strategy (authorization code + PKCE, no Passport.js)                   |
-| `@mantlejs/auth-github` | GitHub Sign-In strategy (authorization code flow, no Passport.js)                     |
-| `@mantlejs/auth-facebook` | Facebook Sign-In strategy (authorization code flow, no Passport.js)                 |
-| `@mantlejs/storage`     | File upload via busboy, local disk storage                                            |
-| `@mantlejs/storage-s3`  | AWS S3 storage adapter for `@mantlejs/storage` (supports MinIO, R2, and other S3-compatible stores) |
-| `@mantlejs/storage-gcs` | Google Cloud Storage adapter for `@mantlejs/storage`                                               |
-| `@mantlejs/cli`         | Command-line interface — scaffold projects, services, repositories, and hooks         |
-| `@mantlejs/logger`      | Structured logging — pino adapter, `logRequest` / `logError` hooks, correlation ID    |
-| `@mantlejs/schema`      | TypeBox schema validation (`validate`) and field resolution (`resolver`) hooks        |
-| `@mantlejs/memory`      | In-memory `Repository<T>` implementation for testing and prototyping                 |
-| `@mantlejs/config`      | Environment-aware configuration loading with optional schema validation              |
-| `@mantlejs/sync`        | Cross-instance event sync — broadcasts `service:event` emissions across processes via Redis (DragonflyDB-compatible) or Supabase Realtime |
-| `@mantlejs/socketio`    | Socket.IO transport adapter — real-time WebSocket events via the Mantle hook pipeline |
-| `@mantlejs/openapi`     | OpenAPI 3.1 document generation from registered services, with optional Swagger UI    |
-| `create-mantle`         | Project initializer — scaffold a new Mantle application via `npm create mantle`       |
+| Package                   | Description                                                                                                                               |
+| ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `@mantlejs/mantle`        | Framework kernel — Service, Repository, hooks, errors. Zero external deps.                                                                |
+| `@mantlejs/express`       | Express HTTP transport adapter                                                                                                            |
+| `@mantlejs/koa`           | Koa HTTP transport adapter                                                                                                                |
+| `@mantlejs/http`          | Zero-dependency HTTP transport adapter (Node.js handler + Fetch API / Edge Functions)                                                     |
+| `@mantlejs/knex`          | SQL adapter via Knex.js (PostgreSQL, MySQL/MariaDB, SQLite3, MSSQL)                                                                       |
+| `@mantlejs/dynamodb`      | Amazon DynamoDB adapter — `DynamoDbRepository` with full `QueryParams` support                                                            |
+| `@mantlejs/supabase`      | Supabase adapter — `SupabaseRepository` backed by the Supabase JS client                                                                  |
+| `@mantlejs/pinecone`      | Pinecone vector database adapter — `PineconeRepository` with embedding support                                                            |
+| `@mantlejs/qdrant`        | Qdrant vector database adapter — `QdrantRepository` with embedding support                                                                |
+| `@mantlejs/neo4j`         | Neo4j graph database adapter — `Neo4jRepository` with full `QueryParams` support                                                          |
+| `@mantlejs/auth`          | JWT engine + strategy runner                                                                                                              |
+| `@mantlejs/auth-local`    | Local email+password strategy (Argon2id)                                                                                                  |
+| `@mantlejs/auth-oauth`    | Shared OAuth 2.0 base — state, PKCE, find-or-create, route registration                                                                   |
+| `@mantlejs/auth-google`   | Google Sign-In strategy (authorization code + PKCE, no Passport.js)                                                                       |
+| `@mantlejs/auth-github`   | GitHub Sign-In strategy (authorization code flow, no Passport.js)                                                                         |
+| `@mantlejs/auth-facebook` | Facebook Sign-In strategy (authorization code flow, no Passport.js)                                                                       |
+| `@mantlejs/auth-redis`    | Redis-backed `RefreshTokenStore` + OAuth `StateStore` for multi-instance deployments                                                      |
+| `@mantlejs/storage`       | File upload via busboy, local disk storage                                                                                                |
+| `@mantlejs/storage-s3`    | AWS S3 storage adapter for `@mantlejs/storage` (supports MinIO, R2, and other S3-compatible stores)                                       |
+| `@mantlejs/storage-gcs`   | Google Cloud Storage adapter for `@mantlejs/storage`                                                                                      |
+| `@mantlejs/cli`           | Command-line interface — scaffold projects, services, repositories, and hooks                                                             |
+| `@mantlejs/logger`        | Structured logging — pino adapter, `logRequest` / `logError` hooks, correlation ID                                                        |
+| `@mantlejs/schema`        | TypeBox schema validation (`validate`) and field resolution (`resolver`) hooks                                                            |
+| `@mantlejs/memory`        | In-memory `Repository<T>` implementation for testing and prototyping                                                                      |
+| `@mantlejs/config`        | Environment-aware configuration loading with optional schema validation                                                                   |
+| `@mantlejs/sync`          | Cross-instance event sync — broadcasts `service:event` emissions across processes via Redis (DragonflyDB-compatible) or Supabase Realtime |
+| `@mantlejs/socketio`      | Socket.IO transport adapter — real-time WebSocket events via the Mantle hook pipeline                                                     |
+| `@mantlejs/openapi`       | OpenAPI 3.1 document generation from registered services, with optional Swagger UI                                                        |
+| `create-mantle`           | Project initializer — scaffold a new Mantle application via `npm create mantle`                                                           |
 
 ## Quick Start
 

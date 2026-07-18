@@ -3,11 +3,17 @@ export interface OAuthStateData {
   expiresAt: number;
 }
 
+/**
+ * Storage for pending OAuth authorization state. Methods are sync-or-async so a
+ * shared store (e.g. Redis via `@mantlejs/auth-redis`) can be injected without
+ * an interface change.
+ */
 export interface OAuthStateStore {
-  set(state: string, data: Omit<OAuthStateData, "expiresAt">): void;
-  get(state: string): OAuthStateData | undefined;
-  delete(state: string): void;
-  cleanup(): void;
+  set(state: string, data: Omit<OAuthStateData, "expiresAt">): void | Promise<void>;
+  get(state: string): OAuthStateData | undefined | Promise<OAuthStateData | undefined>;
+  delete(state: string): void | Promise<void>;
+  /** Prune expired entries. May be a no-op where the backend expires keys itself. */
+  cleanup(): void | Promise<void>;
 }
 
 const DEFAULT_TTL_MS = 10 * 60 * 1000;

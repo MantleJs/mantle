@@ -146,13 +146,13 @@ describe("createOAuthPlugin()", () => {
     expect(legacyRouter.get).not.toHaveBeenCalled();
   });
 
-  it("uses an injected stateStore instead of the in-memory default", () => {
+  it("uses an injected stateStore instead of the in-memory default", async () => {
     const injected = { set: vi.fn(), get: vi.fn(), delete: vi.fn(), cleanup: vi.fn() };
     const router = makeRouter();
     const app = makeApp(makeEngine(), router);
     createOAuthPlugin("test", makeProvider(), { ...BASE_CONFIG, stateStore: injected })(app);
     const handler = router.route("/auth/test");
-    handler(makeReq(), makeRes(), vi.fn());
+    await handler(makeReq(), makeRes(), vi.fn());
     expect(injected.cleanup).toHaveBeenCalled();
     expect(injected.set).toHaveBeenCalledWith("fixed-state", expect.any(Object));
     expect(mockStateStore.set).not.toHaveBeenCalled();
@@ -176,70 +176,66 @@ describe("createOAuthPlugin()", () => {
   // ─── Redirect route ─────────────────────────────────────────────────────────
 
   describe("GET /auth/{providerKey}", () => {
-    it("cleans up stale state entries on each request", () => {
+    it("cleans up stale state entries on each request", async () => {
       const router = makeRouter();
       const app = makeApp(makeEngine(), router);
       createOAuthPlugin("test", makeProvider(), BASE_CONFIG)(app);
       const handler = router.route("/auth/test");
-      handler(makeReq(), makeRes(), vi.fn());
+      await handler(makeReq(), makeRes(), vi.fn());
       expect(mockStateStore.cleanup).toHaveBeenCalledOnce();
     });
 
-    it("generates state, stores it, and redirects to provider URL", () => {
+    it("generates state, stores it, and redirects to provider URL", async () => {
       const provider = makeProvider();
       const router = makeRouter();
       const app = makeApp(makeEngine(), router);
       createOAuthPlugin("test", provider, BASE_CONFIG)(app);
       const res = makeRes();
-      router.route("/auth/test")(makeReq(), res, vi.fn());
+      await router.route("/auth/test")(makeReq(), res, vi.fn());
 
       expect(mockStateStore.set).toHaveBeenCalledWith("fixed-state", { codeVerifier: "fixed-verifier" });
       expect(res.redirect).toHaveBeenCalledWith("https://provider.example.com/auth");
     });
 
-    it("passes the PKCE code verifier to buildAuthUrl when usePkce is true", () => {
+    it("passes the PKCE code verifier to buildAuthUrl when usePkce is true", async () => {
       const provider = makeProvider({ usePkce: true });
       const router = makeRouter();
       const app = makeApp(makeEngine(), router);
       createOAuthPlugin("test", provider, BASE_CONFIG)(app);
-      router.route("/auth/test")(makeReq(), makeRes(), vi.fn());
+      await router.route("/auth/test")(makeReq(), makeRes(), vi.fn());
 
-      expect(provider.buildAuthUrl).toHaveBeenCalledWith(
-        expect.objectContaining({ codeVerifier: "fixed-verifier" }),
-      );
+      expect(provider.buildAuthUrl).toHaveBeenCalledWith(expect.objectContaining({ codeVerifier: "fixed-verifier" }));
     });
 
-    it("does not include codeVerifier when usePkce is false", () => {
+    it("does not include codeVerifier when usePkce is false", async () => {
       const provider = makeProvider({ usePkce: false });
       const router = makeRouter();
       const app = makeApp(makeEngine(), router);
       createOAuthPlugin("test", provider, BASE_CONFIG)(app);
-      router.route("/auth/test")(makeReq(), makeRes(), vi.fn());
+      await router.route("/auth/test")(makeReq(), makeRes(), vi.fn());
 
-      expect(provider.buildAuthUrl).toHaveBeenCalledWith(
-        expect.objectContaining({ codeVerifier: undefined }),
-      );
+      expect(provider.buildAuthUrl).toHaveBeenCalledWith(expect.objectContaining({ codeVerifier: undefined }));
     });
 
-    it("constructs redirectUri from request protocol and host", () => {
+    it("constructs redirectUri from request protocol and host", async () => {
       const provider = makeProvider();
       const router = makeRouter();
       const app = makeApp(makeEngine(), router);
       createOAuthPlugin("test", provider, BASE_CONFIG)(app);
       const req = makeReq({ protocol: "http", get: vi.fn((h) => (h === "host" ? "localhost:3000" : undefined)) });
-      router.route("/auth/test")(req, makeRes(), vi.fn());
+      await router.route("/auth/test")(req, makeRes(), vi.fn());
 
       expect(provider.buildAuthUrl).toHaveBeenCalledWith(
         expect.objectContaining({ redirectUri: "http://localhost:3000/auth/test/callback" }),
       );
     });
 
-    it("uses custom scope when provided", () => {
+    it("uses custom scope when provided", async () => {
       const provider = makeProvider();
       const router = makeRouter();
       const app = makeApp(makeEngine(), router);
       createOAuthPlugin("test", provider, { ...BASE_CONFIG, scope: ["custom"] })(app);
-      router.route("/auth/test")(makeReq(), makeRes(), vi.fn());
+      await router.route("/auth/test")(makeReq(), makeRes(), vi.fn());
 
       expect(provider.buildAuthUrl).toHaveBeenCalledWith(expect.objectContaining({ scope: ["custom"] }));
     });
@@ -309,12 +305,11 @@ describe("createOAuthPlugin()", () => {
 
     it("calls findOrCreateUser with app, entity, entityIdField, and profile", async () => {
       const { app } = await invokeCallback();
-      expect(findOrCreateUser).toHaveBeenCalledWith(
-        app,
-        "users",
-        "testId",
-        { id: "uid123", email: "alice@example.com", name: "Alice" },
-      );
+      expect(findOrCreateUser).toHaveBeenCalledWith(app, "users", "testId", {
+        id: "uid123",
+        email: "alice@example.com",
+        name: "Alice",
+      });
     });
 
     it("returns accessToken, refreshToken, and user on success", async () => {

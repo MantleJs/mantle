@@ -86,6 +86,9 @@
     },
     {
       "path": "./packages/openapi"
+    },
+    {
+      "path": "./packages/auth-redis"
     }
   ]
 }

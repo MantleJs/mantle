@@ -54,9 +54,9 @@ app.use("/users", new UserService(new UserRepository(app)), {
 app.service("users").hooks({
   before: {
     create: [hashPassword()],
-    find:   [authenticate("jwt")],
-    get:    [authenticate("jwt")],
-    patch:  [authenticate("jwt")],
+    find: [authenticate("jwt")],
+    get: [authenticate("jwt")],
+    patch: [authenticate("jwt")],
     remove: [authenticate("jwt")],
   },
   after: {
@@ -108,30 +108,33 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiJ9...
 Returns a `MantlePlugin`. Call via `app.configure(auth(config))`.
 
 ```typescript
-app.configure(auth({
-  secret: process.env.JWT_SECRET!,  // required — signing key
-  expiresIn: "7d",                  // optional — default "1d"
-  algorithms: ["HS256"],            // optional — default ["HS256"]
-  issuer: "my-api",                 // optional
-  audience: "my-client",           // optional
-}));
+app.configure(
+  auth({
+    secret: process.env.JWT_SECRET!, // required — signing key
+    expiresIn: "7d", // optional — default "1d"
+    algorithms: ["HS256"], // optional — default ["HS256"]
+    issuer: "my-api", // optional
+    audience: "my-client", // optional
+  }),
+);
 ```
 
 Side effects:
+
 - Stores the `AuthEngine` at `app.get("auth")`
 - Registers `POST /authentication` via `app.use("authentication", ...)`
 
 #### `AuthConfig`
 
-| Field | Type | Default | Description |
-| --- | --- | --- | --- |
-| `secret` | `string` | — | JWT signing secret (required) |
-| `expiresIn` | `string \| number` | `"1d"` | Access-token lifetime. Strings use [ms](https://github.com/vercel/ms) format (`"2h"`, `"7d"`). Numbers are seconds. |
-| `algorithms` | `string[]` | `["HS256"]` | Verification algorithms |
-| `issuer` | `string` | — | Sets and verifies the `iss` claim |
-| `audience` | `string \| string[]` | — | Sets and verifies the `aud` claim |
-| `refreshExpiresIn` | `string \| number` | `"30d"` | Refresh-token lifetime |
-| `refreshTokenStore` | `RefreshTokenStore` | in-memory | Storage for outstanding refresh tokens. **Multi-instance deployments (Cloud Run) must inject a shared store** — the in-memory default cannot revoke tokens issued by another instance. |
+| Field               | Type                 | Default     | Description                                                                                                                                                                                                                                                                 |
+| ------------------- | -------------------- | ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `secret`            | `string`             | —           | JWT signing secret (required)                                                                                                                                                                                                                                               |
+| `expiresIn`         | `string \| number`   | `"1d"`      | Access-token lifetime. Strings use [ms](https://github.com/vercel/ms) format (`"2h"`, `"7d"`). Numbers are seconds.                                                                                                                                                         |
+| `algorithms`        | `string[]`           | `["HS256"]` | Verification algorithms                                                                                                                                                                                                                                                     |
+| `issuer`            | `string`             | —           | Sets and verifies the `iss` claim                                                                                                                                                                                                                                           |
+| `audience`          | `string \| string[]` | —           | Sets and verifies the `aud` claim                                                                                                                                                                                                                                           |
+| `refreshExpiresIn`  | `string \| number`   | `"30d"`     | Refresh-token lifetime                                                                                                                                                                                                                                                      |
+| `refreshTokenStore` | `RefreshTokenStore`  | in-memory   | Storage for outstanding refresh tokens. **Multi-instance deployments (Cloud Run) must inject a shared store** — the in-memory default cannot revoke tokens issued by another instance. Use [`redisRefreshTokenStore` from `@mantlejs/auth-redis`](../auth-redis/README.md). |
 
 ---
 
@@ -166,8 +169,8 @@ An `after` hook that removes sensitive fields from the service result. Works wit
 ```typescript
 app.service("users").hooks({
   after: {
-    all: [sanitizeUser()],                         // removes password, passwordHash, password_hash
-    get: [sanitizeUser(["secret", "apiKey"])],     // custom field list
+    all: [sanitizeUser()], // removes password, passwordHash, password_hash
+    get: [sanitizeUser(["secret", "apiKey"])], // custom field list
   },
 });
 ```
@@ -226,10 +229,10 @@ The built-in authentication endpoint. Dispatches to a registered strategy based 
 
 **Errors**
 
-| Status | Condition |
-| --- | --- |
-| `400 Bad Request` | `strategy` field missing |
-| `400 Bad Request` | Strategy name not registered |
+| Status                  | Condition                                                        |
+| ----------------------- | ---------------------------------------------------------------- |
+| `400 Bad Request`       | `strategy` field missing                                         |
+| `400 Bad Request`       | Strategy name not registered                                     |
 | `401 Not Authenticated` | Strategy-specific failure (wrong password, user not found, etc.) |
 
 ---
@@ -274,15 +277,15 @@ import type {
 } from "@mantlejs/auth";
 ```
 
-| Type | Description |
-| --- | --- |
-| `AuthConfig` | Options passed to `auth()` |
-| `AuthEngine` | The engine stored at `app.get("auth")` |
-| `AuthResult` | `{ accessToken: string; [key: string]: unknown }` — returned by strategies |
-| `AuthStrategy` | Interface to implement for custom strategies |
-| `JwtPayload` | Decoded JWT payload shape |
-| `RefreshTokenStore` | `add(jti, sub, exp)` / `consume(jti)` / `revokeAll(sub)` — inject a shared implementation for multi-instance deployments |
-| `TokenPair` | `{ accessToken, refreshToken }` — returned by `engine.createTokenPair()` |
+| Type                | Description                                                                                                                                            |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `AuthConfig`        | Options passed to `auth()`                                                                                                                             |
+| `AuthEngine`        | The engine stored at `app.get("auth")`                                                                                                                 |
+| `AuthResult`        | `{ accessToken: string; [key: string]: unknown }` — returned by strategies                                                                             |
+| `AuthStrategy`      | Interface to implement for custom strategies                                                                                                           |
+| `JwtPayload`        | Decoded JWT payload shape                                                                                                                              |
+| `RefreshTokenStore` | `add(jti, sub, exp)` / `consume(jti)` / `revokeAll(sub)` — inject a shared implementation (e.g. `@mantlejs/auth-redis`) for multi-instance deployments |
+| `TokenPair`         | `{ accessToken, refreshToken }` — returned by `engine.createTokenPair()`                                                                               |
 
 ---
 
@@ -316,9 +319,7 @@ export function magicLinkStrategy(): MantlePlugin {
 Register it alongside your other plugins:
 
 ```typescript
-app
-  .configure(auth({ secret: process.env.JWT_SECRET! }))
-  .configure(magicLinkStrategy());
+app.configure(auth({ secret: process.env.JWT_SECRET! })).configure(magicLinkStrategy());
 ```
 
 ---
@@ -327,11 +328,11 @@ app
 
 All errors extend `MantleError` and serialize to JSON automatically.
 
-| Error | Code | When thrown |
-| --- | --- | --- |
-| `NotAuthenticated` | 401 | Missing/invalid/expired Bearer token |
-| `BadRequest` | 400 | `strategy` field missing from `POST /authentication` |
-| `BadRequest` | 400 | Named strategy not registered |
+| Error              | Code | When thrown                                          |
+| ------------------ | ---- | ---------------------------------------------------- |
+| `NotAuthenticated` | 401  | Missing/invalid/expired Bearer token                 |
+| `BadRequest`       | 400  | `strategy` field missing from `POST /authentication` |
+| `BadRequest`       | 400  | Named strategy not registered                        |
 
 ---
 

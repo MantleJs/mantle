@@ -28,8 +28,8 @@ interface OAuthProvider {
   usePkce: boolean;
   defaultScope: string[];
   buildAuthUrl(params: AuthUrlParams): string;
-  exchangeCode(params: CodeExchangeParams): Promise<string>;  // returns provider access token
-  fetchProfile(accessToken: string): Promise<OAuthProfile>;   // returns { id, email?, name? }
+  exchangeCode(params: CodeExchangeParams): Promise<string>; // returns provider access token
+  fetchProfile(accessToken: string): Promise<OAuthProfile>; // returns { id, email?, name? }
 }
 ```
 
@@ -41,19 +41,15 @@ The factory that wires a provider into Mantle. It registers two routes (`GET /au
 
 Pending OAuth state is kept in an `OAuthStateStore` keyed on the OAuth `state` parameter. Entries expire after 10 minutes and are cleaned up lazily on each redirect request. The `codeVerifier` (PKCE only) is stored alongside the state and passed to the token exchange.
 
-The default store is an in-process, in-memory `Map` — fine for a single instance, **wrong for multi-instance deployments** (Cloud Run, horizontal scaling behind a load balancer), where the callback request can land on a different instance than the one that issued the state. Inject a shared implementation instead:
+The default store is an in-process, in-memory `Map` — fine for a single instance, **wrong for multi-instance deployments** (Cloud Run, horizontal scaling behind a load balancer), where the callback request can land on a different instance than the one that issued the state. Inject the Redis-backed store from [`@mantlejs/auth-redis`](../auth-redis/README.md) instead (store methods are sync-or-async, so any shared backend fits):
 
 ```typescript
-import type { OAuthStateStore } from "@mantlejs/auth-oauth";
+import { Redis } from "ioredis";
+import { redisStateStore } from "@mantlejs/auth-redis";
 
-const redisStateStore: OAuthStateStore = {
-  set(state, data) { /* SETEX with the 10-minute TTL */ },
-  get(state) { /* GET + JSON.parse, undefined when missing/expired */ },
-  delete(state) { /* DEL */ },
-  cleanup() { /* no-op — Redis TTL handles expiry */ },
-};
+const redis = new Redis(process.env.REDIS_URL!);
 
-app.configure(googleStrategy({ clientId, clientSecret, stateStore: redisStateStore }));
+app.configure(googleStrategy({ clientId, clientSecret, stateStore: redisStateStore(redis) }));
 ```
 
 ### Find-or-create
@@ -100,7 +96,7 @@ const myProvider: OAuthProvider = {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
     if (!res.ok) throw new GeneralError("Profile fetch failed");
-    const data = await res.json() as Record<string, unknown>;
+    const data = (await res.json()) as Record<string, unknown>;
     return { id: String(data["id"]), email: data["email"] as string };
   },
 };
@@ -131,27 +127,23 @@ This registers `GET /auth/myprovider` and `GET /auth/myprovider/callback` on the
 ### `createOAuthPlugin(providerKey, provider, config)`
 
 ```typescript
-function createOAuthPlugin(
-  providerKey: string,
-  provider: OAuthProvider,
-  config: OAuthPluginConfig,
-): MantlePlugin;
+function createOAuthPlugin(providerKey: string, provider: OAuthProvider, config: OAuthPluginConfig): MantlePlugin;
 ```
 
-| Parameter | Description |
-| --- | --- |
+| Parameter     | Description                                                                                                                            |
+| ------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
 | `providerKey` | Short identifier for the provider (`'google'`, `'github'`, `'facebook'`). Used in default route paths and the default `entityIdField`. |
-| `provider` | The `OAuthProvider` implementation for this strategy. |
-| `config` | User-supplied configuration (client ID, secret, optional overrides). |
+| `provider`    | The `OAuthProvider` implementation for this strategy.                                                                                  |
+| `config`      | User-supplied configuration (client ID, secret, optional overrides).                                                                   |
 
 **Throws** at plugin registration time if `@mantlejs/auth` or `@mantlejs/express` is not configured before this plugin.
 
 **Routes registered:**
 
-| Method | Path | Description |
-| --- | --- | --- |
-| `GET` | `/auth/{providerKey}` | Redirect to provider consent screen. Generates state + PKCE (if `provider.usePkce`). |
-| `GET` | `config.callbackUrl` | Verify state, exchange code, fetch profile, find-or-create user, issue JWT pair. |
+| Method | Path                  | Description                                                                          |
+| ------ | --------------------- | ------------------------------------------------------------------------------------ |
+| `GET`  | `/auth/{providerKey}` | Redirect to provider consent screen. Generates state + PKCE (if `provider.usePkce`). |
+| `GET`  | `config.callbackUrl`  | Verify state, exchange code, fetch profile, find-or-create user, issue JWT pair.     |
 
 **Response on successful callback:**
 
@@ -165,15 +157,15 @@ function createOAuthPlugin(
 
 #### `OAuthPluginConfig`
 
-| Field | Type | Default | Description |
-| --- | --- | --- | --- |
-| `clientId` | `string` | — | OAuth application client ID (required) |
-| `clientSecret` | `string` | — | OAuth application client secret (required) |
-| `callbackUrl` | `string` | `/auth/{providerKey}/callback` | Path for the callback route |
-| `scope` | `string[]` | `provider.defaultScope` | OAuth scopes to request |
-| `entity` | `string` | `'users'` | Service used to find or create users |
-| `entityIdField` | `string` | `'{providerKey}Id'` | Field matched against the provider's user ID |
-| `stateStore` | `OAuthStateStore` | in-memory | Store for pending OAuth state. Multi-instance deployments must inject a shared (e.g. Redis-backed) implementation |
+| Field           | Type              | Default                        | Description                                                                                                       |
+| --------------- | ----------------- | ------------------------------ | ----------------------------------------------------------------------------------------------------------------- |
+| `clientId`      | `string`          | —                              | OAuth application client ID (required)                                                                            |
+| `clientSecret`  | `string`          | —                              | OAuth application client secret (required)                                                                        |
+| `callbackUrl`   | `string`          | `/auth/{providerKey}/callback` | Path for the callback route                                                                                       |
+| `scope`         | `string[]`        | `provider.defaultScope`        | OAuth scopes to request                                                                                           |
+| `entity`        | `string`          | `'users'`                      | Service used to find or create users                                                                              |
+| `entityIdField` | `string`          | `'{providerKey}Id'`            | Field matched against the provider's user ID                                                                      |
+| `stateStore`    | `OAuthStateStore` | in-memory                      | Store for pending OAuth state. Multi-instance deployments must inject a shared (e.g. Redis-backed) implementation |
 
 ---
 
@@ -191,15 +183,15 @@ import type {
 } from "@mantlejs/auth-oauth";
 ```
 
-| Type | Description |
-| --- | --- |
-| `OAuthProvider` | Interface that each strategy package implements |
-| `OAuthProfile` | Normalized profile: `{ id: string; email?: string; name?: string }` |
-| `OAuthPluginConfig` | Shared config options for all OAuth strategies |
-| `OAuthStateStore` | Store for pending OAuth state — inject via `config.stateStore` |
-| `OAuthStateData` | Stored entry: `{ codeVerifier?: string; expiresAt: number }` |
-| `AuthUrlParams` | Params passed to `provider.buildAuthUrl()` |
-| `CodeExchangeParams` | Params passed to `provider.exchangeCode()` |
+| Type                 | Description                                                         |
+| -------------------- | ------------------------------------------------------------------- |
+| `OAuthProvider`      | Interface that each strategy package implements                     |
+| `OAuthProfile`       | Normalized profile: `{ id: string; email?: string; name?: string }` |
+| `OAuthPluginConfig`  | Shared config options for all OAuth strategies                      |
+| `OAuthStateStore`    | Store for pending OAuth state — inject via `config.stateStore`      |
+| `OAuthStateData`     | Stored entry: `{ codeVerifier?: string; expiresAt: number }`        |
+| `AuthUrlParams`      | Params passed to `provider.buildAuthUrl()`                          |
+| `CodeExchangeParams` | Params passed to `provider.exchangeCode()`                          |
 
 ---
 

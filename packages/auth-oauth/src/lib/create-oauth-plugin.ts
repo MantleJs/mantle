@@ -33,19 +33,23 @@ export function createOAuthPlugin(
     // In-memory by default. Multi-instance deployments (e.g. Cloud Run) must inject a shared store.
     const stateStore = config.stateStore ?? createStateStore();
 
-    router.get(`/auth/${providerKey}`, (req, res): void => {
-      stateStore.cleanup();
+    router.get(`/auth/${providerKey}`, async (req, res, next): Promise<void> => {
+      try {
+        await stateStore.cleanup();
 
-      const state = generateState();
-      const host = req.get("host") ?? "";
-      const redirectUri = `${req.protocol}://${host}${callbackPath}`;
+        const state = generateState();
+        const host = req.get("host") ?? "";
+        const redirectUri = `${req.protocol}://${host}${callbackPath}`;
 
-      const codeVerifier = provider.usePkce ? generateCodeVerifier() : undefined;
+        const codeVerifier = provider.usePkce ? generateCodeVerifier() : undefined;
 
-      stateStore.set(state, { codeVerifier });
+        await stateStore.set(state, { codeVerifier });
 
-      const authUrl = provider.buildAuthUrl({ clientId: config.clientId, redirectUri, scope, state, codeVerifier });
-      res.redirect(authUrl);
+        const authUrl = provider.buildAuthUrl({ clientId: config.clientId, redirectUri, scope, state, codeVerifier });
+        res.redirect(authUrl);
+      } catch (err) {
+        next(err);
+      }
     });
 
     router.get(callbackPath, async (req, res, next): Promise<void> => {
@@ -61,11 +65,11 @@ export function createOAuthPlugin(
           throw new NotAuthenticated("Missing code or state parameter");
         }
 
-        const pending = stateStore.get(state);
+        const pending = await stateStore.get(state);
         if (!pending) {
           throw new NotAuthenticated("Invalid or expired state");
         }
-        stateStore.delete(state);
+        await stateStore.delete(state);
 
         const host = req.get("host") ?? "";
         const redirectUri = `${req.protocol}://${host}${callbackPath}`;
