@@ -51,6 +51,11 @@ export class ServiceClient<T = unknown> {
     return this.rest.request("POST", `${this.path}/similar`, data, params);
   }
 
+  /** True when the client was created with the `socket` option — `on()`/`off()` are available. */
+  get realtime(): boolean {
+    return this.sockets !== undefined;
+  }
+
   on(event: ServiceEvent, handler: (data: T) => void): this {
     this.socketsOrThrow().on(this.eventName(event), handler as (data: unknown) => void);
     return this;

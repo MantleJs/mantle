@@ -115,17 +115,18 @@ Creates a `MantleClient`. Throws `TypeError` if `url` is missing.
 
 ### `ServiceClient<T>`
 
-| Member                      | HTTP                     | Description                                                     |
-| --------------------------- | ------------------------ | --------------------------------------------------------------- |
-| `find(params?)`             | `GET /:service`          | `Promise<T[] \| Paginated<T>>`                                  |
-| `get(id, params?)`          | `GET /:service/:id`      | `Promise<T>`                                                    |
-| `create(data, params?)`     | `POST /:service`         | `Promise<T>`                                                    |
-| `update(id, data, params?)` | `PUT /:service/:id`      | `Promise<T>`                                                    |
-| `patch(id, data, params?)`  | `PATCH /:service/:id`    | `Promise<T>`                                                    |
-| `remove(id, params?)`       | `DELETE /:service/:id`   | `Promise<T>`                                                    |
-| `similar(data, params?)`    | `POST /:service/similar` | Vector-search convention — `Promise<Array<T & { _score }>>`     |
-| `on(event, handler)`        | —                        | Subscribe to `'created' \| 'updated' \| 'patched' \| 'removed'` |
-| `off(event, handler)`       | —                        | Unsubscribe; the socket listener detaches with the last handler |
+| Member                      | HTTP                     | Description                                                                   |
+| --------------------------- | ------------------------ | ----------------------------------------------------------------------------- |
+| `find(params?)`             | `GET /:service`          | `Promise<T[] \| Paginated<T>>`                                                |
+| `get(id, params?)`          | `GET /:service/:id`      | `Promise<T>`                                                                  |
+| `create(data, params?)`     | `POST /:service`         | `Promise<T>`                                                                  |
+| `update(id, data, params?)` | `PUT /:service/:id`      | `Promise<T>`                                                                  |
+| `patch(id, data, params?)`  | `PATCH /:service/:id`    | `Promise<T>`                                                                  |
+| `remove(id, params?)`       | `DELETE /:service/:id`   | `Promise<T>`                                                                  |
+| `similar(data, params?)`    | `POST /:service/similar` | Vector-search convention — `Promise<Array<T & { _score }>>`                   |
+| `on(event, handler)`        | —                        | Subscribe to `'created' \| 'updated' \| 'patched' \| 'removed'`               |
+| `off(event, handler)`       | —                        | Unsubscribe; the socket listener detaches with the last handler               |
+| `realtime`                  | —                        | `true` when the client has the `socket` option — `on()`/`off()` are available |
 
 ---
 

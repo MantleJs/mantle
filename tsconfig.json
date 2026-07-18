@@ -92,6 +92,9 @@
     },
     {
       "path": "./packages/client"
+    },
+    {
+      "path": "./packages/react"
     }
   ]
 }

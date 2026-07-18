@@ -75,6 +75,7 @@ Dependencies always point inward. Nothing in Domain or Application layers knows 
 | `@mantlejs/socketio`      | Socket.IO transport adapter — real-time WebSocket events via the Mantle hook pipeline                                                     |
 | `@mantlejs/openapi`       | OpenAPI 3.1 document generation from registered services, with optional Swagger UI                                                        |
 | `@mantlejs/client`        | Official client SDK — REST + Socket.IO, auth with token rotation, from browsers/Node.js/React Native                                      |
+| `@mantlejs/react`         | React bindings — hooks and providers over the Mantle client SDK                                                                           |
 | `create-mantle`           | Project initializer — scaffold a new Mantle application via `npm create mantle`                                                           |
 
 ## Quick Start

@@ -355,6 +355,13 @@ async function flushMicrotasks(): Promise<void> {
 }
 
 describe("real-time events", () => {
+  it("service .realtime reports whether the client was configured with a socket", () => {
+    const without = mantle({ url: BASE, storage: memoryStorage() });
+    expect(without.service("messages").realtime).toBe(false);
+    const withSocket = mantle({ url: BASE, storage: memoryStorage(), socket: { io: () => fakeSocket() } });
+    expect(withSocket.service("messages").realtime).toBe(true);
+  });
+
   it("service .on() without a socket option throws a GeneralError-shaped client error", () => {
     const client = mantle({ url: BASE, storage: memoryStorage() });
     expect(() => client.service("messages").on("created", () => undefined)).toThrow(MantleClientError);

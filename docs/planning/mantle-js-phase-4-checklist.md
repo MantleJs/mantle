@@ -20,7 +20,16 @@ Work through these in order. Each item maps to a package spec in the Phase 4 PRD
       which is dynamically imported on first `.on()`.)_
       New package. `mantle(options)` factory returns a `MantleClient`. Implements the full `Service<T>` method surface (`find`, `get`, `create`, `update`, `patch`, `remove`) as REST calls via native `fetch` (Node.js 18+, browser, React Native). `ClientParams.query` is serialized as URL query parameters. Real-time subscriptions (`ServiceClient.on('created', handler)`) use `socket.io-client` (optional peer dependency) when `socket` option is configured; throw `GeneralError` at call time if socket is not configured — socket connects lazily on the first `.on()` call. Handle authentication: `client.authenticate({ strategy, ...credentials })` calls `POST /authentication`, stores `accessToken` + `refreshToken` in the configured `TokenStorage` (default: `localStorage` in browser, in-memory in Node.js). Automatically attach `Authorization: Bearer <token>` to every REST request. On 401, attempt one token refresh via `POST /authentication/refresh` before retrying; on refresh failure emit `'logout'` and throw `NotAuthenticated`. Deserialize non-2xx responses into typed `MantleClientError` objects (`name`, `message`, `code`, `data`, `errors`). Export `mantle`, `MantleClient`, `ServiceClient`, `ClientOptions`, `TokenStorage`, `MantleClientError`.
 
-- [ ] **2. Implement `@mantlejs/react`**
+- [x] **2. Implement `@mantlejs/react`**
+      _(Done. C-8's remainder folded in: `MantleProvider` listens for the client's `'reconnect'` event and calls
+      `queryClient.invalidateQueries()` (no filter) to bound staleness from missed events. Reference counting lives in
+      the react package (a per-service `RealtimeRegistry` held by the provider) — one listener set per service, detached
+      when the last hook unmounts — layered over the client's own per-event multiplexer. Socket detection needed a small
+      additive change to `@mantlejs/client`: a public `ServiceClient.realtime` getter (`on()`/`off()` throw when no
+      socket is configured, so the hooks check first). One deviation from the phase-4 TDD: `useFind` is typed
+      `UseQueryResult<T[] | Paginated<T>>` — the TDD's `UseQueryResult<T[]>` predates B-2's decision that
+      `RepositoryService.find()` always returns a `Paginated<T>` envelope, and the client SDK types `find()` as the
+      union.)_
       New package. React hooks for Mantle services built on TanStack Query v5. Export `MantleProvider` (wraps `QueryClientProvider`, creates a default `QueryClient` if none provided, stores `MantleClient` in context), `useMantleClient`, `useFind`, `useGet`, `useCreate`, `useUpdate`, `usePatch`, `useRemove`. `useFind` and `useGet` wrap `useQuery` with keys `[service, 'find', params]` and `[service, 'get', id, params]`. Mutation hooks wrap `useMutation`. When the client has a socket configured, `useFind` and `useGet` register socket event listeners on mount (one set per `(client, service)` pair, reference-counted) that call `queryClient.invalidateQueries({ queryKey: [service] })` on `created`, `updated`, `patched`, and `removed` events. Opt-out per hook via `realtime: false` in options. Listeners are cleaned up when the last hook for a service unmounts. Export `MantleProviderProps`, `MantleQueryOptions`.
 
 - [ ] **3. Implement `@mantlejs/mongodb`**

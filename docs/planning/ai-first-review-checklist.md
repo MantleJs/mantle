@@ -173,12 +173,14 @@ them before the Phase 4 item 8 release cut.
       `ServiceOptions.events` (`application.ts:248`) is stored but never emitted — either emit `service:event` for
       custom methods listed in it, or drop the option. Don't ship phantom APIs in 0.1.0.
 
-- [ ] **C-8. Event-delivery semantics + reconnect invalidation (E6)** — with Phase 4 items 1/2 (client/react).
+- [x] **C-8. Event-delivery semantics + reconnect invalidation (E6)** — with Phase 4 items 1/2 (client/react).
       Document at-most-once delivery in the `@mantlejs/sync` README; `@mantlejs/client` emits a `reconnect` event;
       `@mantlejs/react` calls `queryClient.invalidateQueries()` on it, bounding staleness from missed events.
-      _(Partially done: sync README documents at-most-once delivery and the refetch-on-reconnect contract, and
-      `@mantlejs/client` now emits `'reconnect'` on socket re-connects (not the initial connect), specced against
-      a stub socket. Remaining: `@mantlejs/react` calling `invalidateQueries()` on it — fold into Phase 4 item 2.)_
+      _(Resolved. Sync README documents at-most-once delivery and the refetch-on-reconnect contract; `@mantlejs/client`
+      emits `'reconnect'` on socket re-connects (not the initial connect), specced against a stub socket. The final
+      piece landed with Phase 4 item 2: `MantleProvider` in `@mantlejs/react` subscribes to `'reconnect'` and calls
+      `queryClient.invalidateQueries()` with no filter, refetching every mounted query — specced against a stub
+      socket triggering two `connect`s.)_
 
 ---
 

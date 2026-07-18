@@ -74,6 +74,7 @@ mantle/
 │   ├── openapi/         @mantlejs/openapi      OpenAPI 3.1 document generation + Swagger UI
 │   ├── sync/            @mantlejs/sync         Cross-instance event sync (Redis/Supabase Realtime)
 │   ├── client/          @mantlejs/client       Browser/Node.js/React Native client SDK (REST + Socket.IO)
+│   ├── react/           @mantlejs/react        React hooks over the client SDK (TanStack Query v5)
 │   ├── cli/             @mantlejs/cli          Command-line interface — scaffold projects/services/hooks
 │   └── create-mantle/   create-mantle          `npm create mantle` project initializer
 ├── docs/               scaffold.sh, PRD, TDD
@@ -112,6 +113,7 @@ mantle/
 | @mantlejs/openapi       | @mantlejs/mantle                                                                            |
 | @mantlejs/sync          | @mantlejs/mantle                                                                            |
 | @mantlejs/client        | nothing (optional peer: socket.io-client; dev-only: @mantlejs/mantle for conformance specs) |
+| @mantlejs/react         | @mantlejs/client (peers: react, @tanstack/react-query)                                      |
 | @mantlejs/cli           | nothing (standalone code generator)                                                         |
 | create-mantle           | @mantlejs/cli                                                                               |
 
