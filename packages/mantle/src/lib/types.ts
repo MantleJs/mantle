@@ -47,6 +47,15 @@ export interface ServiceParams {
 }
 
 export interface QueryParams {
+  /**
+   * Filter clause. Keys are field names — adapters backed by nested documents
+   * (memory, supabase, mongodb) also accept dot-path keys like `"metadata.tags"`.
+   * Values are literals (equality), `null` (IS NULL), or operator objects:
+   * `$lt`/`$lte`/`$gt`/`$gte`, `$ne`, `$in`/`$nin`, `$like`/`$notlike`/`$ilike`,
+   * `$contains` (array/JSON containment, jsonb `@>` semantics), plus top-level
+   * `$or`/`$and`. Each adapter enforces its supported subset via
+   * `assertOperators` — see `describe().operators`.
+   */
   where?: Record<string, unknown>;
   limit?: number;
   skip?: number;

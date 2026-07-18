@@ -44,8 +44,32 @@ All standard Mantle `QueryParams` operators are translated to PostgREST filter c
 | `$nin`                       | `.not(field, "in", "(…)")`                    |
 | `$like`, `$ilike`            | `.like()`, `.ilike()`                         |
 | `$notlike`                   | `.not(field, "like", pattern)`                |
+| `$contains`                  | `.contains(field, value)` — PostgREST `cs` (`@>` containment) |
 | `$or`                        | `.or(filter)`                                 |
 | `$and`                       | chained calls                                 |
+
+#### Nested paths and `$contains`
+
+Dot-path field names address JSON columns and are translated to PostgREST arrow syntax:
+`"metadata.owner.name"` becomes `metadata->owner->>name` when compared against a string
+(text comparison) and `metadata->owner->name` otherwise (jsonb comparison).
+
+`$contains` uses jsonb `@>` semantics: an array operand requires the field array to contain
+every element, a scalar operand is treated as a single element, and an object operand requires
+the field object to be a recursive superset. Scalar operands are wrapped in an array before
+being passed to `.contains()`. `$contains` is not supported inside `$or` — move it to the top
+level of the where clause (top-level conditions are ANDed).
+
+```typescript
+await repo.findAll({
+  where: {
+    "metadata.owner.name": "alice",          // metadata->owner->>name = 'alice'
+    "metadata.level": { $gt: 4 },            // metadata->level > 4 (jsonb)
+    tags: { $contains: ["red", "blue"] },    // tags @> '["red","blue"]'
+    metadata: { $contains: { owner: { name: "alice" } } },
+  },
+});
+```
 
 ---
 

@@ -13,6 +13,7 @@ export const MEMORY_OPERATORS: ReadonlySet<string> = new Set([
   "$like",
   "$notlike",
   "$ilike",
+  "$contains",
   "$or",
   "$and",
 ]);
@@ -184,17 +185,55 @@ function matchesWhere(record: Record<string, unknown>, where: WhereClause): bool
     } else if (key === "$and") {
       const conditions = value as WhereClause[];
       if (!conditions.every((c) => matchesWhere(record, c))) return false;
-    } else if (value === null) {
-      if (record[key] !== null && record[key] !== undefined) return false;
-    } else if (Array.isArray(value)) {
-      if (!(value as Primitive[]).includes(record[key] as Primitive)) return false;
-    } else if (typeof value === "object") {
-      if (!matchesOperators(record[key], value as Record<string, unknown>)) return false;
     } else {
-      if (record[key] !== value) return false;
+      const fieldValue = resolvePath(record, key);
+      if (value === null) {
+        if (fieldValue !== null && fieldValue !== undefined) return false;
+      } else if (Array.isArray(value)) {
+        if (!(value as Primitive[]).includes(fieldValue as Primitive)) return false;
+      } else if (typeof value === "object") {
+        if (!matchesOperators(fieldValue, value as Record<string, unknown>)) return false;
+      } else {
+        if (fieldValue !== value) return false;
+      }
     }
   }
   return true;
+}
+
+/** Resolve a dot-path field name ("metadata.owner.name") against a record. */
+function resolvePath(record: Record<string, unknown>, path: string): unknown {
+  if (!path.includes(".")) return record[path];
+  let current: unknown = record;
+  for (const segment of path.split(".")) {
+    if (current === null || typeof current !== "object" || Array.isArray(current)) return undefined;
+    current = (current as Record<string, unknown>)[segment];
+  }
+  return current;
+}
+
+/**
+ * JSON containment with PostgreSQL jsonb `@>` semantics — the reference for
+ * every adapter's `$contains`: array ⊇ every operand element (scalar operand =
+ * single element), object ⊇ operand keys recursively, scalars by equality.
+ */
+function jsonContains(fieldValue: unknown, operand: unknown): boolean {
+  if (Array.isArray(fieldValue)) {
+    const needles = Array.isArray(operand) ? operand : [operand];
+    return needles.every((needle) => fieldValue.some((element) => jsonContains(element, needle)));
+  }
+  if (
+    fieldValue !== null &&
+    typeof fieldValue === "object" &&
+    operand !== null &&
+    typeof operand === "object" &&
+    !Array.isArray(operand)
+  ) {
+    return Object.entries(operand as Record<string, unknown>).every(
+      ([key, value]) => key in fieldValue && jsonContains((fieldValue as Record<string, unknown>)[key], value),
+    );
+  }
+  return fieldValue === operand;
 }
 
 function matchesOperators(fieldValue: unknown, ops: Record<string, unknown>): boolean {
@@ -233,6 +272,9 @@ function matchesOperators(fieldValue: unknown, ops: Record<string, unknown>): bo
         break;
       case "$ilike":
         if (!likeMatch(fieldValue as string, operand as string, true)) return false;
+        break;
+      case "$contains":
+        if (!jsonContains(fieldValue, operand)) return false;
         break;
       default:
         if (fieldValue !== operand) return false;

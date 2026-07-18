@@ -50,10 +50,15 @@ The repository uses:
 | `{ field: [a, b] }`                | `#n IN (...)` (shorthand)  |
 | `{ field: { $nin: [...] } }`       | `NOT (#n IN (...))`        |
 | `{ field: { $begins: "prefix" } }` | `begins_with(#n, :v)`      |
-| `{ field: { $like: "str" } }`      | `contains(#n, :v)`         |
 | `{ field: { $contains: "str" } }`  | `contains(#n, :v)`         |
 | `{ $or: [...] }`                   | `(expr OR expr)`           |
 | `{ $and: [...] }`                  | `(expr AND expr)`          |
+
+`$like` is deliberately unsupported (DynamoDB has no wildcard matching) and throws `BadRequest`.
+
+Note: `$contains` here maps to DynamoDB's native `contains()` — set/list membership of a single
+value, or substring match on strings. This differs from the jsonb `@>` semantics used by the
+memory/supabase/knex adapters (no array-operand "contains every element", no object superset).
 
 ---
 

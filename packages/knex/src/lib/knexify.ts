@@ -24,6 +24,7 @@ export const KNEX_OPERATORS: ReadonlySet<string> = new Set([
   "$like",
   "$notlike",
   "$ilike",
+  "$contains",
   "$or",
   "$and",
 ]);
@@ -36,6 +37,7 @@ export const KNEX_OPERATORS: ReadonlySet<string> = new Set([
  *   Equality   : $ne, $in, $nin
  *   Logical    : $or, $and
  *   Pattern    : $like, $notlike, $ilike (PostgreSQL only)
+ *   Containment: $contains — jsonb `@>` via whereJsonSupersetOf (PostgreSQL only)
  *   Null       : field: null  →  IS NULL
  *                field: { $ne: null }  →  IS NOT NULL
  */
@@ -113,6 +115,22 @@ function applySpecialOp(
       return builder.whereRaw("?? NOT LIKE ?", [col, value as string]);
     case "$ilike":
       return builder.whereILike(col, value as string);
+    case "$contains": {
+      const client =
+        (builder as unknown as { client?: { config?: { client?: string } } }).client?.config?.client ?? "";
+      if (!client.startsWith("pg") && !client.startsWith("postgres")) {
+        throw new BadRequest(
+          `Operator $contains is only supported by @mantlejs/knex on PostgreSQL (current client: ${client || "unknown"}).`,
+          undefined,
+          undefined,
+          "Use a PostgreSQL connection for jsonb containment queries, or filter in application code after fetching.",
+        );
+      }
+      // Scalar operands are wrapped so "field contains element" matches the
+      // memory reference (and avoids knex treating a string as raw JSON).
+      const operand = typeof value === "object" && value !== null ? value : [value];
+      return builder.whereJsonSupersetOf(col, operand as Record<string, unknown>);
+    }
     default:
       throw new BadRequest(
         `Operator ${op} is not supported by @mantlejs/knex. Supported: ${[...KNEX_OPERATORS].join(", ")}`,

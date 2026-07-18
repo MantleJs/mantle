@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { SupabaseRepository, SUPABASE_OPERATORS } from "./supabase-repository.js";
-import { NotFound, Conflict, BadRequest, Forbidden, GeneralError } from "@mantlejs/mantle";
+import { NotFound, Conflict, BadRequest, Forbidden, GeneralError, NESTED_QUERY_CASES } from "@mantlejs/mantle";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -33,6 +33,7 @@ function makeQuery(result: { data?: unknown; error?: unknown; count?: number | n
     "not",
     "like",
     "ilike",
+    "contains",
     "or",
     "order",
     "range",
@@ -130,6 +131,59 @@ describe("SupabaseRepository", () => {
       const chain = makeQuery({ data: [] });
       fromMock.mockReturnValue(chain);
       await expect(repo.findAll({ where: { $or: [{ age: { $get: 21 } }] } })).rejects.toBeInstanceOf(BadRequest);
+    });
+  });
+
+  // ── nested-path + $contains (shared conformance fixture, D-7) ──────────────
+  // The expected PostgREST calls below are the supabase translation of each
+  // fixture case; @mantlejs/memory asserts the same cases against real data.
+
+  describe("nested-path + $contains translation", () => {
+    const expectedCalls: Record<string, { method: string; args: unknown[] }> = {
+      "dot-path equality": { method: "eq", args: ["metadata->owner->>name", "alice"] },
+      "dot-path comparison operator": { method: "gt", args: ["metadata->level", 4] },
+      "$contains scalar element on a top-level array": { method: "contains", args: ["tags", ["blue"]] },
+      "$contains array operand (all elements required)": { method: "contains", args: ["tags", ["red", "blue"]] },
+      "$contains on a dot-path array": { method: "contains", args: ["metadata->tags", ["a"]] },
+      "$contains object operand (JSON superset)": {
+        method: "contains",
+        args: ["metadata", { owner: { name: "alice" } }],
+      },
+    };
+
+    for (const testCase of NESTED_QUERY_CASES) {
+      it(`translates ${testCase.name}`, async () => {
+        const expected = expectedCalls[testCase.name];
+        expect(expected).toBeDefined();
+        const chain = makeQuery({ data: [] });
+        fromMock.mockReturnValue(chain);
+        await repo.findAll({ where: testCase.where });
+        expect(chain[expected.method]).toHaveBeenCalledWith(...expected.args);
+      });
+    }
+
+    it("uses ->> for dot-path string patterns and -> for null checks", async () => {
+      const chain = makeQuery({ data: [] });
+      fromMock.mockReturnValue(chain);
+      await repo.findAll({ where: { "metadata.owner.name": { $ilike: "%ali%" }, "metadata.deleted": null } });
+      expect(chain["ilike"]).toHaveBeenCalledWith("metadata->owner->>name", "%ali%");
+      expect(chain["is"]).toHaveBeenCalledWith("metadata->deleted", null);
+    });
+
+    it("translates dot-paths inside $or", async () => {
+      const chain = makeQuery({ data: [] });
+      fromMock.mockReturnValue(chain);
+      await repo.findAll({ where: { $or: [{ "metadata.owner.name": "alice" }, { "metadata.level": { $gt: 4 } }] } });
+      expect(chain["or"]).toHaveBeenCalledWith('metadata->owner->>name.eq."alice",metadata->level.gt.4');
+    });
+
+    it("rejects $contains inside $or with a BadRequest naming the operator", async () => {
+      const chain = makeQuery({ data: [] });
+      fromMock.mockReturnValue(chain);
+      await expect(repo.findAll({ where: { $or: [{ tags: { $contains: "blue" } }] } })).rejects.toMatchObject({
+        code: 400,
+        message: expect.stringContaining("$contains"),
+      });
     });
   });
 

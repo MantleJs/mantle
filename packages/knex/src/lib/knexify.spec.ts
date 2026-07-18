@@ -3,7 +3,7 @@ import type { Knex } from "knex";
 import { BadRequest } from "@mantlejs/mantle";
 import { knexify } from "./knexify.js";
 
-function makeBuilder() {
+function makeBuilder(client = "pg") {
   const qb: Record<string, ReturnType<typeof vi.fn>> = {
     where: vi.fn(),
     whereNot: vi.fn(),
@@ -14,11 +14,13 @@ function makeBuilder() {
     whereLike: vi.fn(),
     whereRaw: vi.fn(),
     whereILike: vi.fn(),
+    whereJsonSupersetOf: vi.fn(),
   };
   // All methods return the same builder for chaining
   for (const key of Object.keys(qb)) {
     qb[key].mockReturnValue(qb);
   }
+  (qb as Record<string, unknown>)["client"] = { config: { client } };
   return qb as unknown as Knex.QueryBuilder;
 }
 
@@ -201,6 +203,43 @@ describe("knexify", () => {
     it("rejects unknown operators nested in $or", () => {
       const qb = makeBuilder();
       expect(() => knexify(qb, { $or: [{ age: { $get: 21 } }] })).toThrow(BadRequest);
+    });
+  });
+
+  describe("$contains (jsonb containment, PostgreSQL only)", () => {
+    it("maps an object operand to whereJsonSupersetOf on pg", () => {
+      const qb = makeBuilder("pg");
+      knexify(qb, { metadata: { $contains: { owner: { name: "alice" } } } });
+      expect((qb as unknown as Record<string, ReturnType<typeof vi.fn>>)["whereJsonSupersetOf"]).toHaveBeenCalledWith(
+        "metadata",
+        { owner: { name: "alice" } },
+      );
+    });
+
+    it("wraps a scalar operand in an array (contains-element semantics)", () => {
+      const qb = makeBuilder("postgresql");
+      knexify(qb, { tags: { $contains: "blue" } });
+      expect((qb as unknown as Record<string, ReturnType<typeof vi.fn>>)["whereJsonSupersetOf"]).toHaveBeenCalledWith(
+        "tags",
+        ["blue"],
+      );
+    });
+
+    it("passes an array operand through unchanged", () => {
+      const qb = makeBuilder("pg");
+      knexify(qb, { tags: { $contains: ["red", "blue"] } });
+      expect((qb as unknown as Record<string, ReturnType<typeof vi.fn>>)["whereJsonSupersetOf"]).toHaveBeenCalledWith(
+        "tags",
+        ["red", "blue"],
+      );
+    });
+
+    it("rejects $contains on non-PostgreSQL clients, naming the operator and client", () => {
+      const qb = makeBuilder("mysql2");
+      expect(() => knexify(qb, { tags: { $contains: "blue" } })).toThrow(BadRequest);
+      expect(() => knexify(qb, { tags: { $contains: "blue" } })).toThrow(
+        /\$contains is only supported by @mantlejs\/knex on PostgreSQL \(current client: mysql2\)/,
+      );
     });
   });
 

@@ -30,6 +30,7 @@ export const SUPABASE_OPERATORS: ReadonlySet<string> = new Set([
   "$like",
   "$notlike",
   "$ilike",
+  "$contains",
   "$or",
   "$and",
 ]);
@@ -206,20 +207,40 @@ export abstract class SupabaseRepository<T extends Record<string, unknown>, D = 
       }
 
       if (value === null) {
-        query = this.chain(query, "is", key, null);
+        query = this.chain(query, "is", this.pgColumn(key, false), null);
       } else if (typeof value === "object" && !Array.isArray(value)) {
         const ops = value as Record<string, unknown>;
         for (const [op, opVal] of Object.entries(ops)) {
           query = this.applyOperator(query, key, op, opVal);
         }
       } else {
-        query = this.chain(query, "eq", key, value);
+        query = this.chain(query, "eq", this.pgColumn(key, typeof value === "string"), value);
       }
     }
     return query;
   }
 
-  private applyOperator(query: AnyQuery, col: string, op: string, val: unknown): AnyQuery {
+  /**
+   * Translate a dot-path field name into PostgREST JSON arrow syntax:
+   * `"metadata.owner.name"` → `metadata->owner->name` (or `metadata->owner->>name`
+   * when `asText` — used for comparisons against string operands so PostgREST
+   * compares text rather than jsonb). Plain column names pass through unchanged.
+   */
+  private pgColumn(field: string, asText: boolean): string {
+    if (!field.includes(".")) return field;
+    const segments = field.split(".");
+    const last = segments.pop() as string;
+    return `${segments.join("->")}${asText ? "->>" : "->"}${last}`;
+  }
+
+  private applyOperator(query: AnyQuery, field: string, op: string, val: unknown): AnyQuery {
+    const asText =
+      op === "$like" || op === "$ilike" || op === "$notlike"
+        ? true
+        : Array.isArray(val)
+          ? val.some((v) => typeof v === "string")
+          : typeof val === "string";
+    const col = this.pgColumn(field, asText);
     switch (op) {
       case "$lt":
         return this.chain(query, "lt", col, val);
@@ -230,7 +251,7 @@ export abstract class SupabaseRepository<T extends Record<string, unknown>, D = 
       case "$gte":
         return this.chain(query, "gte", col, val);
       case "$ne":
-        if (val === null) return this.chain(query, "not", col, "is", null);
+        if (val === null) return this.chain(query, "not", this.pgColumn(field, false), "is", null);
         return this.chain(query, "neq", col, val);
       case "$in":
         return this.chain(query, "in", col, val);
@@ -242,6 +263,12 @@ export abstract class SupabaseRepository<T extends Record<string, unknown>, D = 
         return this.chain(query, "ilike", col, val);
       case "$notlike":
         return this.chain(query, "not", col, "like", val);
+      case "$contains": {
+        // PostgREST `cs` (jsonb/array `@>` containment). Scalar operands are
+        // wrapped so "field contains element" matches the memory reference.
+        const operand = typeof val === "object" && val !== null ? val : [val];
+        return this.chain(query, "contains", this.pgColumn(field, false), operand);
+      }
       default:
         throw new BadRequest(`Unsupported query operator: ${op}`);
     }
@@ -249,14 +276,17 @@ export abstract class SupabaseRepository<T extends Record<string, unknown>, D = 
 
   private buildOrPart(clause: Record<string, unknown>): string {
     const parts: string[] = [];
-    for (const [col, value] of Object.entries(clause)) {
+    for (const [field, value] of Object.entries(clause)) {
       if (value === null) {
-        parts.push(`${col}.is.null`);
+        parts.push(`${this.pgColumn(field, false)}.is.null`);
       } else if (Array.isArray(value)) {
+        const col = this.pgColumn(field, value.some((v) => typeof v === "string"));
         parts.push(`${col}.in.(${value.map((v) => this.quoteOrValue(v)).join(",")})`);
       } else if (typeof value === "object") {
         for (const [op, opVal] of Object.entries(value as Record<string, unknown>)) {
           const pgOp = this.opToPg(op);
+          const asText = Array.isArray(opVal) ? opVal.some((v) => typeof v === "string") : typeof opVal === "string";
+          const col = this.pgColumn(field, asText);
           if (Array.isArray(opVal)) {
             parts.push(`${col}.${pgOp}.(${opVal.map((v) => this.quoteOrValue(v)).join(",")})`);
           } else {
@@ -264,7 +294,7 @@ export abstract class SupabaseRepository<T extends Record<string, unknown>, D = 
           }
         }
       } else {
-        parts.push(`${col}.eq.${this.quoteOrValue(value)}`);
+        parts.push(`${this.pgColumn(field, typeof value === "string")}.eq.${this.quoteOrValue(value)}`);
       }
     }
     return parts.join(",");
@@ -295,6 +325,14 @@ export abstract class SupabaseRepository<T extends Record<string, unknown>, D = 
     };
     const pgOp = map[op];
     if (pgOp === undefined) {
+      if (op === "$contains") {
+        throw new BadRequest(
+          "Operator $contains is not supported inside $or by @mantlejs/supabase.",
+          undefined,
+          undefined,
+          "Move the $contains condition to the top level of the where clause (top-level conditions are ANDed), or restructure the query without $or.",
+        );
+      }
       throw new BadRequest(`Unsupported query operator: ${op}`);
     }
     return pgOp;

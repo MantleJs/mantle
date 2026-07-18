@@ -195,5 +195,11 @@ describe("toNeo4jWhere", () => {
     it("allows underscore-prefixed and alphanumeric identifiers", () => {
       expect(() => toNeo4jWhere({ _private: 1, field2: "x" })).not.toThrow();
     });
+
+    it("rejects $contains, naming the operator and adapter", () => {
+      expect(() => toNeo4jWhere({ tags: { $contains: "blue" } })).toThrow(
+        /Operator \$contains is not supported by @mantlejs\/neo4j\. Supported: /,
+      );
+    });
   });
 });

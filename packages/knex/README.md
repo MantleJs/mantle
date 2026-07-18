@@ -154,6 +154,12 @@ wins). The same value is mirrored to the deprecated `_distance` field for one re
 { name: { $ilike: "alice%" } }   // case-insensitive
 { name: { $notlike: "Bob%" } }
 
+// JSON containment (PostgreSQL only — jsonb @> via whereJsonSupersetOf)
+{ tags: { $contains: "blue" } }             // tags @> '["blue"]' (contains element)
+{ tags: { $contains: ["red", "blue"] } }    // contains every element
+{ metadata: { $contains: { plan: "pro" } } } // object superset
+// On non-PostgreSQL clients $contains throws BadRequest naming the operator.
+
 // Logical
 { $or: [{ role: "admin" }, { role: "editor" }] }
 { $and: [{ active: true }, { age: { $gte: 18 } }] }

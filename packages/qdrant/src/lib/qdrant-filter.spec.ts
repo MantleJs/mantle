@@ -116,6 +116,12 @@ describe("toQdrantFilter", () => {
       );
     });
 
+    it("rejects $contains, naming the operator and adapter", () => {
+      expect(() => toQdrantFilter({ tags: { $contains: "blue" } })).toThrow(
+        /Operator \$contains is not supported by @mantlejs\/qdrant\. Supported: /,
+      );
+    });
+
     it("rejects unknown operators nested in $or", () => {
       expect(() => toQdrantFilter({ $or: [{ age: { $get: 21 } }] })).toThrow(BadRequest);
     });

@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { MemoryRepository, MEMORY_OPERATORS } from "./memory-repository.js";
-import { NotFound } from "@mantlejs/mantle";
+import { NotFound, NESTED_QUERY_CASES, NESTED_QUERY_RECORDS } from "@mantlejs/mantle";
+import type { NestedQueryRecord } from "@mantlejs/mantle";
 
 interface User {
   id: string;
@@ -318,6 +319,40 @@ describe("MemoryRepository", () => {
       await expect(repo.findAll({ where: { name: { $regex: "^A" } } })).rejects.toMatchObject({
         message: expect.stringContaining("@mantlejs/memory"),
       });
+    });
+  });
+
+  // The executable reference for the D-7 nested-path + $contains conformance
+  // fixture: every case's expectedIds are ground truth here.
+  describe("nested-path + $contains (shared conformance fixture)", () => {
+    let nested: MemoryRepository<NestedQueryRecord>;
+
+    beforeEach(() => {
+      nested = new MemoryRepository<NestedQueryRecord>();
+      nested.seed(NESTED_QUERY_RECORDS);
+    });
+
+    for (const testCase of NESTED_QUERY_CASES) {
+      it(testCase.name, async () => {
+        const results = await nested.findAll({ where: testCase.where, sort: { id: "asc" } });
+        expect(results.map((r) => r.id)).toEqual(testCase.expectedIds);
+      });
+    }
+
+    it("count agrees with findAll on the fixture cases", async () => {
+      for (const testCase of NESTED_QUERY_CASES) {
+        await expect(nested.count({ where: testCase.where })).resolves.toBe(testCase.expectedIds.length);
+      }
+    });
+
+    it("dot-path equality with null matches missing nested fields", async () => {
+      const results = await nested.findAll({ where: { "metadata.missing.deep": null } });
+      expect(results).toHaveLength(NESTED_QUERY_RECORDS.length);
+    });
+
+    it("$contains does not match a scalar field against a different scalar", async () => {
+      const results = await nested.findAll({ where: { name: { $contains: "alp" } } });
+      expect(results).toEqual([]);
     });
   });
 });

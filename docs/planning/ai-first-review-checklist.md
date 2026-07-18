@@ -273,7 +273,18 @@ item 4) so the generator can consume them; D-4 needs `@mantlejs/client` (Phase 4
       **Accept:** integration specs against an in-process Redis mock (or `ioredis-mock`) covering consume-once
       semantics and `revokeAll`.
 
-- [ ] **D-7. Nested-path + `$contains` querying (Q7)**
+- [x] **D-7. Nested-path + `$contains` querying (Q7)**
+      _(Resolved: `$contains` follows jsonb `@>` semantics everywhere — array ⊇ every operand element
+      (scalar operand = one element), object ⊇ operand recursively. The shared conformance fixture lives in
+      `@mantlejs/mantle` (`query-fixtures.ts`, the only package both adapters may depend on): memory runs it
+      against real data as the executable reference; supabase asserts the PostgREST translation of every case.
+      Supabase dot-paths use `->>` for string-operand comparisons and `->` otherwise; `$contains` scalar
+      operands are wrapped in an array before `.contains()`/`whereJsonSupersetOf()`; `$contains` inside `$or`
+      is rejected on supabase (PostgREST `or=` strings can't safely encode containment values). Knex rejects
+      `$contains` on non-pg clients naming the operator and client; pinecone/qdrant/neo4j reject it via their
+      existing `assertOperators` sets, now specced. DynamoDB's pre-existing `$contains` (native `contains()`:
+      set membership/substring) is unchanged. `@mantlejs/mongodb` doesn't exist yet — Phase 4 item 3 builds
+      both in from the start against the shared fixture.)_
       Dot-path field names (`"metadata.tags"`) and a `$contains` operator (array/JSON containment), implemented where
       the backend supports it and rejected per the A-3 convention elsewhere. Supabase: dot-paths map to PostgREST
       `->`/`->>` arrow syntax, `$contains` to `cs` (`supabase-repository.ts` translator); `@mantlejs/mongodb` (Phase 4

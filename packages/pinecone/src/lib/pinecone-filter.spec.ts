@@ -74,6 +74,12 @@ describe("toPineconeFilter", () => {
     );
   });
 
+  it("rejects $contains, naming the operator and adapter", () => {
+    expect(() => toPineconeFilter({ tags: { $contains: "blue" } })).toThrow(
+      /Operator \$contains is not supported by @mantlejs\/pinecone\. Supported: /,
+    );
+  });
+
   it("rejects unknown operators nested in $or", () => {
     expect(() => toPineconeFilter({ $or: [{ age: { $get: 21 } }] } as Record<string, unknown>)).toThrow(BadRequest);
   });

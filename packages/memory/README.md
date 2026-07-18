@@ -139,6 +139,14 @@ All methods mirror the `Repository<T>` interface and return `Promise<T>` or `Pro
 | `$or` / `$and` | `{ $or: [{ a: 1 }, { b: 2 }] }` | `(a = 1 OR b = 2)` |
 | `$like` / `$notlike` | `{ name: { $like: "A%" } }` | `name LIKE 'A%'` |
 | `$ilike` | `{ name: { $ilike: "alice" } }` | Case-insensitive match |
+| `$contains` | `{ tags: { $contains: "blue" } }` | `tags @> '["blue"]'` (jsonb containment) |
+
+Where-clause keys may be dot-paths into nested objects: `{ "metadata.owner.name": "alice" }`.
+`$contains` follows PostgreSQL jsonb `@>` semantics — array operand: field contains every
+element; scalar operand: field contains that element; object operand: field is a recursive
+superset. This adapter is the executable reference for the shared nested-path/`$contains`
+conformance fixture exported from `@mantlejs/mantle` (`NESTED_QUERY_RECORDS` /
+`NESTED_QUERY_CASES`).
 
 ---
 

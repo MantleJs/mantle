@@ -168,6 +168,13 @@ Operators supported in `where`:
 - Inclusion: `$in`, `$nin`
 - Logical: `$or`, `$and` (accept arrays of where clauses)
 - Pattern: `$like`, `$notlike`, `$ilike` (PostgreSQL only)
+- Containment: `$contains` (jsonb `@>` semantics; memory, supabase, knex on pg, dynamodb)
+- Nested paths: dot-path keys like `"metadata.tags"` (memory, supabase; supabase maps to PostgREST `->`/`->>`)
+
+Adapters reject unsupported operators via `assertOperators` (BadRequest naming the operator).
+The shared conformance fixture for nested-path + `$contains` semantics is exported from
+`@mantlejs/mantle` (`NESTED_QUERY_RECORDS` / `NESTED_QUERY_CASES`); `@mantlejs/memory` is the
+executable reference.
 
 ### HookContext<T>
 
