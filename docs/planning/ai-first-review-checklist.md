@@ -176,9 +176,9 @@ them before the Phase 4 item 8 release cut.
 - [ ] **C-8. Event-delivery semantics + reconnect invalidation (E6)** — with Phase 4 items 1/2 (client/react).
       Document at-most-once delivery in the `@mantlejs/sync` README; `@mantlejs/client` emits a `reconnect` event;
       `@mantlejs/react` calls `queryClient.invalidateQueries()` on it, bounding staleness from missed events.
-      _(Partially done: sync README now documents at-most-once delivery and the refetch-on-reconnect contract.
-      Remaining: the `reconnect` event and `invalidateQueries()` wiring — blocked until `@mantlejs/client` and
-      `@mantlejs/react` exist; fold into Phase 4 items 1/2.)_
+      _(Partially done: sync README documents at-most-once delivery and the refetch-on-reconnect contract, and
+      `@mantlejs/client` now emits `'reconnect'` on socket re-connects (not the initial connect), specced against
+      a stub socket. Remaining: `@mantlejs/react` calling `invalidateQueries()` on it — fold into Phase 4 item 2.)_
 
 ---
 
@@ -225,12 +225,13 @@ item 4) so the generator can consume them; D-4 needs `@mantlejs/client` (Phase 4
       **Accept:** dynamodb spec: two `findPage` calls with the returned cursor traverse a table without overlap and
       without touching instance state; concurrent `findPage` calls on one repository instance don't interfere.
 
-- [ ] **D-4. `similar()` service-method convention + client wiring (Q5 remainder)**
-      _(Partially done: `VectorRepositoryService` ships in `@mantlejs/mantle` with `similar()` pre-wired to
+- [x] **D-4. `similar()` service-method convention + client wiring (Q5 remainder)**
+      _(Resolved: `VectorRepositoryService` ships in `@mantlejs/mantle` with `similar()` pre-wired to
       `findSimilar` (vector/topK validation, `topK: { default, max }` option, field whitelist on `where`),
       the convention is documented in the mantle README, and an express round-trip spec covers
-      `POST /docs/similar` through the hook pipeline. Remaining: `ServiceClient.similar(data)` — blocked
-      until `@mantlejs/client` exists; fold into Phase 4 item 1 alongside C-8's reconnect wiring.)_
+      `POST /docs/similar` through the hook pipeline. `ServiceClient.similar(data)` landed with
+      `@mantlejs/client` (Phase 4 item 1) — it POSTs to `/:service/similar` per the custom-method
+      convention and is typed `Promise<Array<T & { _score: number }>>`.)_
       C-4 standardizes `_score`; this item makes vector search reachable. Convention: services backed by a
       `VectorRepository` register a custom method `similar(data: { vector: number[]; topK?: number; where?: … }, params)`
       via `app.use(path, svc, { methods: [..., "similar"] })`, forwarding to `repository.findSimilar` — document the
