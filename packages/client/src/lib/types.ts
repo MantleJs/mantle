@@ -31,6 +31,29 @@ export interface SocketOptions extends Record<string, unknown> {
   io?: SocketFactory;
 }
 
+/** One call in a coalesced `POST /batch` request — mirrors the server's `BatchCall`. */
+export interface BatchCall {
+  service: string;
+  method: "find" | "get" | "create" | "update" | "patch" | "remove";
+  id?: Id;
+  data?: unknown;
+  params?: { query?: Record<string, unknown> };
+}
+
+/** Outcome of one `BatchCall`, as returned by the server's batch endpoint. */
+export interface BatchResult {
+  status: "success" | "error";
+  result?: unknown;
+  error?: { name?: string; message?: string; code?: number };
+}
+
+export interface BatchOptions {
+  /** Coalescing window in milliseconds. `0` (default) flushes on the next microtask tick. */
+  windowMs?: number;
+  /** Maximum calls per `POST /batch` — longer queues split into multiple requests. Match the server's max batch size. @default 25 */
+  maxSize?: number;
+}
+
 export interface ClientOptions {
   /** Base URL of the Mantle server, e.g. `"http://localhost:3030"`. Required. */
   url: string;
@@ -40,6 +63,12 @@ export interface ClientOptions {
   socket?: SocketOptions;
   /** Default headers appended to every REST request. */
   headers?: Record<string, string>;
+  /**
+   * Coalesce service calls made within the same window into one `POST /batch`
+   * request (the server's batch endpoint must be enabled — it is by default).
+   * Calls carrying per-request `headers` bypass coalescing. @default false
+   */
+  batch?: boolean | BatchOptions;
 }
 
 export interface ClientParams {

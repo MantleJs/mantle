@@ -1,6 +1,7 @@
+import type { BatchScheduler } from "./batch-scheduler.js";
 import { MantleClientError } from "./errors.js";
 import type { SocketManager } from "./socket-manager.js";
-import type { ClientParams, Id, Paginated, ServiceEvent, SimilarQuery } from "./types.js";
+import type { BatchCall, ClientParams, Id, Paginated, ServiceEvent, SimilarQuery } from "./types.js";
 
 /** REST transport provided by `MantleClient` — auth, refresh-retry, and error handling live there. */
 export interface RestDispatcher {
@@ -17,30 +18,53 @@ export class ServiceClient<T = unknown> {
     private readonly path: string,
     private readonly rest: RestDispatcher,
     private readonly sockets?: SocketManager,
+    private readonly scheduler?: BatchScheduler,
   ) {}
 
   find(params?: ClientParams): Promise<T[] | Paginated<T>> {
+    if (this.canBatch(params)) return this.batched("find", params) as Promise<T[] | Paginated<T>>;
     return this.rest.request("GET", this.path, undefined, params);
   }
 
   get(id: Id, params?: ClientParams): Promise<T> {
+    if (this.canBatch(params)) return this.batched("get", params, id) as Promise<T>;
     return this.rest.request("GET", this.idPath(id), undefined, params);
   }
 
   create(data: Partial<T>, params?: ClientParams): Promise<T> {
+    if (this.canBatch(params)) return this.batched("create", params, undefined, data) as Promise<T>;
     return this.rest.request("POST", this.path, data, params);
   }
 
   update(id: Id, data: Partial<T>, params?: ClientParams): Promise<T> {
+    if (this.canBatch(params)) return this.batched("update", params, id, data) as Promise<T>;
     return this.rest.request("PUT", this.idPath(id), data, params);
   }
 
   patch(id: Id, data: Partial<T>, params?: ClientParams): Promise<T> {
+    if (this.canBatch(params)) return this.batched("patch", params, id, data) as Promise<T>;
     return this.rest.request("PATCH", this.idPath(id), data, params);
   }
 
   remove(id: Id, params?: ClientParams): Promise<T> {
+    if (this.canBatch(params)) return this.batched("remove", params, id) as Promise<T>;
     return this.rest.request("DELETE", this.idPath(id), undefined, params);
+  }
+
+  /** Per-request headers cannot ride along in a batch entry — those calls go out individually. */
+  private canBatch(params?: ClientParams): boolean {
+    return this.scheduler !== undefined && params?.headers === undefined;
+  }
+
+  private batched(method: BatchCall["method"], params?: ClientParams, id?: Id, data?: unknown): Promise<unknown> {
+    const scheduler = this.scheduler as BatchScheduler;
+    return scheduler.enqueue({
+      service: this.path,
+      method,
+      ...(id !== undefined ? { id } : {}),
+      ...(data !== undefined ? { data } : {}),
+      ...(params?.query ? { params: { query: params.query } } : {}),
+    });
   }
 
   /**

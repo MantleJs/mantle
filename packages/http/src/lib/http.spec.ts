@@ -574,3 +574,148 @@ describe("introspection endpoint", () => {
     }
   });
 });
+
+describe("POST /batch", () => {
+  async function startWith(options?: Parameters<typeof http>[0]): Promise<{
+    app: ReturnType<typeof mantle>;
+    port: number;
+    stop: () => Promise<void>;
+  }> {
+    const app = mantle().configure(http(options));
+    app.use("users", new TestUserService());
+    const server = app.listen(0) as Server;
+    await new Promise<void>((resolve) => server.once("listening", resolve));
+    const port = (server.address() as AddressInfo).port;
+    return {
+      app,
+      port,
+      stop: () => new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve()))),
+    };
+  }
+
+  function postBatch(port: number, calls: unknown, path = "/batch", headers: Record<string, string> = {}): Promise<Response> {
+    return fetch(`http://localhost:${port}${path}`, {
+      method: "POST",
+      headers: { "content-type": "application/json", ...headers },
+      body: JSON.stringify(calls),
+    });
+  }
+
+  it("dispatches calls and returns BatchResults in input order", async () => {
+    const { port, stop } = await startWith();
+    try {
+      const res = await postBatch(port, [
+        { service: "users", method: "get", id: "7" },
+        { service: "users", method: "create", data: { name: "Bob", email: "bob@example.com" } },
+      ]);
+      expect(res.status).toBe(200);
+      expect(await res.json()).toEqual([
+        { status: "success", result: { id: "7", name: "Alice", email: "alice@example.com" } },
+        { status: "success", result: { id: "99", name: "Bob", email: "bob@example.com" } },
+      ]);
+    } finally {
+      await stop();
+    }
+  });
+
+  it("reports a per-call error entry without failing sibling calls", async () => {
+    const { port, stop } = await startWith();
+    try {
+      const res = await postBatch(port, [
+        { service: "ghosts", method: "find" },
+        { service: "users", method: "find" },
+      ]);
+      expect(res.status).toBe(200);
+      const [missing, ok] = (await res.json()) as Array<{ status: string; error?: { name: string; code: number } }>;
+      expect(missing.status).toBe("error");
+      expect(missing.error).toMatchObject({ name: "NotFound", code: 404 });
+      expect(ok.status).toBe("success");
+    } finally {
+      await stop();
+    }
+  });
+
+  it("runs each call through the hook pipeline with the request's headers", async () => {
+    const { app, port, stop } = await startWith();
+    try {
+      app.service("users").hooks({
+        before: {
+          all: [
+            async (ctx) => {
+              if (ctx.params.headers?.["x-api-key"] !== "secret") throw new BadRequest("Missing API key");
+              return ctx;
+            },
+          ],
+        },
+      });
+      const calls = [{ service: "users", method: "find" }];
+      const denied = (await (await postBatch(port, calls)).json()) as Array<{ status: string }>;
+      expect(denied[0].status).toBe("error");
+      const allowed = (await (await postBatch(port, calls, "/batch", { "x-api-key": "secret" })).json()) as Array<{
+        status: string;
+      }>;
+      expect(allowed[0].status).toBe("success");
+    } finally {
+      await stop();
+    }
+  });
+
+  it("rejects a batch over the max size with 400 BadRequest", async () => {
+    const { port, stop } = await startWith();
+    try {
+      const res = await postBatch(
+        port,
+        Array.from({ length: 26 }, () => ({ service: "users", method: "find" })),
+      );
+      expect(res.status).toBe(400);
+      expect(((await res.json()) as { name: string }).name).toBe("BadRequest");
+    } finally {
+      await stop();
+    }
+  });
+
+  it("is disabled with batch: false", async () => {
+    const { port, stop } = await startWith({ batch: false });
+    try {
+      const res = await postBatch(port, [{ service: "users", method: "find" }]);
+      expect(res.status).toBe(404);
+    } finally {
+      await stop();
+    }
+  });
+
+  it("honors a custom path and maxSize", async () => {
+    const { port, stop } = await startWith({ batch: { path: "/_batch", maxSize: 1 } });
+    try {
+      expect((await postBatch(port, [{ service: "users", method: "find" }])).status).toBe(404);
+      expect((await postBatch(port, [{ service: "users", method: "find" }], "/_batch")).status).toBe(200);
+      const oversized = await postBatch(
+        port,
+        [
+          { service: "users", method: "find" },
+          { service: "users", method: "find" },
+        ],
+        "/_batch",
+      );
+      expect(oversized.status).toBe(400);
+    } finally {
+      await stop();
+    }
+  });
+
+  it("works through the fetchHandler as well", async () => {
+    const app = mantle().configure(http());
+    app.use("users", new TestUserService());
+    const fetchHandler = app.get("fetchHandler") as (req: Request) => Promise<Response>;
+    const res = await fetchHandler(
+      new Request("http://localhost/batch", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify([{ service: "users", method: "find" }]),
+      }),
+    );
+    expect(res.status).toBe(200);
+    const [entry] = (await res.json()) as Array<{ status: string }>;
+    expect(entry.status).toBe("success");
+  });
+});

@@ -435,3 +435,168 @@ describe("real-time events", () => {
     expect(reconnect).toHaveBeenCalledTimes(2);
   });
 });
+
+describe("batch coalescing", () => {
+  function batchClient(batch: boolean | { windowMs?: number; maxSize?: number } = true): MantleClient {
+    return mantle({ url: BASE, storage: memoryStorage(), batch });
+  }
+
+  function sentCalls(callIndex = 0): unknown {
+    const call = fetchMock.mock.calls[callIndex] as [string, RequestInit];
+    return JSON.parse(call[1].body as string);
+  }
+
+  it("coalesces same-tick calls into one POST /batch and resolves each promise independently", async () => {
+    const client = batchClient();
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse([
+        { status: "success", result: { id: 1, name: "Alice" } },
+        { status: "success", result: [{ id: 9 }] },
+      ]),
+    );
+    const [user, messages] = await Promise.all([
+      client.service("users").get(1),
+      client.service("messages").find({ query: { $limit: 5 } }),
+    ]);
+    expect(user).toEqual({ id: 1, name: "Alice" });
+    expect(messages).toEqual([{ id: 9 }]);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(lastRequest().url).toBe(`${BASE}/batch`);
+    expect(lastRequest().init.method).toBe("POST");
+    expect(sentCalls()).toEqual([
+      { service: "users", method: "get", id: 1 },
+      { service: "messages", method: "find", params: { query: { $limit: 5 } } },
+    ]);
+  });
+
+  it("carries data for create/update/patch calls", async () => {
+    const client = batchClient();
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse([
+        { status: "success", result: { id: 1 } },
+        { status: "success", result: { id: 2 } },
+      ]),
+    );
+    await Promise.all([
+      client.service("users").create({ name: "Bob" }),
+      client.service("users").patch(2, { name: "Carol" }),
+    ]);
+    expect(sentCalls()).toEqual([
+      { service: "users", method: "create", data: { name: "Bob" } },
+      { service: "users", method: "patch", id: 2, data: { name: "Carol" } },
+    ]);
+  });
+
+  it("rejects a caller with MantleClientError from its error entry without failing siblings", async () => {
+    const client = batchClient();
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse([
+        { status: "error", error: { name: "NotFound", message: "User not found", code: 404 } },
+        { status: "success", result: [] },
+      ]),
+    );
+    const [missing, ok] = await Promise.allSettled([client.service("users").get(1), client.service("messages").find()]);
+    expect(missing.status).toBe("rejected");
+    const reason = (missing as PromiseRejectedResult).reason as MantleClientError;
+    expect(reason).toBeInstanceOf(MantleClientError);
+    expect(reason).toMatchObject({ name: "NotFound", code: 404, message: "User not found" });
+    expect(ok).toEqual({ status: "fulfilled", value: [] });
+  });
+
+  it("rejects every queued caller when the batch request itself fails", async () => {
+    const client = batchClient();
+    fetchMock.mockRejectedValueOnce(new TypeError("fetch failed"));
+    const outcomes = await Promise.allSettled([client.service("users").get(1), client.service("messages").find()]);
+    expect(outcomes.every((o) => o.status === "rejected")).toBe(true);
+  });
+
+  it("splits queues longer than maxSize into multiple POST /batch requests", async () => {
+    const client = batchClient({ maxSize: 2 });
+    fetchMock
+      .mockResolvedValueOnce(
+        jsonResponse([
+          { status: "success", result: { id: 1 } },
+          { status: "success", result: { id: 2 } },
+        ]),
+      )
+      .mockResolvedValueOnce(jsonResponse([{ status: "success", result: { id: 3 } }]));
+    const results = await Promise.all([
+      client.service("users").get(1),
+      client.service("users").get(2),
+      client.service("users").get(3),
+    ]);
+    expect(results).toEqual([{ id: 1 }, { id: 2 }, { id: 3 }]);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(sentCalls(0)).toHaveLength(2);
+    expect(sentCalls(1)).toHaveLength(1);
+  });
+
+  it("waits windowMs before flushing when configured", async () => {
+    vi.useFakeTimers();
+    try {
+      const client = batchClient({ windowMs: 10 });
+      fetchMock.mockResolvedValueOnce(
+        jsonResponse([
+          { status: "success", result: { id: 1 } },
+          { status: "success", result: { id: 2 } },
+        ]),
+      );
+      const pending = Promise.all([client.service("users").get(1), client.service("users").get(2)]);
+      await Promise.resolve();
+      expect(fetchMock).not.toHaveBeenCalled();
+      await vi.advanceTimersByTimeAsync(10);
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      await expect(pending).resolves.toEqual([{ id: 1 }, { id: 2 }]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("bypasses coalescing for calls with per-request headers", async () => {
+    const client = batchClient();
+    fetchMock.mockResolvedValueOnce(jsonResponse({ id: 1 }));
+    const result = await client.service("users").get(1, { headers: { "x-trace": "abc" } });
+    expect(result).toEqual({ id: 1 });
+    expect(lastRequest().url).toBe(`${BASE}/users/1`);
+    expect(lastRequest().init.method).toBe("GET");
+  });
+
+  it("retries per-entry 401 failures once after a token refresh", async () => {
+    const storage = memoryStorage();
+    const client = mantle({ url: BASE, storage, batch: true });
+    fetchMock.mockResolvedValueOnce(jsonResponse({ accessToken: "at-1", refreshToken: "rt-1", user: {} }, 201));
+    await client.authenticate({ strategy: "local" });
+    fetchMock.mockClear();
+
+    fetchMock
+      .mockResolvedValueOnce(
+        jsonResponse([
+          { status: "error", error: { name: "NotAuthenticated", message: "expired", code: 401 } },
+          { status: "success", result: [] },
+        ]),
+      )
+      .mockResolvedValueOnce(jsonResponse({ accessToken: "at-2", refreshToken: "rt-2" }, 201))
+      .mockResolvedValueOnce(jsonResponse([{ status: "success", result: { id: 1 } }]));
+
+    const [user, messages] = await Promise.all([client.service("users").get(1), client.service("messages").find()]);
+    expect(user).toEqual({ id: 1 });
+    expect(messages).toEqual([]);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+
+    const refreshCall = fetchMock.mock.calls[1] as [string, RequestInit];
+    expect(refreshCall[1].body).toBe(JSON.stringify({ strategy: "refresh", refreshToken: "rt-1" }));
+
+    const retryCall = fetchMock.mock.calls[2] as [string, RequestInit];
+    expect((retryCall[1].headers as Record<string, string>)["authorization"]).toBe("Bearer at-2");
+    expect(JSON.parse(retryCall[1].body as string)).toEqual([{ service: "users", method: "get", id: 1 }]);
+  });
+
+  it("rejects 401 entries with their original error when the refresh fails", async () => {
+    const client = batchClient();
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse([{ status: "error", error: { name: "NotAuthenticated", message: "nope", code: 401 } }]),
+    );
+    await expect(client.service("users").get(1)).rejects.toMatchObject({ name: "NotAuthenticated", code: 401 });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+});

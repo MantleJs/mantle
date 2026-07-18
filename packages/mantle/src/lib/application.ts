@@ -1,6 +1,9 @@
 import { EventEmitter } from "node:events";
-import { BadRequest, GeneralError, MethodNotAllowed, NotFound } from "./errors.js";
+import { BadRequest, GeneralError, MantleError, MethodNotAllowed, NotFound } from "./errors.js";
 import type {
+  BatchCall,
+  BatchDispatchOptions,
+  BatchResult,
   ChannelPublisher,
   HookConfig,
   HookContext,
@@ -19,6 +22,7 @@ import type {
   ServiceOptions,
   ServiceParams,
 } from "./types.js";
+import { DEFAULT_MAX_BATCH_SIZE } from "./types.js";
 
 type ResolvedServiceOptions = {
   methods: string[];
@@ -28,6 +32,15 @@ type ResolvedServiceOptions = {
 
 const DEFAULT_METHODS = ["find", "get", "create", "update", "patch", "remove"];
 const DEFAULT_EVENTS = ["created", "updated", "patched", "removed"];
+const BATCH_METHODS = new Set(DEFAULT_METHODS);
+
+function toBatchError(reason: unknown): BatchResult["error"] {
+  if (reason instanceof MantleError) {
+    return reason.toJSON() as BatchResult["error"];
+  }
+  const message = reason instanceof Error ? reason.message : String(reason);
+  return { name: "GeneralError", message, code: 500, className: "general-error" };
+}
 
 const SERVICE_EVENTS: Partial<Record<string, string>> = {
   create: "created",
@@ -284,6 +297,37 @@ export class MantleApplicationImpl implements MantleApplication {
     const handle = this._services.get(key);
     if (!handle) throw new NotFound(`Service '${key}' is not registered`);
     return handle as ServiceHandle<T>;
+  }
+
+  async batch(calls: BatchCall[], params?: ServiceParams, options?: BatchDispatchOptions): Promise<BatchResult[]> {
+    if (!Array.isArray(calls)) {
+      throw new BadRequest("Batch body must be an array of calls");
+    }
+    const maxSize = options?.maxSize ?? DEFAULT_MAX_BATCH_SIZE;
+    if (calls.length > maxSize) {
+      throw new BadRequest(`Batch of ${calls.length} calls exceeds the maximum of ${maxSize}`, undefined, undefined, "Split the batch into multiple requests of at most the maximum size");
+    }
+    const settled = await Promise.allSettled(calls.map((call) => this.dispatchBatchCall(call, params)));
+    return settled.map((outcome) =>
+      outcome.status === "fulfilled"
+        ? { status: "success" as const, result: outcome.value }
+        : { status: "error" as const, error: toBatchError(outcome.reason) },
+    );
+  }
+
+  private async dispatchBatchCall(call: BatchCall, base?: ServiceParams): Promise<unknown> {
+    if (call === null || typeof call !== "object") {
+      throw new BadRequest("Each batch call must be an object with 'service' and 'method'");
+    }
+    if (typeof call.service !== "string" || call.service.length === 0) {
+      throw new BadRequest("Batch call is missing 'service'");
+    }
+    if (typeof call.method !== "string" || !BATCH_METHODS.has(call.method)) {
+      throw new BadRequest(`Batch call method must be one of: ${[...BATCH_METHODS].join(", ")}`);
+    }
+    const handle = this.service(call.service);
+    const params: ServiceParams = { ...base, query: call.params?.query ?? {} };
+    return handle.dispatch(call.method, call.data as Partial<unknown> | undefined, call.id, params);
   }
 
   configure(plugin: MantlePlugin): this {

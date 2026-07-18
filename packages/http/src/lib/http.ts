@@ -2,6 +2,7 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import { randomUUID } from "node:crypto";
 import { URL } from "node:url";
 import type {
+  BatchCall,
   HttpRequestLike,
   HttpResponseLike,
   HttpRouteHandler,
@@ -135,11 +136,29 @@ export interface HttpOptions {
    * `ServiceDescriptor[]` for every registered service. Off by default.
    */
   introspection?: boolean | { path?: string };
+  /**
+   * Mount a batch endpoint (default `POST /batch`) dispatching a `BatchCall[]` body through
+   * `app.batch()` — every call runs its service's full hook pipeline. On by default;
+   * `false` disables it, an object overrides the route path or max batch size (default 25).
+   */
+  batch?: boolean | { path?: string; maxSize?: number };
 }
 
 export function http(options: HttpOptions = {}): MantlePlugin {
   return (app: MantleApplication): void => {
     const router = new Router();
+
+    if (options.batch !== false) {
+      const batchOptions = typeof options.batch === "object" ? options.batch : {};
+      router.add("POST", batchOptions.path ?? "/batch", async (_params, body, _query, headers) => ({
+        status: 200,
+        body: await app.batch(
+          body as BatchCall[],
+          { provider: "http", headers },
+          { maxSize: batchOptions.maxSize },
+        ),
+      }));
+    }
 
     const servicePaths: string[] = [];
     if (options.introspection) {

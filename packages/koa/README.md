@@ -115,10 +115,11 @@ Side effects:
 
 #### `KoaOptions`
 
-| Field           | Type                           | Default | Description                                                        |
-| --------------- | ------------------------------ | ------- | ------------------------------------------------------------------ |
-| `app`           | `Koa` (Koa instance)           | —       | Existing Koa application. A new one is created if omitted.         |
-| `introspection` | `boolean \| { path?: string }` | `false` | Mount the introspection endpoint; pass `{ path }` to customize it. |
+| Field           | Type                                        | Default | Description                                                                       |
+| --------------- | ------------------------------------------- | ------- | --------------------------------------------------------------------------------- |
+| `app`           | `Koa` (Koa instance)                        | —       | Existing Koa application. A new one is created if omitted.                         |
+| `introspection` | `boolean \| { path?: string }`              | `false` | Mount the introspection endpoint; pass `{ path }` to customize it.                 |
+| `batch`         | `boolean \| { path?: string; maxSize?: number }` | `true`  | Mount the `POST /batch` endpoint; `false` disables it, `{ path, maxSize }` configures it. |
 
 ---
 
@@ -136,6 +137,34 @@ app.configure(koa({ introspection: { path: "/__meta" } }));
 registered service with `path`, `methods`, `events`, `schema`, the repository's `capabilities`
 (when the service exposes them, e.g. `RepositoryService`), and `authRequired`. Off by default;
 without the option the route 404s.
+
+---
+
+### Batch endpoint
+
+`POST /batch` (mounted by default) dispatches an array of calls through `app.batch()` in one
+round trip:
+
+```bash
+curl -X POST http://localhost:3030/batch -H "content-type: application/json" -d '[
+  { "service": "users", "method": "get", "id": 1 },
+  { "service": "messages", "method": "find", "params": { "query": { "$limit": 5 } } }
+]'
+```
+
+Each call runs the target service's **full hook pipeline** (including `authenticate("jwt")`) with
+the batch request's headers — batch is not a way to bypass authentication or validation. The
+response is a `BatchResult[]` in the same order as the request array; calls execute concurrently
+and each entry independently reports `{ status: "success", result }` or `{ status: "error", error }`
+(no cross-call atomicity). Batches over `maxSize` (default 25) are rejected with `400 BadRequest`
+before any call executes.
+
+```typescript
+app.configure(koa({ batch: false })); // disable
+app.configure(koa({ batch: { path: "/_batch", maxSize: 50 } }));
+```
+
+`@mantlejs/client` can coalesce same-tick service calls into this endpoint automatically — see its `batch` option.
 
 ---
 

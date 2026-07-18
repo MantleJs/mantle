@@ -59,6 +59,30 @@ Applies a plugin (e.g. `express()`, `knex()`) to the application.
 app.configure(express()).configure(knex({ client: "pg", connection: DATABASE_URL }));
 ```
 
+#### `app.batch(calls, params?, options?)`
+
+Dispatches many service calls concurrently (`Promise.allSettled` semantics) and returns one
+`BatchResult` per call, **in input order**. The HTTP transports expose this as `POST /batch`.
+
+```typescript
+const results = await app.batch([
+  { service: "users", method: "get", id: 1 },
+  { service: "messages", method: "find", params: { query: { $limit: 5 } } },
+  { service: "messages", method: "create", data: { text: "Hello" } },
+]);
+// results[i] is { status: "success", result } or { status: "error", error: { name, message, code, … } }
+```
+
+- Every call runs the target service's **full hook pipeline** — batch is not a way to bypass
+  authentication or validation. `params` (typically the outer HTTP request's `headers`, `user`,
+  `provider`) is inherited by every call and merged with the call's own `params.query`.
+- One call failing does not fail the batch, and there is no cross-call atomicity — a batch can
+  span services backed by different databases. Use `withTransaction()` inside a single custom
+  service method when you need same-repository atomicity.
+- Batches larger than `options.maxSize` (default 25, `DEFAULT_MAX_BATCH_SIZE`) are rejected with
+  `BadRequest` before any call executes. Malformed entries (missing `service`, a method outside
+  the six standard ones) become per-call `BadRequest` error entries.
+
 #### `app.set(key, value)` / `app.get(key)`
 
 Typed key-value store used by plugins to share instances (e.g. the knex instance is stored under `"knex"`).

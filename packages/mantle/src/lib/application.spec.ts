@@ -636,3 +636,150 @@ describe("ServiceHandle.describe()", () => {
     expect(app.service("users").describe().authRequired).toBe(false);
   });
 });
+
+describe("app.batch", () => {
+  it("dispatches all calls and returns results in input order", async () => {
+    const app = mantle();
+    app.use("users", makeUserService());
+    const results = await app.batch([
+      { service: "users", method: "get", id: 2 },
+      { service: "users", method: "find" },
+      { service: "users", method: "create", data: { name: "Bob" } },
+    ]);
+    expect(results).toEqual([
+      { status: "success", result: { id: 2, name: "Alice" } },
+      { status: "success", result: [{ id: 1, name: "Alice" }] },
+      { status: "success", result: { id: 1, name: "Bob" } },
+    ]);
+  });
+
+  it("runs each call through the service's hook pipeline", async () => {
+    const app = mantle();
+    app.use("users", makeUserService());
+    app.service<User>("users").hooks({
+      before: {
+        create: [
+          async (ctx) => {
+            ctx.data = { ...ctx.data, name: `${ctx.data?.name}-hooked` };
+            return ctx;
+          },
+        ],
+      },
+    });
+    const [result] = await app.batch([{ service: "users", method: "create", data: { name: "Bob" } }]);
+    expect(result.result).toEqual({ id: 1, name: "Bob-hooked" });
+  });
+
+  it("inherits base params on every call and merges the call's own query", async () => {
+    const app = mantle();
+    const seen: ServiceParams[] = [];
+    app.use(
+      "users",
+      makeUserService({
+        async find(params) {
+          seen.push(params ?? {});
+          return [];
+        },
+      }),
+    );
+    const base: ServiceParams = { provider: "rest", headers: { authorization: "Bearer t" }, user: { id: "u1" } };
+    await app.batch([{ service: "users", method: "find", params: { query: { $limit: 5 } } }], base);
+    expect(seen[0]).toMatchObject({
+      provider: "rest",
+      headers: { authorization: "Bearer t" },
+      user: { id: "u1" },
+      query: { $limit: 5 },
+    });
+  });
+
+  it("reports a per-call error without failing sibling calls", async () => {
+    const app = mantle();
+    app.use(
+      "users",
+      makeUserService({
+        async get() {
+          throw new NotFound("User not found");
+        },
+      }),
+    );
+    const results = await app.batch([
+      { service: "users", method: "get", id: 1 },
+      { service: "users", method: "find" },
+    ]);
+    expect(results[0]).toEqual({
+      status: "error",
+      error: { name: "NotFound", message: "User not found", code: 404, className: "not-found" },
+    });
+    expect(results[1]).toEqual({ status: "success", result: [{ id: 1, name: "Alice" }] });
+  });
+
+  it("wraps non-Mantle errors as GeneralError entries", async () => {
+    const app = mantle();
+    app.use(
+      "users",
+      makeUserService({
+        async find() {
+          throw new TypeError("boom");
+        },
+      }),
+    );
+    const [result] = await app.batch([{ service: "users", method: "find" }]);
+    expect(result.error).toMatchObject({ name: "GeneralError", message: "boom", code: 500 });
+  });
+
+  it("reports an unknown service as a per-call NotFound entry", async () => {
+    const app = mantle();
+    app.use("users", makeUserService());
+    const [missing, ok] = await app.batch([
+      { service: "ghosts", method: "find" },
+      { service: "users", method: "find" },
+    ]);
+    expect(missing.status).toBe("error");
+    expect(missing.error).toMatchObject({ name: "NotFound", code: 404 });
+    expect(ok.status).toBe("success");
+  });
+
+  it("rejects malformed calls per-entry with BadRequest", async () => {
+    const app = mantle();
+    app.use("users", makeUserService());
+    const results = await app.batch([
+      { method: "find" } as never,
+      { service: "users", method: "similar" } as never,
+      null as never,
+    ]);
+    for (const result of results) {
+      expect(result.status).toBe("error");
+      expect(result.error).toMatchObject({ name: "BadRequest", code: 400 });
+    }
+  });
+
+  it("rejects a batch over maxSize with BadRequest before executing any call", async () => {
+    const app = mantle();
+    let executed = 0;
+    app.use(
+      "users",
+      makeUserService({
+        async find() {
+          executed += 1;
+          return [];
+        },
+      }),
+    );
+    const calls = Array.from({ length: 26 }, () => ({ service: "users", method: "find" as const }));
+    await expect(app.batch(calls)).rejects.toBeInstanceOf(BadRequest);
+    expect(executed).toBe(0);
+  });
+
+  it("honors a custom maxSize", async () => {
+    const app = mantle();
+    app.use("users", makeUserService());
+    const calls = Array.from({ length: 3 }, () => ({ service: "users", method: "find" as const }));
+    await expect(app.batch(calls, undefined, { maxSize: 2 })).rejects.toBeInstanceOf(BadRequest);
+    await expect(app.batch(calls, undefined, { maxSize: 3 })).resolves.toHaveLength(3);
+  });
+
+  it("rejects a non-array body with BadRequest", async () => {
+    const app = mantle();
+    await expect(app.batch({} as never)).rejects.toBeInstanceOf(BadRequest);
+  });
+});

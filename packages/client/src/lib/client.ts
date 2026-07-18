@@ -1,3 +1,4 @@
+import { BatchScheduler } from "./batch-scheduler.js";
 import { Emitter } from "./emitter.js";
 import { errorFromResponse } from "./errors.js";
 import { serializeQuery } from "./serialize-query.js";
@@ -20,6 +21,7 @@ export class MantleClient {
   private readonly defaultHeaders: Record<string, string>;
   private readonly emitter = new Emitter<ClientEvent>();
   private readonly sockets?: SocketManager;
+  private readonly scheduler?: BatchScheduler;
   private readonly services = new Map<string, ServiceClient<unknown>>();
   /** In-memory copy of the access token so `getAccessToken()` stays synchronous. */
   private accessToken?: string;
@@ -38,13 +40,17 @@ export class MantleClient {
     if (options.socket) {
       this.sockets = new SocketManager(this.baseUrl, options.socket, () => this.emitter.emit("reconnect"));
     }
+    if (options.batch) {
+      const batchOptions = typeof options.batch === "object" ? options.batch : {};
+      this.scheduler = new BatchScheduler(this, batchOptions, () => this.tryRefresh());
+    }
   }
 
   service<T = unknown>(path: string): ServiceClient<T> {
     const normalized = path.replace(/^\/+|\/+$/g, "");
     let service = this.services.get(normalized);
     if (!service) {
-      service = new ServiceClient<unknown>(normalized, this, this.sockets);
+      service = new ServiceClient<unknown>(normalized, this, this.sockets, this.scheduler);
       this.services.set(normalized, service);
     }
     return service as ServiceClient<T>;

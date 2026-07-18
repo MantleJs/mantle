@@ -141,9 +141,10 @@ Returns a `MantlePlugin` that registers the HTTP transport on the application.
 
 #### `HttpOptions`
 
-| Field           | Type                           | Default | Description                                                        |
-| --------------- | ------------------------------ | ------- | ------------------------------------------------------------------ |
-| `introspection` | `boolean \| { path?: string }` | `false` | Mount the introspection endpoint; pass `{ path }` to customize it. |
+| Field           | Type                                        | Default | Description                                                                       |
+| --------------- | ------------------------------------------- | ------- | --------------------------------------------------------------------------------- |
+| `introspection` | `boolean \| { path?: string }`              | `false` | Mount the introspection endpoint; pass `{ path }` to customize it.                 |
+| `batch`         | `boolean \| { path?: string; maxSize?: number }` | `true`  | Mount the `POST /batch` endpoint; `false` disables it, `{ path, maxSize }` configures it. |
 
 With `introspection` enabled, `GET /_services` (or the custom path) returns a `ServiceDescriptor[]` —
 one entry per registered service with `path`, `methods`, `events`, `schema`, the repository's
@@ -174,6 +175,32 @@ After calling `app.configure(http())`:
 | DELETE      | `/service/:id`    | `remove`      |
 | POST        | `/service/:method`| custom method |
 
+### Batch endpoint
+
+`POST /batch` (mounted by default, on both handlers) dispatches an array of calls through
+`app.batch()` in one round trip:
+
+```bash
+curl -X POST http://localhost:3030/batch -H "content-type: application/json" -d '[
+  { "service": "users", "method": "get", "id": 1 },
+  { "service": "messages", "method": "find", "params": { "query": { "$limit": 5 } } }
+]'
+```
+
+Each call runs the target service's **full hook pipeline** (including `authenticate("jwt")`) with
+the batch request's headers — batch is not a way to bypass authentication or validation. The
+response is a `BatchResult[]` in the same order as the request array; calls execute concurrently
+and each entry independently reports `{ status: "success", result }` or `{ status: "error", error }`
+(no cross-call atomicity). Batches over `maxSize` (default 25) are rejected with `400 BadRequest`
+before any call executes.
+
+```typescript
+app.configure(http({ batch: false })); // disable
+app.configure(http({ batch: { path: "/_batch", maxSize: 50 } }));
+```
+
+`@mantlejs/client` can coalesce same-tick service calls into this endpoint automatically — see its `batch` option.
+
 ### `toErrorResponse(err)`
 
 Utility exported for use in other adapters or middleware. Maps a `MantleError` (or any error) to `{ status: number; body: Record<string, unknown> }`.
@@ -194,6 +221,7 @@ type FetchHandler = (request: Request) => Promise<Response>;
 // Options accepted by http()
 interface HttpOptions {
   introspection?: boolean | { path?: string };
+  batch?: boolean | { path?: string; maxSize?: number };
 }
 ```
 

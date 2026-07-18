@@ -227,6 +227,33 @@ export interface ServiceOptions {
   schema?: unknown;
 }
 
+/** Default maximum number of calls per batch request. Transports can override via their `batch` option. */
+export const DEFAULT_MAX_BATCH_SIZE = 25;
+
+/** One call in a batch, dispatched by `app.batch()` through the full hook pipeline of the target service. */
+export interface BatchCall {
+  /** Registered service path, e.g. `"users"`. */
+  service: string;
+  method: "find" | "get" | "create" | "update" | "patch" | "remove";
+  id?: Id;
+  data?: unknown;
+  /** Per-call params. `query` uses the same shape as a parsed REST query string (`$limit`, `$sort`, where fields…). */
+  params?: { query?: Record<string, unknown> };
+}
+
+/** Outcome of one `BatchCall`. Returned by `app.batch()` in the same order as the input array. */
+export interface BatchResult {
+  status: "success" | "error";
+  result?: unknown;
+  /** `MantleError.toJSON()` shape — at minimum `name`, `message`, `code`. */
+  error?: { name: string; message: string; code: number; [key: string]: unknown };
+}
+
+export interface BatchDispatchOptions {
+  /** Maximum calls per batch. Requests exceeding it are rejected with `BadRequest` before any call executes. @default 25 */
+  maxSize?: number;
+}
+
 export interface MantleOptions {
   errorHandler?: boolean;
 }
@@ -263,6 +290,15 @@ export interface ServiceHandle<T> extends Service<T> {
 export interface MantleApplication {
   use<T = unknown>(path: string, service: Partial<Service<T>>, options?: ServiceOptions): this;
   service<T = unknown>(path: string): ServiceHandle<T>;
+  /**
+   * Dispatch many service calls concurrently (`Promise.allSettled` semantics) and return one
+   * `BatchResult` per call, in input order. Each call runs the target service's full hook
+   * pipeline — batch is not a way to bypass authentication or validation. `params` (headers,
+   * user, provider — typically the outer HTTP request's) is inherited by every call and merged
+   * with the call's own `params.query`. One call failing does not fail the batch; there is no
+   * cross-call atomicity.
+   */
+  batch(calls: BatchCall[], params?: ServiceParams, options?: BatchDispatchOptions): Promise<BatchResult[]>;
   configure(plugin: MantlePlugin): this;
   set(key: string, value: unknown): this;
   get<T = unknown>(key: string): T;

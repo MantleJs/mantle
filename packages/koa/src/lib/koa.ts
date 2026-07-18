@@ -3,6 +3,7 @@ import KoaLib from "koa";
 import Router from "@koa/router";
 import bodyParser from "@koa/bodyparser";
 import type {
+  BatchCall,
   HttpRequestLike,
   HttpResponseLike,
   HttpRouteHandler,
@@ -23,6 +24,12 @@ export interface KoaOptions {
    * `ServiceDescriptor[]` for every registered service. Off by default.
    */
   introspection?: boolean | { path?: string };
+  /**
+   * Mount a batch endpoint (default `POST /batch`) dispatching a `BatchCall[]` body through
+   * `app.batch()` — every call runs its service's full hook pipeline. On by default;
+   * `false` disables it, an object overrides the route path or max batch size (default 25).
+   */
+  batch?: boolean | { path?: string; maxSize?: number };
 }
 
 /** Structural subset of Koa's context used by the HttpRouterLike adapter. */
@@ -98,6 +105,17 @@ export function koa(options: KoaOptions = {}): MantlePlugin {
     /** @deprecated Read "http:router" / "http:server" instead. Kept for one release. */
     app.set("koa", koaApp);
     app.set("koa:router", router);
+
+    if (options.batch !== false) {
+      const batchOptions = typeof options.batch === "object" ? options.batch : {};
+      router.post(batchOptions.path ?? "/batch", async (ctx) => {
+        ctx.body = await app.batch(
+          ctx.request.body as BatchCall[],
+          { provider: "koa", headers: ctx.headers as Record<string, string>, request: ctx.req },
+          { maxSize: batchOptions.maxSize },
+        );
+      });
+    }
 
     const servicePaths: string[] = [];
     if (options.introspection) {

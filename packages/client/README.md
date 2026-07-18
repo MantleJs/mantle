@@ -46,6 +46,31 @@ When the `socket` option is configured, `service.on("created" | "updated" | "pat
 
 Event delivery is at-most-once (see the `@mantlejs/sync` README) — the client emits a `'reconnect'` event on every re-connect so callers (e.g. `@mantlejs/react`) can refetch and bound the staleness from any missed events.
 
+### Batch coalescing
+
+With the `batch` option enabled, service calls made within the same coalescing window (default:
+the same microtask tick) are queued and sent as **one** `POST /batch` request instead of N
+separate REST calls — the transports mount that endpoint by default. Each caller's promise still
+resolves or rejects independently from its own entry in the batched response, so application code
+is unchanged:
+
+```typescript
+const api = mantle({ url: "http://localhost:3030", batch: true });
+
+// One HTTP round trip, three independent promises — the dominant AI-agent call pattern
+const [user, posts, tags] = await Promise.all([
+  api.service("users").get(1),
+  api.service("posts").find({ query: { authorId: 1 } }),
+  api.service("tags").find(),
+]);
+```
+
+`windowMs` widens the window (`setTimeout`-based) beyond the same tick; queues longer than
+`maxSize` (default 25 — match the server's max batch size) split into multiple requests. Calls
+with per-request `headers` bypass coalescing and go out individually, as does `similar()`. If
+every entry fails with a 401 (expired token), the client performs its usual single token refresh
+and retries just those entries once.
+
 ### Errors
 
 Non-2xx responses are deserialized into `MantleClientError` — `name` (`"BadRequest"`, `"NotFound"`, …), `code` (HTTP status), `data`, `errors`, and the server's actionable `hint` when present. Non-JSON bodies (gateway errors) fall back to the HTTP status. Network failures propagate as the native fetch `TypeError`, unwrapped.
@@ -99,6 +124,7 @@ Creates a `MantleClient`. Throws `TypeError` if `url` is missing.
 | `storage` | `TokenStorage`           | `localStorage` browser / in-memory | Token persistence. Any object with `getItem`/`setItem`/`removeItem` (sync or async) works      |
 | `socket`  | `SocketOptions`          | `undefined`                        | Socket.IO connection options, passed to `io(url, options)`. Omit to disable real-time features |
 | `headers` | `Record<string, string>` | `{}`                               | Default headers appended to every REST request (per-request `params.headers` win)              |
+| `batch`   | `boolean \| BatchOptions` | `false`                            | Coalesce same-window service calls into one `POST /batch` request (see Batch coalescing)       |
 
 `SocketOptions.io` optionally overrides the socket factory itself — inject a stub in tests, or supply a pre-bundled `io` when dynamic import of the optional peer is undesirable.
 
@@ -142,6 +168,11 @@ interface TokenStorage {
   getItem(key: string): string | null | Promise<string | null>;
   setItem(key: string, value: string): void | Promise<void>;
   removeItem(key: string): void | Promise<void>;
+}
+
+interface BatchOptions {
+  windowMs?: number; // coalescing window; 0 (default) = same microtask tick
+  maxSize?: number; // max calls per POST /batch; longer queues split. Default 25
 }
 
 interface AuthCredentials {

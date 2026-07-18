@@ -1,6 +1,6 @@
 import { randomUUID } from "crypto";
 import expressLib, { type Application, type RequestHandler } from "express";
-import type { MantleApplication, MantlePlugin, ServiceOptions } from "@mantlejs/mantle";
+import type { BatchCall, MantleApplication, MantlePlugin, ServiceOptions } from "@mantlejs/mantle";
 import { withContext } from "@mantlejs/mantle";
 import { mountServiceRoutes } from "./routes.js";
 import { errorHandler } from "./error-handler.js";
@@ -11,6 +11,12 @@ export interface ExpressOptions {
    * `ServiceDescriptor[]` for every registered service. Off by default.
    */
   introspection?: boolean | { path?: string };
+  /**
+   * Mount a batch endpoint (default `POST /batch`) dispatching a `BatchCall[]` body through
+   * `app.batch()` — every call runs its service's full hook pipeline. On by default;
+   * `false` disables it, an object overrides the route path or max batch size (default 25).
+   */
+  batch?: boolean | { path?: string; maxSize?: number };
 }
 
 export function express(existingApp?: Application, options: ExpressOptions = {}): MantlePlugin {
@@ -43,6 +49,23 @@ export function express(existingApp?: Application, options: ExpressOptions = {})
         errorHandlerAttached = true;
         expressApp.use(errorHandler());
       }
+    }
+
+    if (options.batch !== false) {
+      const batchOptions = typeof options.batch === "object" ? options.batch : {};
+      expressApp.post(batchOptions.path ?? "/batch", async (req, res, next) => {
+        try {
+          const results = await app.batch(
+            req.body as BatchCall[],
+            { provider: "rest", headers: req.headers as Record<string, string>, request: req },
+            { maxSize: batchOptions.maxSize },
+          );
+          res.json(results);
+        } catch (err) {
+          next(err);
+        }
+      });
+      setImmediate(ensureErrorHandler);
     }
 
     const originalUse = (app.use as unknown as (...args: unknown[]) => MantleApplication).bind(app);
