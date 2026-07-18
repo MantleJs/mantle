@@ -38,6 +38,7 @@
     "jsdom": "^26.1.0",
     "jsonc-eslint-parser": "^2.1.0",
     "koa": "^3.2.1",
+    "mongodb": "^7.5.0",
     "neo4j-driver": "^6.2.0",
     "nx": "22.7.5",
     "prettier": "~3.6.2",

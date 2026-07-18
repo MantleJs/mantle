@@ -56,6 +56,7 @@ Dependencies always point inward. Nothing in Domain or Application layers knows 
 | `@mantlejs/pinecone`      | Pinecone vector database adapter — `PineconeRepository` with embedding support                                                            |
 | `@mantlejs/qdrant`        | Qdrant vector database adapter — `QdrantRepository` with embedding support                                                                |
 | `@mantlejs/neo4j`         | Neo4j graph database adapter — `Neo4jRepository` with full `QueryParams` support                                                          |
+| `@mantlejs/mongodb`       | MongoDB adapter — `MongoRepository` + Atlas Vector Search via `MongoVectorRepository`                                                     |
 | `@mantlejs/auth`          | JWT engine + strategy runner                                                                                                              |
 | `@mantlejs/auth-local`    | Local email+password strategy (Argon2id)                                                                                                  |
 | `@mantlejs/auth-oauth`    | Shared OAuth 2.0 base — state, PKCE, find-or-create, route registration                                                                   |

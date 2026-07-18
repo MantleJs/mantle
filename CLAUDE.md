@@ -56,6 +56,7 @@ mantle/
 │   ├── pinecone/        @mantlejs/pinecone     Pinecone vector database adapter
 │   ├── qdrant/          @mantlejs/qdrant       Qdrant vector database adapter
 │   ├── neo4j/           @mantlejs/neo4j        Neo4j graph database adapter
+│   ├── mongodb/         @mantlejs/mongodb      MongoDB adapter (official driver) + Atlas Vector Search
 │   ├── auth/            @mantlejs/auth         JWT engine + strategy runner
 │   ├── auth-local/      @mantlejs/auth-local   Local email+password strategy (Argon2id)
 │   ├── auth-oauth/      @mantlejs/auth-oauth   Shared OAuth 2.0 base (state, PKCE, find-or-create)
@@ -95,6 +96,7 @@ mantle/
 | @mantlejs/pinecone      | @mantlejs/mantle                                                                            |
 | @mantlejs/qdrant        | @mantlejs/mantle                                                                            |
 | @mantlejs/neo4j         | @mantlejs/mantle                                                                            |
+| @mantlejs/mongodb       | @mantlejs/mantle                                                                            |
 | @mantlejs/auth          | @mantlejs/mantle                                                                            |
 | @mantlejs/auth-local    | @mantlejs/mantle, @mantlejs/auth                                                            |
 | @mantlejs/auth-oauth    | @mantlejs/mantle, @mantlejs/auth                                                            |
@@ -172,8 +174,8 @@ Operators supported in `where`:
 - Inclusion: `$in`, `$nin`
 - Logical: `$or`, `$and` (accept arrays of where clauses)
 - Pattern: `$like`, `$notlike`, `$ilike` (PostgreSQL only)
-- Containment: `$contains` (jsonb `@>` semantics; memory, supabase, knex on pg, dynamodb)
-- Nested paths: dot-path keys like `"metadata.tags"` (memory, supabase; supabase maps to PostgREST `->`/`->>`)
+- Containment: `$contains` (jsonb `@>` semantics; memory, supabase, knex on pg, dynamodb, mongodb)
+- Nested paths: dot-path keys like `"metadata.tags"` (memory, supabase, mongodb; supabase maps to PostgREST `->`/`->>`, mongodb is native)
 
 Adapters reject unsupported operators via `assertOperators` (BadRequest naming the operator).
 The shared conformance fixture for nested-path + `$contains` semantics is exported from
