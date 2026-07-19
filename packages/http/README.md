@@ -145,6 +145,7 @@ Returns a `MantlePlugin` that registers the HTTP transport on the application.
 | --------------- | ------------------------------------------- | ------- | --------------------------------------------------------------------------------- |
 | `introspection` | `boolean \| { path?: string }`              | `false` | Mount the introspection endpoint; pass `{ path }` to customize it.                 |
 | `batch`         | `boolean \| { path?: string; maxSize?: number }` | `true`  | Mount the `POST /batch` endpoint; `false` disables it, `{ path, maxSize }` configures it. |
+| `cors`          | `boolean \| CorsOptions`                    | `false` | Enable CORS via hand-rolled header logic; `true` uses permissive defaults, an object customizes origin/methods/headers/credentials. |
 
 With `introspection` enabled, `GET /_services` (or the custom path) returns a `ServiceDescriptor[]` —
 one entry per registered service with `path`, `methods`, `events`, `schema`, the repository's
@@ -201,6 +202,36 @@ app.configure(http({ batch: { path: "/_batch", maxSize: 50 } }));
 
 `@mantlejs/client` can coalesce same-tick service calls into this endpoint automatically — see its `batch` option.
 
+### CORS
+
+Disabled by default — consistent with Mantle's secure-by-default posture elsewhere. Enable it with `cors: true`
+for permissive defaults, or pass a `CorsOptions` object to customize:
+
+```typescript
+app.configure(http({ cors: true })); // reflects Origin, allows GET/POST/PUT/PATCH/DELETE, no credentials
+app.configure(
+  http({
+    cors: { origin: ["https://app.example.com"], credentials: true },
+  }),
+);
+```
+
+`CorsOptions` (exported from `@mantlejs/mantle`) is shared across `@mantlejs/express`, `@mantlejs/koa`, and
+`@mantlejs/http` so switching transports doesn't require relearning CORS configuration:
+
+| Field            | Type                                                              | Default                                   | Description                                        |
+| ---------------- | ------------------------------------------------------------------ | ------------------------------------------ | --------------------------------------------------- |
+| `origin`         | `boolean \| string \| string[] \| ((origin) => boolean \| string)` | `true` (reflect the request's `Origin`)    | Allowed origin(s) for `Access-Control-Allow-Origin`. |
+| `methods`        | `string[]`                                                          | `["GET", "POST", "PUT", "PATCH", "DELETE"]` | Allowed methods for `Access-Control-Allow-Methods`.  |
+| `allowedHeaders` | `string[]`                                                          | reflects `Access-Control-Request-Headers`  | Allowed request headers.                             |
+| `exposedHeaders` | `string[]`                                                          | none                                       | Headers exposed to the browser.                      |
+| `credentials`    | `boolean`                                                           | `false`                                    | Allow credentials (cookies, `Authorization`) cross-origin. |
+| `maxAge`         | `number`                                                            | none                                       | Preflight cache duration in seconds.                 |
+
+`@mantlejs/http` has no framework to delegate to, so CORS is hand-rolled: headers are set on every response for
+an allowed origin, and an `OPTIONS` preflight short-circuits with a `204` (on both `httpHandler` and
+`fetchHandler`) before the request reaches the router.
+
 ### `toErrorResponse(err)`
 
 Utility exported for use in other adapters or middleware. Maps a `MantleError` (or any error) to `{ status: number; body: Record<string, unknown> }`.
@@ -222,6 +253,7 @@ type FetchHandler = (request: Request) => Promise<Response>;
 interface HttpOptions {
   introspection?: boolean | { path?: string };
   batch?: boolean | { path?: string; maxSize?: number };
+  cors?: boolean | CorsOptions;
 }
 ```
 
@@ -231,7 +263,7 @@ interface HttpOptions {
 
 ```bash
 npx nx build http     # compile
-npx nx test http      # run tests (25 tests)
+npx nx test http      # run tests
 npx nx lint http      # lint
 ```
 

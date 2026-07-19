@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { URL } from "node:url";
 import type {
   BatchCall,
+  CorsOptions,
   HttpRequestLike,
   HttpResponseLike,
   HttpRouteHandler,
@@ -16,6 +17,7 @@ import { Router, type RouteHandler } from "./router.js";
 import { mountServiceRoutes } from "./routes.js";
 import { parseBody } from "./body-parser.js";
 import { toErrorResponse } from "./error-handler.js";
+import { buildCorsHeaders } from "./cors.js";
 
 export type NodeHttpHandler = (req: IncomingMessage, res: ServerResponse) => void;
 export type FetchHandler = (request: Request) => Promise<Response>;
@@ -142,11 +144,19 @@ export interface HttpOptions {
    * `false` disables it, an object overrides the route path or max batch size (default 25).
    */
   batch?: boolean | { path?: string; maxSize?: number };
+  /**
+   * Enable CORS via hand-rolled header logic (no framework to delegate to). `true` resolves to
+   * permissive defaults (reflects `Origin`, allows the CRUD verbs, no credentials); pass a
+   * `CorsOptions` object to customize origin/methods/headers/credentials. `OPTIONS` preflight
+   * requests short-circuit with a 204 before reaching the router. Disabled by default.
+   */
+  cors?: boolean | CorsOptions;
 }
 
 export function http(options: HttpOptions = {}): MantlePlugin {
   return (app: MantleApplication): void => {
     const router = new Router();
+    const corsOptions: CorsOptions | null = options.cors ? (typeof options.cors === "object" ? options.cors : {}) : null;
 
     if (options.batch !== false) {
       const batchOptions = typeof options.batch === "object" ? options.batch : {};
@@ -172,6 +182,21 @@ export function http(options: HttpOptions = {}): MantlePlugin {
 
     const httpHandler: NodeHttpHandler = (req, res) => {
       void (async () => {
+        let corsHeaders: Record<string, string> = {};
+        if (corsOptions) {
+          const cors = buildCorsHeaders(
+            corsOptions,
+            req.method ?? "GET",
+            req.headers["origin"] as string | undefined,
+            req.headers["access-control-request-headers"] as string | undefined,
+          );
+          corsHeaders = cors.headers;
+          if (cors.isPreflight) {
+            res.writeHead(204, corsHeaders);
+            res.end();
+            return;
+          }
+        }
         try {
           const correlationId = (req.headers["x-correlation-id"] as string | undefined) ?? randomUUID();
           const url = new URL(req.url ?? "/", "http://localhost");
@@ -184,6 +209,7 @@ export function http(options: HttpOptions = {}): MantlePlugin {
             "Content-Type": "application/json",
             "Content-Length": Buffer.byteLength(payload),
             "x-correlation-id": result.correlationId,
+            ...corsHeaders,
             ...result.headers,
           });
           res.end(payload);
@@ -193,6 +219,7 @@ export function http(options: HttpOptions = {}): MantlePlugin {
           res.writeHead(errRes.status, {
             "Content-Type": "application/json",
             "Content-Length": Buffer.byteLength(json),
+            ...corsHeaders,
           });
           res.end(json);
         }
@@ -200,6 +227,20 @@ export function http(options: HttpOptions = {}): MantlePlugin {
     };
 
     const fetchHandler: FetchHandler = async (request) => {
+      let corsHeaders: Record<string, string> = {};
+      if (corsOptions) {
+        const cors = buildCorsHeaders(
+          corsOptions,
+          request.method,
+          request.headers.get("origin") ?? undefined,
+          request.headers.get("access-control-request-headers") ?? undefined,
+        );
+        corsHeaders = cors.headers;
+        if (cors.isPreflight) {
+          return new Response(null, { status: 204, headers: corsHeaders });
+        }
+      }
+
       const correlationId = request.headers.get("x-correlation-id") ?? randomUUID();
       const url = new URL(request.url);
       const query = flattenSearchParams(url.searchParams);
@@ -221,6 +262,7 @@ export function http(options: HttpOptions = {}): MantlePlugin {
         headers: {
           "Content-Type": "application/json",
           "x-correlation-id": result.correlationId,
+          ...corsHeaders,
           ...result.headers,
         },
       });

@@ -784,3 +784,78 @@ describe("POST /batch", () => {
     }
   });
 });
+
+describe("CORS", () => {
+  async function startWith(options?: Parameters<typeof express>[1]): Promise<{ port: number; stop: () => Promise<void> }> {
+    const app = mantle().configure(express(undefined, options));
+    app.use("users", new TestUserService());
+    return startServer(app.get<Application>("express"));
+  }
+
+  it("sends no CORS headers by default", async () => {
+    const { port, stop } = await startWith();
+    try {
+      const res = await fetch(`http://localhost:${port}/users`, { headers: { Origin: "https://app.example.com" } });
+      expect(res.headers.get("access-control-allow-origin")).toBeNull();
+    } finally {
+      await stop();
+    }
+  });
+
+  it("reflects Origin and omits credentials with cors: true", async () => {
+    const { port, stop } = await startWith({ cors: true });
+    try {
+      const res = await fetch(`http://localhost:${port}/users`, { headers: { Origin: "https://app.example.com" } });
+      expect(res.headers.get("access-control-allow-origin")).toBe("https://app.example.com");
+      expect(res.headers.get("access-control-allow-credentials")).toBeNull();
+    } finally {
+      await stop();
+    }
+  });
+
+  it("answers an OPTIONS preflight with the default methods and reflected headers, without dispatching", async () => {
+    const { port, stop } = await startWith({ cors: true });
+    try {
+      const res = await fetch(`http://localhost:${port}/users`, {
+        method: "OPTIONS",
+        headers: {
+          Origin: "https://app.example.com",
+          "Access-Control-Request-Method": "POST",
+          "Access-Control-Request-Headers": "content-type",
+        },
+      });
+      expect(res.status).toBe(204);
+      expect(res.headers.get("access-control-allow-methods")).toBe("GET,POST,PUT,PATCH,DELETE");
+      expect(res.headers.get("access-control-allow-headers")).toBe("content-type");
+    } finally {
+      await stop();
+    }
+  });
+
+  it("only allows origins present in an allow-list", async () => {
+    const { port, stop } = await startWith({ cors: { origin: ["https://allowed.example.com"] } });
+    try {
+      const allowed = await fetch(`http://localhost:${port}/users`, {
+        headers: { Origin: "https://allowed.example.com" },
+      });
+      expect(allowed.headers.get("access-control-allow-origin")).toBe("https://allowed.example.com");
+
+      const denied = await fetch(`http://localhost:${port}/users`, {
+        headers: { Origin: "https://evil.example.com" },
+      });
+      expect(denied.headers.get("access-control-allow-origin")).toBeNull();
+    } finally {
+      await stop();
+    }
+  });
+
+  it("sets Access-Control-Allow-Credentials when credentials: true", async () => {
+    const { port, stop } = await startWith({ cors: { credentials: true } });
+    try {
+      const res = await fetch(`http://localhost:${port}/users`, { headers: { Origin: "https://app.example.com" } });
+      expect(res.headers.get("access-control-allow-credentials")).toBe("true");
+    } finally {
+      await stop();
+    }
+  });
+});

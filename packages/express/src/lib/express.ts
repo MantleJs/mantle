@@ -1,7 +1,8 @@
 import { randomUUID } from "crypto";
 import expressLib, { type Application, type RequestHandler } from "express";
-import type { BatchCall, MantleApplication, MantlePlugin, ServiceOptions } from "@mantlejs/mantle";
-import { withContext } from "@mantlejs/mantle";
+import corsLib from "cors";
+import type { BatchCall, CorsOptions, MantleApplication, MantlePlugin, ServiceOptions } from "@mantlejs/mantle";
+import { CORS_DEFAULT_METHODS, resolveCorsOrigin, withContext } from "@mantlejs/mantle";
 import { mountServiceRoutes } from "./routes.js";
 import { errorHandler } from "./error-handler.js";
 
@@ -17,11 +18,34 @@ export interface ExpressOptions {
    * `false` disables it, an object overrides the route path or max batch size (default 25).
    */
   batch?: boolean | { path?: string; maxSize?: number };
+  /**
+   * Enable CORS via the `cors` npm package. `true` resolves to permissive defaults (reflects
+   * `Origin`, allows the CRUD verbs, no credentials); pass a `CorsOptions` object to customize
+   * origin/methods/headers/credentials. Disabled (no CORS headers) by default.
+   */
+  cors?: boolean | CorsOptions;
 }
 
 export function express(existingApp?: Application, options: ExpressOptions = {}): MantlePlugin {
   return (app: MantleApplication): void => {
     const expressApp: Application = existingApp ?? expressLib();
+
+    if (options.cors) {
+      const corsOptions: CorsOptions = typeof options.cors === "object" ? options.cors : {};
+      expressApp.use(
+        corsLib({
+          origin: (requestOrigin, callback) => {
+            callback(null, resolveCorsOrigin(corsOptions.origin, requestOrigin) ?? false);
+          },
+          methods: corsOptions.methods ?? CORS_DEFAULT_METHODS,
+          allowedHeaders: corsOptions.allowedHeaders,
+          exposedHeaders: corsOptions.exposedHeaders,
+          credentials: corsOptions.credentials ?? false,
+          maxAge: corsOptions.maxAge,
+        }),
+      );
+    }
+
     expressApp.use(expressLib.json());
     expressApp.use((req, res, next) => {
       const correlationId = (req.headers["x-correlation-id"] as string | undefined) ?? randomUUID();

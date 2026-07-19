@@ -22,6 +22,7 @@
     "name": "koa"
   },
   "dependencies": {
+    "@koa/cors": "^5.0.0",
     "tslib": "^2.3.0"
   },
   "description": "Koa HTTP transport adapter for Mantle JS",

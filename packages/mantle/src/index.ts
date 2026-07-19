@@ -1,4 +1,5 @@
 export * from "./lib/types.js";
+export * from "./lib/cors.js";
 export * from "./lib/errors.js";
 export * from "./lib/mantle.js";
 export * from "./lib/context.js";

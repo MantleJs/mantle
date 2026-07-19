@@ -120,6 +120,7 @@ Side effects:
 | `app`           | `Koa` (Koa instance)                        | —       | Existing Koa application. A new one is created if omitted.                         |
 | `introspection` | `boolean \| { path?: string }`              | `false` | Mount the introspection endpoint; pass `{ path }` to customize it.                 |
 | `batch`         | `boolean \| { path?: string; maxSize?: number }` | `true`  | Mount the `POST /batch` endpoint; `false` disables it, `{ path, maxSize }` configures it. |
+| `cors`          | `boolean \| CorsOptions`                    | `false` | Enable CORS via `@koa/cors`; `true` uses permissive defaults, an object customizes origin/methods/headers/credentials. |
 
 ---
 
@@ -165,6 +166,37 @@ app.configure(koa({ batch: { path: "/_batch", maxSize: 50 } }));
 ```
 
 `@mantlejs/client` can coalesce same-tick service calls into this endpoint automatically — see its `batch` option.
+
+---
+
+### CORS
+
+Disabled by default — consistent with Mantle's secure-by-default posture elsewhere. Enable it with `cors: true`
+for permissive defaults, or pass a `CorsOptions` object to customize:
+
+```typescript
+app.configure(koa({ cors: true })); // reflects Origin, allows GET/POST/PUT/PATCH/DELETE, no credentials
+app.configure(
+  koa({
+    cors: { origin: ["https://app.example.com"], credentials: true },
+  }),
+);
+```
+
+`CorsOptions` (exported from `@mantlejs/mantle`) is shared across `@mantlejs/express`, `@mantlejs/koa`, and
+`@mantlejs/http` so switching transports doesn't require relearning CORS configuration:
+
+| Field            | Type                                                              | Default                                   | Description                                        |
+| ---------------- | ------------------------------------------------------------------ | ------------------------------------------ | --------------------------------------------------- |
+| `origin`         | `boolean \| string \| string[] \| ((origin) => boolean \| string)` | `true` (reflect the request's `Origin`)    | Allowed origin(s) for `Access-Control-Allow-Origin`. |
+| `methods`        | `string[]`                                                          | `["GET", "POST", "PUT", "PATCH", "DELETE"]` | Allowed methods for `Access-Control-Allow-Methods`.  |
+| `allowedHeaders` | `string[]`                                                          | reflects `Access-Control-Request-Headers`  | Allowed request headers.                             |
+| `exposedHeaders` | `string[]`                                                          | none                                       | Headers exposed to the browser.                      |
+| `credentials`    | `boolean`                                                           | `false`                                    | Allow credentials (cookies, `Authorization`) cross-origin. |
+| `maxAge`         | `number`                                                            | none                                       | Preflight cache duration in seconds.                 |
+
+`@mantlejs/koa` wraps `@koa/cors` internally — it's installed as a dependency of `@mantlejs/koa`, not
+something you need to add yourself.
 
 ---
 

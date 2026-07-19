@@ -22,6 +22,7 @@
     "name": "express"
   },
   "dependencies": {
+    "cors": "^2.8.5",
     "tslib": "^2.3.0"
   },
   "description": "Express transport adapter for Mantle JS",

@@ -190,6 +190,26 @@ export interface HttpRouterLike {
   post(path: string, handler: HttpRouteHandler): void;
 }
 
+/**
+ * Normalized CORS option shape shared by `@mantlejs/express`, `@mantlejs/koa`, and `@mantlejs/http` so
+ * switching transports doesn't require relearning CORS configuration. Each transport translates this
+ * into its own mechanism — the `cors` package, `@koa/cors`, or hand-rolled headers for `@mantlejs/http`.
+ */
+export interface CorsOptions {
+  /** Allowed origin(s) for `Access-Control-Allow-Origin`. `true` reflects the request's `Origin` header. Default: `true`. */
+  origin?: boolean | string | string[] | ((requestOrigin: string | undefined) => boolean | string);
+  /** Allowed methods for `Access-Control-Allow-Methods`. Default: `["GET", "POST", "PUT", "PATCH", "DELETE"]`. */
+  methods?: string[];
+  /** Allowed request headers for `Access-Control-Allow-Headers`. Default: reflects `Access-Control-Request-Headers`. */
+  allowedHeaders?: string[];
+  /** Headers exposed to the browser via `Access-Control-Expose-Headers`. */
+  exposedHeaders?: string[];
+  /** Allow credentials (cookies, `Authorization` header) cross-origin. Default: `false`. */
+  credentials?: boolean;
+  /** How long, in seconds, browsers may cache a preflight response (`Access-Control-Max-Age`). */
+  maxAge?: number;
+}
+
 export interface HookContext<T = unknown> {
   app: MantleApplication;
   service: Partial<Service<T>>;
