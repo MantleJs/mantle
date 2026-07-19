@@ -1,6 +1,7 @@
 import { Transform } from "node:stream";
 import type { Readable } from "node:stream";
-import type { StorageAdapter, UploadedFile, UploadFileInfo } from "@mantlejs/storage";
+import { NotFound } from "@mantlejs/mantle";
+import type { GetSignedUrlOptions, StorageAdapter, UploadedFile, UploadFileInfo } from "@mantlejs/storage";
 
 export interface GcsStorageConfig {
   bucket: string;
@@ -11,6 +12,8 @@ export interface GcsStorageConfig {
   key?: (file: UploadFileInfo) => string;
 }
 
+const DEFAULT_SIGNED_URL_EXPIRES_IN = 900;
+
 export class GcsStorageAdapter implements StorageAdapter {
   private readonly config: GcsStorageConfig;
 
@@ -18,20 +21,22 @@ export class GcsStorageAdapter implements StorageAdapter {
     this.config = config;
   }
 
-  async store(stream: Readable, info: UploadFileInfo): Promise<UploadedFile> {
+  private async getBucket() {
     const { Storage } = await import("@google-cloud/storage");
-
-    const { bucket: bucketName, keyPrefix = "", public: isPublic = false, projectId, keyFilename } = this.config;
+    const { bucket: bucketName, projectId, keyFilename } = this.config;
 
     const storageOptions: Record<string, unknown> = {};
     if (projectId) storageOptions["projectId"] = projectId;
     if (keyFilename) storageOptions["keyFilename"] = keyFilename;
 
-    const storage = new Storage(storageOptions);
-    const bucket = storage.bucket(bucketName);
+    return new Storage(storageOptions).bucket(bucketName);
+  }
+
+  async store(stream: Readable, info: UploadFileInfo): Promise<UploadedFile> {
+    const bucket = await this.getBucket();
+    const { bucket: bucketName, keyPrefix = "", public: isPublic = false } = this.config;
 
     const resolvedKey = this.config.key ? this.config.key(info) : `${keyPrefix}${Date.now()}-${info.originalname}`;
-
     const file = bucket.file(resolvedKey);
 
     let size = 0;
@@ -61,7 +66,37 @@ export class GcsStorageAdapter implements StorageAdapter {
       mimetype: info.mimetype,
       size,
       path,
+      key: resolvedKey,
     };
+  }
+
+  async retrieve(key: string): Promise<Readable> {
+    const bucket = await this.getBucket();
+    return bucket.file(key).createReadStream();
+  }
+
+  async delete(key: string): Promise<void> {
+    const bucket = await this.getBucket();
+
+    try {
+      await bucket.file(key).delete();
+    } catch (err) {
+      if ((err as { code?: number }).code === 404) {
+        throw new NotFound(`Storage key '${key}' not found`);
+      }
+      throw err;
+    }
+  }
+
+  async getSignedUrl(key: string, options: GetSignedUrlOptions = {}): Promise<string> {
+    const bucket = await this.getBucket();
+
+    const [url] = await bucket.file(key).getSignedUrl({
+      action: "read",
+      expires: Date.now() + (options.expiresIn ?? DEFAULT_SIGNED_URL_EXPIRES_IN) * 1000,
+    });
+
+    return url;
   }
 }
 

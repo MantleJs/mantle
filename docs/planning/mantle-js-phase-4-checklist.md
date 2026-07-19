@@ -44,10 +44,24 @@ Work through these in order. Each item maps to a package spec in the Phase 4 PRD
   - **Client:** add `ClientOptions.batch?: boolean | { windowMs?: number; maxSize?: number }` to `@mantlejs/client`. When enabled, service method calls enqueue into a `BatchScheduler` that flushes on a microtask (or `windowMs`) boundary as a single `POST /batch` request; each caller's promise resolves/rejects independently from the batched response. Queues longer than `maxSize` split into multiple requests.
         _(Shipped details: the transports mount the route by default with a `batch?: boolean | { path?, maxSize? }` option (`false` disables); malformed batch entries become per-call `BadRequest` error entries rather than failing the batch; client calls carrying per-request `headers` bypass coalescing and go out individually; per-entry 401 failures get the client's usual single refresh-then-retry so coalescing stays transparent under token rotation.)_
 
-- [ ] **6. Add CORS support to `@mantlejs/express`, `@mantlejs/koa`, `@mantlejs/http`**
+- [x] **6. Add CORS support to `@mantlejs/express`, `@mantlejs/koa`, `@mantlejs/http`**
+      _(Done. `CorsOptions` (and the shared `resolveCorsOrigin` origin-resolution logic + `CORS_DEFAULT_METHODS`)
+      live in `@mantlejs/mantle` so the option shape and default-origin behavior are identical across all three
+      transports rather than just documented as such. `@mantlejs/express` wraps `cors` (new regular dependency),
+      `@mantlejs/koa` wraps `@koa/cors` (new regular dependency) — both libraries handle their own `OPTIONS`
+      preflight short-circuiting. `@mantlejs/http` hand-rolls header-setting and preflight short-circuiting
+      (`lib/cors.ts`) identically across both its `httpHandler` and `fetchHandler` entry points, since it has no
+      framework to delegate to.)_
       Add a `cors?: boolean | CorsOptions` option to each transport's configure function. `@mantlejs/express` wraps the `cors` npm package; `@mantlejs/koa` wraps `@koa/cors`; `@mantlejs/http` hand-rolls header-setting and `OPTIONS` preflight short-circuiting. `cors: true` resolves to `{ origin: true, methods: [...CRUD verbs], credentials: false }`. Disabled (no CORS headers) by default across all three transports.
 
-- [ ] **7. Extend `@mantlejs/storage` `StorageAdapter` with read/delete**
+- [x] **7. Extend `@mantlejs/storage` `StorageAdapter` with read/delete**
+      _(Done. `retrieve`/`delete` are required on `StorageAdapter`; `getSignedUrl` stays optional and disk storage omits it entirely.
+      `UploadedFile.key` is the adapter-native key — the exact value each backend expects back from `retrieve()`/`delete()`/`getSignedUrl()`
+      — kept distinct from the display-oriented `path`. Disk resolves `key` against `destination` through a shared containment
+      check (`BadRequest` on traversal, `NotFound` on a missing key for `delete`). S3 adds `@aws-sdk/s3-request-presigner` as a new
+      dependency for `getSignedUrl`; `NoSuchKey` on `retrieve` maps to `NotFound`, while S3's own idempotent delete semantics mean
+      `delete()` on a missing key does not throw. GCS maps a 404 from `file.delete()` to `NotFound` and signs URLs via
+      `file.getSignedUrl()`.)_
       Add `retrieve(key): Promise<Readable>`, `delete(key): Promise<void>`, and optional `getSignedUrl(key, options?): Promise<string>` to the `StorageAdapter` interface. Add `key: string` to `UploadedFile` (distinct from the existing `path`, which stays a display-oriented URL). Implement across all three backends: disk (`createReadStream`/`unlink` relative to `destination`), S3 (`GetObjectCommand`/`DeleteObjectCommand`/`@aws-sdk/s3-request-presigner`), GCS (`bucket.file(key)` stream/delete/`getSignedUrl`). Disk storage omits `getSignedUrl` entirely — no direct-download concept for local disk.
 
 - [ ] **8. First npm release — curated package set**

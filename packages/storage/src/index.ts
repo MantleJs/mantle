@@ -8,4 +8,5 @@ export type {
   StorageAdapter,
   DiskStorageConfig,
   HandleUploadOptions,
+  GetSignedUrlOptions,
 } from "./lib/types.js";

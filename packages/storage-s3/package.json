@@ -34,12 +34,15 @@
     "aws"
   ],
   "peerDependencies": {
+    "@mantlejs/mantle": "^0.0.1",
     "@mantlejs/storage": "^0.0.1",
     "@aws-sdk/client-s3": "^3.0.0",
-    "@aws-sdk/lib-storage": "^3.0.0"
+    "@aws-sdk/lib-storage": "^3.0.0",
+    "@aws-sdk/s3-request-presigner": "^3.0.0"
   },
   "devDependencies": {
     "@aws-sdk/client-s3": "^3.0.0",
-    "@aws-sdk/lib-storage": "^3.0.0"
+    "@aws-sdk/lib-storage": "^3.0.0",
+    "@aws-sdk/s3-request-presigner": "^3.0.0"
   }
 }

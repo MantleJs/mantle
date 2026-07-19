@@ -7,7 +7,7 @@ AWS S3 storage adapter for [`@mantlejs/storage`](../storage/README.md). Uploads 
 ## Installation
 
 ```bash
-npm install @mantlejs/storage-s3 @aws-sdk/client-s3 @aws-sdk/lib-storage
+npm install @mantlejs/storage-s3 @aws-sdk/client-s3 @aws-sdk/lib-storage @aws-sdk/s3-request-presigner
 ```
 
 ---
@@ -21,6 +21,10 @@ npm install @mantlejs/storage-s3 @aws-sdk/client-s3 @aws-sdk/lib-storage
 ### Multipart upload
 
 The adapter uses `@aws-sdk/lib-storage` `Upload`, which automatically handles multipart uploads for large files and single-part uploads for smaller ones. The incoming `Readable` stream is piped directly — no buffering into memory.
+
+### Read, delete, and signed URLs
+
+Beyond `store()`, the adapter implements the rest of the `StorageAdapter` interface: `retrieve(key)` streams an object back via `GetObjectCommand`, `delete(key)` removes it via `DeleteObjectCommand`, and `getSignedUrl(key, options?)` returns a time-limited download URL via `@aws-sdk/s3-request-presigner`. All three take the exact `key` value returned on `UploadedFile.key` from `store()`.
 
 ---
 
@@ -92,6 +96,17 @@ s3Storage({
 });
 ```
 
+**Retrieve, delete, and generate a signed URL:**
+
+```typescript
+const storage = s3Storage({ bucket: "my-bucket", region: "us-east-1" });
+const uploaded = await storage.store(stream, info);
+
+const readStream = await storage.retrieve(uploaded.key);
+const url = await storage.getSignedUrl(uploaded.key, { expiresIn: 300 }); // 5 minutes
+await storage.delete(uploaded.key);
+```
+
 ---
 
 ## API
@@ -120,7 +135,25 @@ const storage = s3Storage({
 | `acl`         | `"private" \| "public-read"`        | —                                 | Canned ACL applied to each upload                        |
 | `key`         | `(file: UploadFileInfo) => string`  | `<keyPrefix><timestamp>-<name>`   | Fully override the object key from file metadata          |
 
-`UploadedFile.path` after upload: `https://{bucket}.s3.{region}.amazonaws.com/{key}`
+`UploadedFile.path` after upload: `https://{bucket}.s3.{region}.amazonaws.com/{key}`. `UploadedFile.key` is the resolved S3 object key — pass it back into `retrieve()`, `delete()`, or `getSignedUrl()`.
+
+---
+
+### `S3StorageAdapter#retrieve(key)`
+
+Fetches the object via `GetObjectCommand` and returns its body as a `Readable`. Throws `NotFound` if the object does not exist.
+
+### `S3StorageAdapter#delete(key)`
+
+Removes the object via `DeleteObjectCommand`. S3 deletes are idempotent — deleting a key that doesn't exist does not throw.
+
+### `S3StorageAdapter#getSignedUrl(key, options?)`
+
+Returns a presigned GET URL via `@aws-sdk/s3-request-presigner`.
+
+| Field | Type | Default | Description |
+| --- | --- | --- | --- |
+| `expiresIn` | `number` | `900` (15 minutes) | URL validity window, in seconds |
 
 ---
 

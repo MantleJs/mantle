@@ -11,6 +11,9 @@
   "include": ["src/**/*.ts"],
   "references": [
     {
+      "path": "../mantle/tsconfig.lib.json"
+    },
+    {
       "path": "../storage/tsconfig.lib.json"
     }
   ],

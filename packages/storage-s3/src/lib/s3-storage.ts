@@ -1,6 +1,7 @@
 import { Transform } from "node:stream";
 import type { Readable } from "node:stream";
-import type { StorageAdapter, UploadedFile, UploadFileInfo } from "@mantlejs/storage";
+import { NotFound } from "@mantlejs/mantle";
+import type { GetSignedUrlOptions, StorageAdapter, UploadedFile, UploadFileInfo } from "@mantlejs/storage";
 
 export interface S3StorageConfig {
   bucket: string;
@@ -14,6 +15,8 @@ export interface S3StorageConfig {
   key?: (file: UploadFileInfo) => string;
 }
 
+const DEFAULT_SIGNED_URL_EXPIRES_IN = 900;
+
 export class S3StorageAdapter implements StorageAdapter {
   private readonly config: S3StorageConfig;
 
@@ -21,16 +24,21 @@ export class S3StorageAdapter implements StorageAdapter {
     this.config = config;
   }
 
-  async store(stream: Readable, info: UploadFileInfo): Promise<UploadedFile> {
-    const { Upload } = await import("@aws-sdk/lib-storage");
+  private async createClient() {
     const { S3Client } = await import("@aws-sdk/client-s3");
+    const { region, credentials } = this.config;
 
-    const { bucket, region, keyPrefix = "", acl, credentials } = this.config;
-
-    const client = new S3Client({
+    return new S3Client({
       region,
       ...(credentials ? { credentials } : {}),
     });
+  }
+
+  async store(stream: Readable, info: UploadFileInfo): Promise<UploadedFile> {
+    const { Upload } = await import("@aws-sdk/lib-storage");
+
+    const { bucket, region, keyPrefix = "", acl } = this.config;
+    const client = await this.createClient();
 
     const resolvedKey = this.config.key ? this.config.key(info) : `${keyPrefix}${Date.now()}-${info.originalname}`;
 
@@ -61,7 +69,40 @@ export class S3StorageAdapter implements StorageAdapter {
       mimetype: info.mimetype,
       size,
       path: `https://${bucket}.s3.${region}.amazonaws.com/${resolvedKey}`,
+      key: resolvedKey,
     };
+  }
+
+  async retrieve(key: string): Promise<Readable> {
+    const { GetObjectCommand } = await import("@aws-sdk/client-s3");
+    const client = await this.createClient();
+
+    try {
+      const response = await client.send(new GetObjectCommand({ Bucket: this.config.bucket, Key: key }));
+      return response.Body as Readable;
+    } catch (err) {
+      if (err instanceof Error && err.name === "NoSuchKey") {
+        throw new NotFound(`Storage key '${key}' not found`);
+      }
+      throw err;
+    }
+  }
+
+  async delete(key: string): Promise<void> {
+    const { DeleteObjectCommand } = await import("@aws-sdk/client-s3");
+    const client = await this.createClient();
+
+    await client.send(new DeleteObjectCommand({ Bucket: this.config.bucket, Key: key }));
+  }
+
+  async getSignedUrl(key: string, options: GetSignedUrlOptions = {}): Promise<string> {
+    const { GetObjectCommand } = await import("@aws-sdk/client-s3");
+    const { getSignedUrl } = await import("@aws-sdk/s3-request-presigner");
+    const client = await this.createClient();
+
+    return getSignedUrl(client, new GetObjectCommand({ Bucket: this.config.bucket, Key: key }), {
+      expiresIn: options.expiresIn ?? DEFAULT_SIGNED_URL_EXPIRES_IN,
+    });
   }
 }
 

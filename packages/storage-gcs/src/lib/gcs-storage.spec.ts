@@ -1,5 +1,6 @@
 import { Readable, PassThrough } from "node:stream";
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { NotFound } from "@mantlejs/mantle";
 import { gcsStorage, GcsStorageAdapter } from "./gcs-storage.js";
 
 // ---------------------------------------------------------------------------
@@ -36,6 +37,9 @@ function makeMockFile() {
       createWriteStreamOptions = options;
       return mockWriteStream;
     }),
+    createReadStream: vi.fn(),
+    delete: vi.fn().mockResolvedValue(undefined),
+    getSignedUrl: vi.fn().mockResolvedValue(["https://signed.example/file.png"]),
   };
 }
 
@@ -87,6 +91,7 @@ describe("GcsStorageAdapter#store", () => {
     });
     expect(result.path).toMatch(/^gs:\/\/test-bucket\//);
     expect(result.size).toBe(Buffer.byteLength("image-data"));
+    expect(result.key).toBe(result.path.replace("gs://test-bucket/", ""));
   });
 
   it("returns an HTTPS URL when public is true", async () => {
@@ -178,5 +183,94 @@ describe("GcsStorageAdapter#store", () => {
     process.nextTick(() => mockWriteStream.destroy(boom));
 
     await expect(adapter.store(hangingSource, fileInfo)).rejects.toThrow("GCS write failure");
+  });
+});
+
+describe("GcsStorageAdapter#retrieve", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    const mockFile = makeMockFile();
+    mockBucket.file.mockReturnValue(mockFile);
+  });
+
+  it("returns the file's read stream", async () => {
+    const readStream = new PassThrough();
+    const mockFile = makeMockFile();
+    mockFile.createReadStream.mockReturnValue(readStream);
+    mockBucket.file.mockReturnValue(mockFile);
+
+    const adapter = new GcsStorageAdapter(defaultConfig);
+    const result = await adapter.retrieve("uploads/photo.jpg");
+
+    expect(mockBucket.file).toHaveBeenCalledWith("uploads/photo.jpg");
+    expect(result).toBe(readStream);
+  });
+});
+
+describe("GcsStorageAdapter#delete", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    const mockFile = makeMockFile();
+    mockBucket.file.mockReturnValue(mockFile);
+  });
+
+  it("deletes the file by key", async () => {
+    const mockFile = makeMockFile();
+    mockBucket.file.mockReturnValue(mockFile);
+
+    const adapter = new GcsStorageAdapter(defaultConfig);
+    await adapter.delete("uploads/photo.jpg");
+
+    expect(mockBucket.file).toHaveBeenCalledWith("uploads/photo.jpg");
+    expect(mockFile.delete).toHaveBeenCalledOnce();
+  });
+
+  it("throws NotFound when the underlying object does not exist", async () => {
+    const mockFile = makeMockFile();
+    mockFile.delete.mockRejectedValue(Object.assign(new Error("not found"), { code: 404 }));
+    mockBucket.file.mockReturnValue(mockFile);
+
+    const adapter = new GcsStorageAdapter(defaultConfig);
+    await expect(adapter.delete("missing.jpg")).rejects.toBeInstanceOf(NotFound);
+  });
+
+  it("rethrows other errors unchanged", async () => {
+    const mockFile = makeMockFile();
+    mockFile.delete.mockRejectedValue(new Error("network down"));
+    mockBucket.file.mockReturnValue(mockFile);
+
+    const adapter = new GcsStorageAdapter(defaultConfig);
+    await expect(adapter.delete("photo.jpg")).rejects.toThrow("network down");
+  });
+});
+
+describe("GcsStorageAdapter#getSignedUrl", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("returns a signed URL with the default expiry", async () => {
+    const mockFile = makeMockFile();
+    mockBucket.file.mockReturnValue(mockFile);
+    vi.useFakeTimers().setSystemTime(0);
+
+    const adapter = new GcsStorageAdapter(defaultConfig);
+    const url = await adapter.getSignedUrl("uploads/photo.jpg");
+
+    expect(url).toBe("https://signed.example/file.png");
+    expect(mockFile.getSignedUrl).toHaveBeenCalledWith({ action: "read", expires: 900_000 });
+    vi.useRealTimers();
+  });
+
+  it("passes a custom expiresIn through", async () => {
+    const mockFile = makeMockFile();
+    mockBucket.file.mockReturnValue(mockFile);
+    vi.useFakeTimers().setSystemTime(0);
+
+    const adapter = new GcsStorageAdapter(defaultConfig);
+    await adapter.getSignedUrl("uploads/photo.jpg", { expiresIn: 60 });
+
+    expect(mockFile.getSignedUrl).toHaveBeenCalledWith({ action: "read", expires: 60_000 });
+    vi.useRealTimers();
   });
 });

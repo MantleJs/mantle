@@ -20,7 +20,7 @@ npm install @mantlejs/storage busboy
 
 ### Storage adapters
 
-The built-in `diskStorage()` adapter writes files to a local directory. The `StorageAdapter` interface is intentionally thin, so cloud adapters (S3, GCS) can be plugged in via the `storage` option. Cloud adapters are planned for Phase 2.
+The built-in `diskStorage()` adapter writes files to a local directory. The `StorageAdapter` interface covers the full file lifecycle — `store()`, `retrieve()`, `delete()`, and an optional `getSignedUrl()` — so cloud adapters can be plugged in via the `storage` option. See [`@mantlejs/storage-s3`](../storage-s3) and [`@mantlejs/storage-gcs`](../storage-gcs) for cloud-backed implementations.
 
 ### How files reach the hook
 
@@ -78,7 +78,8 @@ The service's `create` method receives `context.data.photo` as an `UploadedFile`
   "originalname": "avatar.jpg",
   "mimetype": "image/jpeg",
   "size": 42317,
-  "path": "./uploads/1718900000000-avatar.jpg"
+  "path": "./uploads/1718900000000-avatar.jpg",
+  "key": "1718900000000-avatar.jpg"
 }
 ```
 
@@ -130,7 +131,9 @@ const storage = diskStorage({
 ```
 
 - Creates `destination` (including parent directories) if it does not exist.
-- Returns the absolute path of the saved file in `UploadedFile.path`.
+- Returns the absolute path of the saved file in `UploadedFile.path`, and the filename (relative to `destination`) in `UploadedFile.key`.
+- `retrieve(key)` and `delete(key)` take that same `key` value and resolve it against `destination`; both reject with `BadRequest` if the resolved path would escape `destination` (e.g. a `key` containing `../`), and `delete()` rejects with `NotFound` if the file does not exist.
+- `getSignedUrl` is intentionally omitted — there is no direct-download concept for local disk.
 
 #### `DiskStorageConfig`
 
@@ -138,6 +141,31 @@ const storage = diskStorage({
 | --- | --- | --- | --- |
 | `destination` | `string` | — | Directory to write files into (required) |
 | `filename` | `(info: UploadFileInfo) => string` | `${Date.now()}-${originalname}` | Filename transform |
+
+---
+
+### Retrieving and deleting stored files
+
+Every `StorageAdapter` supports reading back and removing a previously stored file via the `key` returned from `store()`:
+
+```typescript
+const engine = app.get<UploadEngine>("upload");
+
+const stream = await engine.storage.retrieve(uploadedFile.key); // Readable
+await engine.storage.delete(uploadedFile.key);
+
+if (engine.storage.getSignedUrl) {
+  const url = await engine.storage.getSignedUrl(uploadedFile.key, { expiresIn: 300 });
+}
+```
+
+`getSignedUrl` is optional on the interface — disk storage does not implement it, so always feature-detect before calling it.
+
+#### `GetSignedUrlOptions`
+
+| Field | Type | Default | Description |
+| --- | --- | --- | --- |
+| `expiresIn` | `number` | adapter-specific (S3/GCS default to 900s) | URL validity window, in seconds |
 
 ---
 
@@ -185,7 +213,8 @@ interface UploadedFile {
   originalname: string; // original filename from the client
   mimetype: string;     // MIME type (e.g. "image/jpeg")
   size: number;         // file size in bytes
-  path: string;         // resolved path on disk (local) or URL (cloud adapter)
+  path: string;         // resolved path on disk (local) or display URL (cloud adapter)
+  key: string;          // the adapter-native key — pass this back to retrieve()/delete()/getSignedUrl()
 }
 ```
 
@@ -196,25 +225,41 @@ interface UploadedFile {
 Implement `StorageAdapter` to redirect uploads to cloud storage, a database, or any other destination:
 
 ```typescript
-import type { StorageAdapter, UploadFileInfo, UploadedFile } from "@mantlejs/storage";
+import type { GetSignedUrlOptions, StorageAdapter, UploadFileInfo, UploadedFile } from "@mantlejs/storage";
 import type { Readable } from "node:stream";
 
-const s3Storage: StorageAdapter = {
+const customStorage: StorageAdapter = {
   async store(stream: Readable, info: UploadFileInfo): Promise<UploadedFile> {
     const key = `uploads/${Date.now()}-${info.originalname}`;
-    // stream to S3 ...
+    // stream to the backend ...
     return {
       fieldname: info.fieldname,
       originalname: info.originalname,
       mimetype: info.mimetype,
       size: bytesUploaded,
-      path: `https://my-bucket.s3.amazonaws.com/${key}`,
+      path: `https://my-bucket.example.com/${key}`,
+      key,
     };
+  },
+
+  async retrieve(key: string): Promise<Readable> {
+    // return a Readable for the stored object
+  },
+
+  async delete(key: string): Promise<void> {
+    // remove the stored object
+  },
+
+  // optional — omit entirely if the backend has no direct-download concept
+  async getSignedUrl(key: string, options?: GetSignedUrlOptions): Promise<string> {
+    // return a time-limited download URL
   },
 };
 
-app.configure(upload({ storage: s3Storage }));
+app.configure(upload({ storage: customStorage }));
 ```
+
+`@mantlejs/storage-s3` and `@mantlejs/storage-gcs` are reference implementations of this interface backed by AWS S3 and Google Cloud Storage respectively.
 
 ---
 
@@ -228,6 +273,7 @@ import type {
   StorageAdapter,
   DiskStorageConfig,
   HandleUploadOptions,
+  GetSignedUrlOptions,
 } from "@mantlejs/storage";
 ```
 
@@ -236,9 +282,10 @@ import type {
 | `UploadConfig` | Options passed to `upload()` |
 | `UploadedFile` | Metadata returned after a file is stored |
 | `UploadFileInfo` | Subset of file info available before storage (fieldname, originalname, mimetype) |
-| `StorageAdapter` | Interface for custom storage backends |
+| `StorageAdapter` | Interface for custom storage backends (`store`, `retrieve`, `delete`, optional `getSignedUrl`) |
 | `DiskStorageConfig` | Options for `diskStorage()` |
 | `HandleUploadOptions` | Options for `handleUpload()` |
+| `GetSignedUrlOptions` | Options for `StorageAdapter.getSignedUrl()` |
 
 ---
 
@@ -249,6 +296,8 @@ import type {
 | `BadRequest` | 400 | File field required but absent |
 | `BadRequest` | 400 | MIME type not in `allowedMimeTypes` |
 | `BadRequest` | 400 | File exceeds `maxFileSize` |
+| `BadRequest` | 400 | `diskStorage()` `retrieve`/`delete` called with a key that resolves outside `destination` |
+| `NotFound` | 404 | `diskStorage()` `delete()` called with a key that does not exist |
 
 ---
 

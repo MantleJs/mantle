@@ -17,6 +17,7 @@ export interface UploadedFile {
   mimetype: string;
   size: number;
   path: string;
+  key: string;
 }
 
 export interface UploadFileInfo {
@@ -25,8 +26,15 @@ export interface UploadFileInfo {
   mimetype: string;
 }
 
+export interface GetSignedUrlOptions {
+  expiresIn?: number;
+}
+
 export interface StorageAdapter {
   store(stream: Readable, info: UploadFileInfo): Promise<UploadedFile>;
+  retrieve(key: string): Promise<Readable>;
+  delete(key: string): Promise<void>;
+  getSignedUrl?(key: string, options?: GetSignedUrlOptions): Promise<string>;
 }
 
 export interface HandleUploadOptions {

@@ -5,7 +5,7 @@ import { join, sep } from "node:path";
 import { PassThrough, Readable } from "node:stream";
 import type { IncomingMessage } from "node:http";
 import type { MantleApplication, HookContext } from "@mantlejs/mantle";
-import { BadRequest } from "@mantlejs/mantle";
+import { BadRequest, NotFound } from "@mantlejs/mantle";
 import { upload } from "./upload.js";
 import { diskStorage } from "./disk-storage.js";
 import { handleUpload } from "./handle-upload.js";
@@ -68,7 +68,10 @@ function makeEngine(overrides: Partial<UploadEngine> = {}): UploadEngine {
         mimetype: "text/plain",
         size: 13,
         path: "/tmp/test.txt",
+        key: "test.txt",
       }),
+      retrieve: vi.fn(),
+      delete: vi.fn(),
     },
     ...overrides,
   };
@@ -127,6 +130,8 @@ describe("upload()", () => {
   it("uses a custom storage adapter when provided", () => {
     const adapter: StorageAdapter = {
       store: vi.fn(),
+      retrieve: vi.fn(),
+      delete: vi.fn(),
     };
     const app = makeApp();
     upload({ storage: adapter })(app);
@@ -160,6 +165,7 @@ describe("diskStorage()", () => {
     expect(result.mimetype).toBe("text/plain");
     expect(result.size).toBe(13);
     expect(result.path).toBe(join(tmpDir, "stored.txt"));
+    expect(result.key).toBe("stored.txt");
   });
 
   it("writes file contents to disk", async () => {
@@ -244,6 +250,47 @@ describe("diskStorage()", () => {
     const info: UploadFileInfo = { fieldname: "file", originalname: "ok.txt", mimetype: "text/plain" };
 
     await expect(storage.store(stream, info)).rejects.toBeInstanceOf(BadRequest);
+  });
+
+  it("retrieves a stored file's contents by key", async () => {
+    const storage = diskStorage({ destination: tmpDir, filename: () => "retrieve-me.txt" });
+    const content = "retrievable content";
+    await storage.store(Readable.from([content]), {
+      fieldname: "file",
+      originalname: "r.txt",
+      mimetype: "text/plain",
+    });
+
+    const chunks: Buffer[] = [];
+    for await (const chunk of await storage.retrieve("retrieve-me.txt")) {
+      chunks.push(chunk as Buffer);
+    }
+    expect(Buffer.concat(chunks).toString("utf8")).toBe(content);
+  });
+
+  it("throws BadRequest when retrieve is called with a traversal key", async () => {
+    const storage = diskStorage({ destination: tmpDir });
+    await expect(storage.retrieve("../../escape.txt")).rejects.toBeInstanceOf(BadRequest);
+  });
+
+  it("deletes a stored file by key", async () => {
+    const storage = diskStorage({ destination: tmpDir, filename: () => "delete-me.txt" });
+    await storage.store(Readable.from(["x"]), { fieldname: "file", originalname: "d.txt", mimetype: "text/plain" });
+
+    await storage.delete("delete-me.txt");
+
+    const files = await readdir(tmpDir);
+    expect(files).not.toContain("delete-me.txt");
+  });
+
+  it("throws NotFound when deleting a key that does not exist", async () => {
+    const storage = diskStorage({ destination: tmpDir });
+    await expect(storage.delete("does-not-exist.txt")).rejects.toBeInstanceOf(NotFound);
+  });
+
+  it("throws BadRequest when delete is called with a traversal key", async () => {
+    const storage = diskStorage({ destination: tmpDir });
+    await expect(storage.delete("../../escape.txt")).rejects.toBeInstanceOf(BadRequest);
   });
 });
 
@@ -358,8 +405,12 @@ describe("handleUpload()", () => {
     const engine = makeEngine({ storage });
     const CRLF = "\r\n";
     const body = Buffer.concat([
-      Buffer.from(`--${BOUNDARY}${CRLF}Content-Disposition: form-data; name="unrelated"; filename="a.txt"${CRLF}Content-Type: text/plain${CRLF}${CRLF}aaa${CRLF}`),
-      Buffer.from(`--${BOUNDARY}${CRLF}Content-Disposition: form-data; name="file"; filename="b.txt"${CRLF}Content-Type: text/plain${CRLF}${CRLF}bbb${CRLF}`),
+      Buffer.from(
+        `--${BOUNDARY}${CRLF}Content-Disposition: form-data; name="unrelated"; filename="a.txt"${CRLF}Content-Type: text/plain${CRLF}${CRLF}aaa${CRLF}`,
+      ),
+      Buffer.from(
+        `--${BOUNDARY}${CRLF}Content-Disposition: form-data; name="file"; filename="b.txt"${CRLF}Content-Type: text/plain${CRLF}${CRLF}bbb${CRLF}`,
+      ),
       Buffer.from(`--${BOUNDARY}--${CRLF}`),
     ]);
     const req = makeMultipartRequest(body);

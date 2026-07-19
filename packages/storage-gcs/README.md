@@ -22,6 +22,10 @@ npm install @mantlejs/storage-gcs @google-cloud/storage
 
 The adapter pipes the incoming `Readable` stream directly into a GCS write stream via `file.createWriteStream()`. No temporary files or in-memory buffering — memory usage stays flat regardless of file size.
 
+### Read, delete, and signed URLs
+
+Beyond `store()`, the adapter implements the rest of the `StorageAdapter` interface: `retrieve(key)` returns `file.createReadStream()`, `delete(key)` removes the object (mapping a 404 to `NotFound`), and `getSignedUrl(key, options?)` returns a v4 signed URL via `file.getSignedUrl()`. All three take the exact `key` value returned on `UploadedFile.key` from `store()`.
+
 ---
 
 ## Quick start
@@ -95,6 +99,17 @@ gcsStorage({
 });
 ```
 
+**Retrieve, delete, and generate a signed URL:**
+
+```typescript
+const storage = gcsStorage({ bucket: "my-bucket" });
+const uploaded = await storage.store(stream, info);
+
+const readStream = await storage.retrieve(uploaded.key);
+const url = await storage.getSignedUrl(uploaded.key, { expiresIn: 300 }); // 5 minutes
+await storage.delete(uploaded.key);
+```
+
 ---
 
 ## API
@@ -125,6 +140,26 @@ const storage = gcsStorage({
 `UploadedFile.path` after upload:
 - `public: true` → `https://storage.googleapis.com/{bucket}/{key}`
 - `public: false` → `gs://{bucket}/{key}` (use for signed URL generation or server-side access)
+
+`UploadedFile.key` is the resolved GCS object name — pass it back into `retrieve()`, `delete()`, or `getSignedUrl()`.
+
+---
+
+### `GcsStorageAdapter#retrieve(key)`
+
+Returns the object's `Readable` via `file.createReadStream()`.
+
+### `GcsStorageAdapter#delete(key)`
+
+Removes the object via `file.delete()`. Throws `NotFound` if the underlying GCS API responds with a 404.
+
+### `GcsStorageAdapter#getSignedUrl(key, options?)`
+
+Returns a v4 signed read URL via `file.getSignedUrl()`.
+
+| Field | Type | Default | Description |
+| --- | --- | --- | --- |
+| `expiresIn` | `number` | `900` (15 minutes) | URL validity window, in seconds |
 
 ---
 
