@@ -349,20 +349,9 @@ NX_DAEMON=false npx nx g @nx/js:library   --name=<name> --directory=packages/<na
 - For Nx plugin best practices, check `node_modules/@nx/<plugin>/PLUGIN.md`. Not all plugins have this file - proceed without it if unavailable.
 - NEVER guess CLI flags - always check nx_docs or `--help` first when unsure
 
-## Docs
-
-- `docs/planning/` — PRDs, TDDs, phase checklists
-- `docs/decisions/` — ADRs and design rationale; follow `adr-001-*.md` as the naming and format template
-
-## FeathersJS comparisons
-
-When the user asks to compare a Mantle package or feature with FeathersJS, ALWAYS write the comparison to a markdown file in `docs/decisions/` (e.g. `docs/decisions/socketio-comparison.md`, `docs/decisions/auth-comparison.md`) in addition to any inline response. Use the existing files in `docs/decisions/` as format reference.
-
 ## Scaffolding & Generators
 
 - For scaffolding tasks (creating apps, libs, project structure, setup), ALWAYS invoke the `nx-generate` skill FIRST before exploring or calling MCP tools
-- After generating a new package, ALWAYS replace the Nx-generated `README.md` with a full package README following the template in `packages/auth/README.md`. Sections: package name + one-line description, Installation, Concepts, Quick start, API (with options table), Types, Development, Publishing.
-- After generating a new package, ALWAYS add it to the Packages table in the root `README.md`.
 
 ## When to use nx_docs
 
