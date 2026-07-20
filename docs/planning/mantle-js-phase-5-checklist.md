@@ -98,7 +98,7 @@ strictly in order: develop packages (items 1–8) → release plan (item 9) → 
 ## Stage 2 — Release plan
 
 - [ ] **9. Finalize the release plan** *(PRD [Release Plan](./mantle-js-phase-5-prd.md#release-plan); TDD §10)*
-  - `npx nx run-many -t build,test,lint` fully green (examples included once they exist)
+  - `npx nx run-many -t build,test,lint,typecheck` fully green (examples included once they exist)
   - `tools/check-publish-fields` script + CI target: `publishConfig.access: "public"`, `files: ["dist"]`,
     `exports`/`main`/`module`/`types` into `dist`, license/repository fields, aligned peer ranges
   - README audit: every published package has installation, quick start, API reference

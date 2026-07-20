@@ -475,7 +475,7 @@ vector repo for embedding upserts.
 
 `examples/*` are Nx **application** projects (not libraries): excluded from publishing and from the
 `@nx/enforce-module-boundaries` library matrix (apps may import any `@mantlejs/*`), included in
-`build`/`test`/`lint` run-many so CI keeps them honest. TS path mappings resolve workspace packages
+`build`/`test`/`lint`/`typecheck` run-many so CI keeps them honest. TS path mappings resolve workspace packages
 pre-release; the post-release verification temporarily installs registry versions (script-driven, not
 committed).
 

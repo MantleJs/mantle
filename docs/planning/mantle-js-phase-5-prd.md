@@ -324,7 +324,7 @@ canonical example before publish.
 ### Stages
 
 1. **Pre-flight (stage 2 of the delivery sequence)**
-   - `npx nx run-many -t build,test,lint` fully green
+   - `npx nx run-many -t build,test,lint,typecheck` fully green
    - Every `package.json`: `"publishConfig": { "access": "public" }`, correct `exports`/`main`/`module`/`types`,
      `"files": ["dist"]`, aligned `peerDependencies` ranges, repository/homepage/license fields
    - README audit: every published package has installation, quick start, and API reference at minimum
@@ -385,7 +385,7 @@ mantle/
 - An MCP-capable agent (e.g. Claude) can list and call knowledge-base tools through `@mantlejs/mcp`, and a
   `Forbidden` from a hook surfaces as a tool error — proving agents go through the same pipeline as humans
 - Zero secrets in logs when running the canonical example with `includeParams: true` (redaction verified)
-- `npx nx run-many -t build,test,lint` green across the workspace, including examples
+- `npx nx run-many -t build,test,lint,typecheck` green across the workspace, including examples
 
 ---
 
