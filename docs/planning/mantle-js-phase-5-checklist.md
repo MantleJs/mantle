@@ -55,7 +55,7 @@ strictly in order: develop packages (items 1–8) → release plan (item 9) → 
   **Accept:** auth-URL spec (form_post + scopes); id_token profile specs (with/without email; first-login
   name; malformed `user` ignored); missing `sub` → `GeneralError`; exchange failure → `GeneralError`.
 
-- [ ] **4. Implement `@mantlejs/auth-microsoft`** *(TDD §4)*
+- [x] **4. Implement `@mantlejs/auth-microsoft`** *(TDD §4)*
   New package over `@mantlejs/auth-oauth` + Arctic `MicrosoftEntraId`. PKCE on; `tenant` option (default
   `"common"`); profile from `graph.microsoft.com/oidc/userinfo`; `entityIdField` default `"microsoftId"`.
   Update `CLAUDE.md` dependency matrix + root README.

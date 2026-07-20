@@ -104,6 +104,9 @@
     },
     {
       "path": "./packages/auth-apple"
+    },
+    {
+      "path": "./packages/auth-microsoft"
     }
   ]
 }
