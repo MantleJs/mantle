@@ -74,7 +74,7 @@ describe("githubStrategy()", () => {
 // ─── GitHub provider: buildAuthUrl ───────────────────────────────────────────
 
 describe("githubProvider.buildAuthUrl()", () => {
-  let provider: ReturnType<Parameters<typeof vi.mocked<typeof createOAuthPlugin>>[1]>;
+  let provider: Parameters<typeof createOAuthPlugin>[1];
 
   beforeEach(() => {
     vi.mocked(createOAuthPlugin).mockClear();
@@ -113,7 +113,7 @@ describe("githubProvider.buildAuthUrl()", () => {
 // ─── GitHub provider: exchangeCode ───────────────────────────────────────────
 
 describe("githubProvider.exchangeCode()", () => {
-  let provider: ReturnType<Parameters<typeof vi.mocked<typeof createOAuthPlugin>>[1]>;
+  let provider: Parameters<typeof createOAuthPlugin>[1];
   const fetchMock = vi.fn();
 
   beforeEach(() => {
@@ -157,7 +157,7 @@ describe("githubProvider.exchangeCode()", () => {
 // ─── GitHub provider: fetchProfile ───────────────────────────────────────────
 
 describe("githubProvider.fetchProfile()", () => {
-  let provider: ReturnType<Parameters<typeof vi.mocked<typeof createOAuthPlugin>>[1]>;
+  let provider: Parameters<typeof createOAuthPlugin>[1];
   const fetchMock = vi.fn();
 
   beforeEach(() => {

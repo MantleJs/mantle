@@ -1,7 +1,7 @@
 import { assertOperators, BadRequest } from "@mantlejs/mantle";
 
 type Primitive = string | number | boolean | null;
-type WhereValue = Primitive | Primitive[] | Record<string, unknown>;
+type WhereValue = Primitive | Primitive[] | Record<string, unknown> | WhereClause[];
 export type WhereClause = Record<string, WhereValue>;
 
 /** All query operators supported by the Neo4j adapter. */

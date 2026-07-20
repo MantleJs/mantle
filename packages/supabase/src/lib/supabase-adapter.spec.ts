@@ -9,7 +9,6 @@ const removedChannels: unknown[] = [];
 const mockChannel = {
   on: vi.fn().mockReturnThis(),
   subscribe: vi.fn((cb: (status: string) => void) => {
-    subscribeCallback = cb;
     // Simulate async subscription success
     Promise.resolve().then(() => cb("SUBSCRIBED"));
     return mockChannel;
@@ -36,12 +35,14 @@ describe("supabaseAdapter", () => {
     vi.clearAllMocks();
     capturedBroadcastHandler = null;
     removedChannels.length = 0;
-    mockChannel.on.mockImplementation((event: string, filter: unknown, handler: (payload: { payload: SyncMessage }) => void) => {
-      if (event === "broadcast") {
-        capturedBroadcastHandler = handler;
-      }
-      return mockChannel;
-    });
+    mockChannel.on.mockImplementation(
+      (event: string, filter: unknown, handler: (payload: { payload: SyncMessage }) => void) => {
+        if (event === "broadcast") {
+          capturedBroadcastHandler = handler;
+        }
+        return mockChannel;
+      },
+    );
     mockChannel.subscribe.mockImplementation((cb: (status: string) => void) => {
       Promise.resolve().then(() => cb("SUBSCRIBED"));
       return mockChannel;

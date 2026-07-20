@@ -2,7 +2,7 @@ import type { Knex } from "knex";
 import { assertOperators, BadRequest } from "@mantlejs/mantle";
 
 type Primitive = string | number | boolean | null;
-type WhereValue = Primitive | Primitive[] | Record<string, unknown>;
+type WhereValue = Primitive | Primitive[] | Record<string, unknown> | WhereClause[];
 export type WhereClause = Record<string, WhereValue>;
 
 const COMPARISON_OPS: Record<string, string> = {
@@ -81,11 +81,7 @@ function applyAnd(builder: Knex.QueryBuilder, conditions: WhereClause[]): Knex.Q
   });
 }
 
-function applyOperators(
-  builder: Knex.QueryBuilder,
-  col: string,
-  ops: Record<string, unknown>,
-): Knex.QueryBuilder {
+function applyOperators(builder: Knex.QueryBuilder, col: string, ops: Record<string, unknown>): Knex.QueryBuilder {
   for (const [op, operand] of Object.entries(ops)) {
     if (op in COMPARISON_OPS) {
       builder = builder.where(col, COMPARISON_OPS[op], operand as Primitive);
@@ -96,12 +92,7 @@ function applyOperators(
   return builder;
 }
 
-function applySpecialOp(
-  builder: Knex.QueryBuilder,
-  col: string,
-  op: string,
-  value: unknown,
-): Knex.QueryBuilder {
+function applySpecialOp(builder: Knex.QueryBuilder, col: string, op: string, value: unknown): Knex.QueryBuilder {
   switch (op) {
     case "$ne":
       return value === null ? builder.whereNotNull(col) : builder.whereNot(col, value as Primitive);
@@ -116,8 +107,7 @@ function applySpecialOp(
     case "$ilike":
       return builder.whereILike(col, value as string);
     case "$contains": {
-      const client =
-        (builder as unknown as { client?: { config?: { client?: string } } }).client?.config?.client ?? "";
+      const client = (builder as unknown as { client?: { config?: { client?: string } } }).client?.config?.client ?? "";
       if (!client.startsWith("pg") && !client.startsWith("postgres")) {
         throw new BadRequest(
           `Operator $contains is only supported by @mantlejs/knex on PostgreSQL (current client: ${client || "unknown"}).`,

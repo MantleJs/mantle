@@ -137,10 +137,7 @@ describe("socketio() — plugin setup", () => {
     const app = makeApp();
     app.configure(socketio({ timeout: 5000 }));
     callListen(app);
-    expect(vi.mocked(Server)).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.objectContaining({ pingTimeout: 5000 }),
-    );
+    expect(vi.mocked(Server)).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ pingTimeout: 5000 }));
   });
 
   it("registers a connection listener on the socket.io Server", () => {
@@ -202,9 +199,7 @@ describe("socketio() — standard service methods", () => {
     app.use("messages", svc as never);
     const cb = vi.fn();
     await invoke("find", "messages", { query: { active: true } }, cb);
-    expect(svc.find).toHaveBeenCalledWith(
-      expect.objectContaining({ query: { active: true }, provider: "socket.io" }),
-    );
+    expect(svc.find).toHaveBeenCalledWith(expect.objectContaining({ query: { active: true }, provider: "socket.io" }));
   });
 
   it("get: passes id to service.get", async () => {
@@ -230,7 +225,11 @@ describe("socketio() — standard service methods", () => {
     app.use("messages", svc as never);
     const cb = vi.fn();
     await invoke("update", "messages", "1", { text: "Edited" }, {}, cb);
-    expect(svc.update).toHaveBeenCalledWith("1", { text: "Edited" }, expect.objectContaining({ provider: "socket.io" }));
+    expect(svc.update).toHaveBeenCalledWith(
+      "1",
+      { text: "Edited" },
+      expect.objectContaining({ provider: "socket.io" }),
+    );
   });
 
   it("patch: passes id and data to service.patch", async () => {
@@ -238,7 +237,11 @@ describe("socketio() — standard service methods", () => {
     app.use("messages", svc as never);
     const cb = vi.fn();
     await invoke("patch", "messages", "1", { text: "Patched" }, {}, cb);
-    expect(svc.patch).toHaveBeenCalledWith("1", { text: "Patched" }, expect.objectContaining({ provider: "socket.io" }));
+    expect(svc.patch).toHaveBeenCalledWith(
+      "1",
+      { text: "Patched" },
+      expect.objectContaining({ provider: "socket.io" }),
+    );
   });
 
   it("remove: passes id to service.remove", async () => {
@@ -478,7 +481,7 @@ describe("socketio() — channel broadcasting (opt-in)", () => {
   it("uses per-service publisher over global publisher", async () => {
     const svc = makeService();
     app.use("messages", svc as never);
-    app.publish(() => app.channel("everyone"));          // global
+    app.publish(() => app.channel("everyone")); // global
     app.service("messages").publish(() => app.channel("nobody")); // per-service: empty channel
 
     await app.service("messages").create({ text: "Hello" });
@@ -497,9 +500,10 @@ describe("socketio() — channel broadcasting (opt-in)", () => {
   it("params.rooms broadcasts only to the named channels, even without a publisher", async () => {
     const inRoom = makeSocket("in-room");
     captureConnectionHandler()(inRoom);
-    const roomConn = app
-      .channel("everyone")
-      .connections.find((c) => c["__socketId"] === "in-room") as Record<string, unknown>;
+    const roomConn = app.channel("everyone").connections.find((c) => c["__socketId"] === "in-room") as Record<
+      string,
+      unknown
+    >;
     app.channel("admins").join(roomConn);
 
     const svc = makeService();
@@ -557,9 +561,9 @@ describe("socketio() — publisher filter", () => {
     adminConn["role"] = "admin";
 
     app.use("secret", makeService() as never);
-    app.service("secret").publish(() =>
-      app.channel("all").filter((_, conn) => (conn as Record<string, unknown>)["role"] === "admin"),
-    );
+    app
+      .service("secret")
+      .publish(() => app.channel("all").filter((_, conn) => (conn as Record<string, unknown>)["role"] === "admin"));
 
     await app.service("secret").create({});
     expect(adminSocket.emit).toHaveBeenCalledWith("secret created", expect.any(Object));
@@ -609,7 +613,7 @@ describe("socketio() — connection state", () => {
   it("includes a connection object in params for each socket call", async () => {
     let capturedConnection: Record<string, unknown> | undefined;
     app.use("messages", {
-      async find(params) {
+      async find(params?: { connection?: Record<string, unknown> }) {
         capturedConnection = params?.connection;
         return [];
       },
@@ -624,7 +628,7 @@ describe("socketio() — connection state", () => {
   it("connection state persists across calls from the same socket", async () => {
     const connections: Array<Record<string, unknown>> = [];
     app.use("messages", {
-      async find(params) {
+      async find(params?: { connection?: Record<string, unknown> }) {
         if (params?.connection) connections.push(params.connection);
         return [];
       },
@@ -652,7 +656,7 @@ describe("socketio() — connection state", () => {
     const connectionsA: Array<Record<string, unknown>> = [];
     const connectionsB: Array<Record<string, unknown>> = [];
     app.use("messages", {
-      async find(params) {
+      async find(params?: { connection?: Record<string, unknown>; headers?: Record<string, string> }) {
         if (params?.connection) {
           if (params.headers?.["x-socket"] === "a") connectionsA.push(params.connection);
           else connectionsB.push(params.connection);

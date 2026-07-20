@@ -141,10 +141,10 @@ describe("error deserialization", () => {
     fetchMock.mockResolvedValueOnce(
       new Response("<html>bad gateway</html>", { status: 502, statusText: "Bad Gateway" }),
     );
-    const error = await client
+    const error = (await client
       .service("messages")
       .find()
-      .catch((e: unknown) => e as MantleClientError);
+      .catch((e: unknown) => e as MantleClientError)) as MantleClientError;
     expect(error).toBeInstanceOf(MantleClientError);
     expect(error.code).toBe(502);
     expect(error.message).toBe("Bad Gateway");
@@ -153,10 +153,10 @@ describe("error deserialization", () => {
   it("maps bare 404s to the NotFound name", async () => {
     const client = mantle({ url: BASE, storage: memoryStorage() });
     fetchMock.mockResolvedValueOnce(new Response("", { status: 404, statusText: "Not Found" }));
-    const error = await client
+    const error = (await client
       .service("messages")
       .get(9)
-      .catch((e: unknown) => e as MantleClientError);
+      .catch((e: unknown) => e as MantleClientError)) as MantleClientError;
     expect(error.name).toBe("NotFound");
   });
 

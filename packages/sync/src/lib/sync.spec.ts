@@ -86,8 +86,9 @@ describe("sync", () => {
     const emitSpy = vi.spyOn(app, "emit");
 
     // Simulate receiving back the same message (same originId)
-    if (!capturedHandler || !capturedOriginId) throw new Error("handler or originId not captured");
-    capturedHandler({ originId: capturedOriginId, path: "users", event: "created", result: {}, params: {} });
+    const handler = capturedHandler as ((msg: SyncMessage) => void) | null;
+    if (!handler || !capturedOriginId) throw new Error("handler or originId not captured");
+    handler({ originId: capturedOriginId, path: "users", event: "created", result: {}, params: {} });
 
     expect(emitSpy).not.toHaveBeenCalled();
   });
@@ -105,8 +106,9 @@ describe("sync", () => {
 
     const emitSpy = vi.spyOn(app, "emit");
 
-    if (!capturedHandler) throw new Error("handler not captured");
-    capturedHandler({
+    const handler = capturedHandler as ((msg: SyncMessage) => void) | null;
+    if (!handler) throw new Error("handler not captured");
+    handler({
       originId: "other-instance-id",
       path: "posts",
       event: "created",
@@ -127,13 +129,19 @@ describe("sync", () => {
     const app = mantle();
     await sync({ adapter })(app);
 
-    app.emit("service:event", "users", "created", { id: 1 }, {
-      provider: "rest",
-      query: { active: true },
-      headers: { authorization: "Bearer x" },
-      connection: { socket: "not-serializable" },
-      user: { id: 7, email: "alice@example.com", password: "hash" },
-    });
+    app.emit(
+      "service:event",
+      "users",
+      "created",
+      { id: 1 },
+      {
+        provider: "rest",
+        query: { active: true },
+        headers: { authorization: "Bearer x" },
+        connection: { socket: "not-serializable" },
+        user: { id: 7, email: "alice@example.com", password: "hash" },
+      },
+    );
 
     await vi.waitFor(() => expect(messages.length).toBe(1));
     expect(messages[0].params).toEqual({
@@ -158,8 +166,9 @@ describe("sync", () => {
 
     const emitSpy = vi.spyOn(app, "emit");
 
-    if (!capturedHandler) throw new Error("handler not captured");
-    capturedHandler({
+    const handler = capturedHandler as ((msg: SyncMessage) => void) | null;
+    if (!handler) throw new Error("handler not captured");
+    handler({
       originId: "other-instance-id",
       path: "posts",
       event: "created",
@@ -171,10 +180,16 @@ describe("sync", () => {
       } as unknown as SyncMessage["params"],
     });
 
-    expect(emitSpy).toHaveBeenCalledWith("service:event", "posts", "created", { id: 99 }, {
-      provider: "rest",
-      user: { id: 5 },
-    });
+    expect(emitSpy).toHaveBeenCalledWith(
+      "service:event",
+      "posts",
+      "created",
+      { id: 99 },
+      {
+        provider: "rest",
+        user: { id: 5 },
+      },
+    );
   });
 
   it("closes the adapter during teardown", async () => {
@@ -194,7 +209,10 @@ describe("sync", () => {
     app.set("logger", { debug: vi.fn(), info: vi.fn(), warn: warnSpy, error: vi.fn() });
 
     await expect(sync({ adapter })(app)).resolves.toBeUndefined();
-    expect(warnSpy).toHaveBeenCalledWith("sync: subscribe failed", expect.objectContaining({ component: "mantle:sync" }));
+    expect(warnSpy).toHaveBeenCalledWith(
+      "sync: subscribe failed",
+      expect.objectContaining({ component: "mantle:sync" }),
+    );
   });
 
   it("logs a warning and does not throw when publish fails", async () => {

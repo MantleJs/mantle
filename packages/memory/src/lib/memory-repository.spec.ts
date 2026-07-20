@@ -3,14 +3,14 @@ import { MemoryRepository, MEMORY_OPERATORS } from "./memory-repository.js";
 import { NotFound, NESTED_QUERY_CASES, NESTED_QUERY_RECORDS } from "@mantlejs/mantle";
 import type { NestedQueryRecord } from "@mantlejs/mantle";
 
-interface User {
+type User = {
   id: string;
   name: string;
   email: string;
   age: number;
   createdAt?: string;
   updatedAt?: string;
-}
+};
 
 describe("MemoryRepository", () => {
   let repo: MemoryRepository<User>;
@@ -232,7 +232,9 @@ describe("MemoryRepository", () => {
     });
 
     it("throws NotFound when record does not exist", async () => {
-      await expect(repo.updateById("missing", { name: "X", email: "x@x.com", age: 1 })).rejects.toBeInstanceOf(NotFound);
+      await expect(repo.updateById("missing", { name: "X", email: "x@x.com", age: 1 })).rejects.toBeInstanceOf(
+        NotFound,
+      );
     });
 
     it("preserves createdAt and updates updatedAt", async () => {

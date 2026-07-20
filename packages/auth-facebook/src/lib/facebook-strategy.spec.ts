@@ -74,7 +74,7 @@ describe("facebookStrategy()", () => {
 // ─── Facebook provider: buildAuthUrl ─────────────────────────────────────────
 
 describe("facebookProvider.buildAuthUrl()", () => {
-  let provider: ReturnType<Parameters<typeof vi.mocked<typeof createOAuthPlugin>>[1]>;
+  let provider: Parameters<typeof createOAuthPlugin>[1];
 
   beforeEach(() => {
     vi.mocked(createOAuthPlugin).mockClear();
@@ -113,7 +113,7 @@ describe("facebookProvider.buildAuthUrl()", () => {
 // ─── Facebook provider: exchangeCode ─────────────────────────────────────────
 
 describe("facebookProvider.exchangeCode()", () => {
-  let provider: ReturnType<Parameters<typeof vi.mocked<typeof createOAuthPlugin>>[1]>;
+  let provider: Parameters<typeof createOAuthPlugin>[1];
   const fetchMock = vi.fn();
 
   beforeEach(() => {
@@ -157,7 +157,7 @@ describe("facebookProvider.exchangeCode()", () => {
 // ─── Facebook provider: fetchProfile ─────────────────────────────────────────
 
 describe("facebookProvider.fetchProfile()", () => {
-  let provider: ReturnType<Parameters<typeof vi.mocked<typeof createOAuthPlugin>>[1]>;
+  let provider: Parameters<typeof createOAuthPlugin>[1];
   const fetchMock = vi.fn();
 
   beforeEach(() => {

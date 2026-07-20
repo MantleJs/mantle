@@ -46,7 +46,7 @@ describe("redisAdapter", () => {
     const adapter = redisAdapter();
     await adapter.subscribe("mantle:sync", handler);
 
-    const messageListener = mockOn.mock.calls.find(([event]: [string]) => event === "message")?.[1] as
+    const messageListener = mockOn.mock.calls.find((call: unknown[]) => call[0] === "message")?.[1] as
       | ((ch: string, payload: string) => void)
       | undefined;
 
@@ -61,7 +61,7 @@ describe("redisAdapter", () => {
     const adapter = redisAdapter();
     await adapter.subscribe("mantle:sync", handler);
 
-    const messageListener = mockOn.mock.calls.find(([event]: [string]) => event === "message")?.[1] as
+    const messageListener = mockOn.mock.calls.find((call: unknown[]) => call[0] === "message")?.[1] as
       | ((ch: string, payload: string) => void)
       | undefined;
 

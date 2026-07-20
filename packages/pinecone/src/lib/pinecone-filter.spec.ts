@@ -52,15 +52,15 @@ describe("toPineconeFilter", () => {
   });
 
   it("maps $or with sub-clauses", () => {
-    expect(
-      toPineconeFilter({ $or: [{ name: "Alice" }, { name: "Bob" }] } as Record<string, unknown>),
-    ).toEqual({ $or: [{ name: { $eq: "Alice" } }, { name: { $eq: "Bob" } }] });
+    expect(toPineconeFilter({ $or: [{ name: "Alice" }, { name: "Bob" }] })).toEqual({
+      $or: [{ name: { $eq: "Alice" } }, { name: { $eq: "Bob" } }],
+    });
   });
 
   it("maps $and with sub-clauses", () => {
-    expect(
-      toPineconeFilter({ $and: [{ age: { $gt: 18 } }, { age: { $lt: 65 } }] } as Record<string, unknown>),
-    ).toEqual({ $and: [{ age: { $gt: 18 } }, { age: { $lt: 65 } }] });
+    expect(toPineconeFilter({ $and: [{ age: { $gt: 18 } }, { age: { $lt: 65 } }] })).toEqual({
+      $and: [{ age: { $gt: 18 } }, { age: { $lt: 65 } }],
+    });
   });
 
   it("rejects $like (no pattern matching in Pinecone)", () => {
@@ -81,7 +81,7 @@ describe("toPineconeFilter", () => {
   });
 
   it("rejects unknown operators nested in $or", () => {
-    expect(() => toPineconeFilter({ $or: [{ age: { $get: 21 } }] } as Record<string, unknown>)).toThrow(BadRequest);
+    expect(() => toPineconeFilter({ $or: [{ age: { $get: 21 } }] })).toThrow(BadRequest);
   });
 
   it("passes $eq through unchanged", () => {

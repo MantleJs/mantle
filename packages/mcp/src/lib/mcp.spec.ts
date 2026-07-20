@@ -47,13 +47,15 @@ async function connect(app: MantleApplication, sessionParams?: ServiceParams): P
   return client;
 }
 
-function toolError(result: { isError?: boolean; content?: unknown }): Record<string, unknown> {
+// The index signature admits the SDK's compatibility result arm ({ toolResult: unknown }),
+// which otherwise fails the weak-type check against these option-bag parameters.
+function toolError(result: { isError?: boolean; content?: unknown; [key: string]: unknown }): Record<string, unknown> {
   expect(result.isError).toBe(true);
   const [first] = result.content as Array<{ type: string; text: string }>;
   return JSON.parse(first.text) as Record<string, unknown>;
 }
 
-function textResult<T>(result: { content?: unknown }): T {
+function textResult<T>(result: { content?: unknown; [key: string]: unknown }): T {
   const [first] = result.content as Array<{ type: string; text: string }>;
   return JSON.parse(first.text) as T;
 }
@@ -95,9 +97,11 @@ describe("tool generation", () => {
   });
 
   it("constrains the find where-operators to the adapter's capabilities and advertises the limit clamp", async () => {
-    const { app } = buildApp(
-      { services: { users: ["find"] }, transport: "stdio", query: { defaultLimit: 2, maxLimit: 3 } },
-    );
+    const { app } = buildApp({
+      services: { users: ["find"] },
+      transport: "stdio",
+      query: { defaultLimit: 2, maxLimit: 3 },
+    });
     const client = await connect(app);
     const { tools } = await client.listTools();
     const find = tools.find((tool) => tool.name === "users_find");
@@ -236,7 +240,11 @@ describe("dispatch through the hook pipeline", () => {
 });
 
 describe("find limits", () => {
-  const options: McpOptions = { services: { users: true }, transport: "stdio", query: { defaultLimit: 2, maxLimit: 3 } };
+  const options: McpOptions = {
+    services: { users: true },
+    transport: "stdio",
+    query: { defaultLimit: 2, maxLimit: 3 },
+  };
 
   it("applies defaultLimit when the caller sends none, with a truncation note", async () => {
     const { app } = buildApp(options, seedUsers(5));
@@ -279,7 +287,9 @@ describe("custom tools", () => {
           handler: async (args, ctx) => {
             const { name } = args as { name: string };
             const created = await ctx.app.service("users").dispatch("create", { name, age: 0 }, undefined, ctx.params);
-            const page = (await ctx.app.service("users").dispatch("find", undefined, undefined, ctx.params)) as Paginated<User>;
+            const page = (await ctx.app
+              .service("users")
+              .dispatch("find", undefined, undefined, ctx.params)) as Paginated<User>;
             return { created, count: page.total };
           },
         },
@@ -381,7 +391,12 @@ describe("custom resources", () => {
 
     const { resources } = await client.listResources();
     expect(resources).toEqual([
-      { uri: "mantle://docs/usage", name: "API usage guide", description: "How to query this API.", mimeType: "text/markdown" },
+      {
+        uri: "mantle://docs/usage",
+        name: "API usage guide",
+        description: "How to query this API.",
+        mimeType: "text/markdown",
+      },
     ]);
 
     const read = await client.readResource({ uri: "mantle://docs/usage" });
@@ -416,7 +431,9 @@ describe("custom resources", () => {
             uri: "mantle://reports/head-count",
             name: "Head count",
             read: async ({ app: innerApp, params }) => {
-              const page = (await innerApp.service("users").dispatch("find", undefined, undefined, params)) as Paginated<User>;
+              const page = (await innerApp
+                .service("users")
+                .dispatch("find", undefined, undefined, params)) as Paginated<User>;
               return String(page.total);
             },
           },
@@ -534,7 +551,9 @@ describe("prompts", () => {
           {
             name: "head_count",
             get: async (_args, { app: innerApp, params }) => {
-              const page = (await innerApp.service("users").dispatch("find", undefined, undefined, params)) as Paginated<User>;
+              const page = (await innerApp
+                .service("users")
+                .dispatch("find", undefined, undefined, params)) as Paginated<User>;
               return `There are ${page.total} users.`;
             },
           },

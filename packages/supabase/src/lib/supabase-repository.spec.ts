@@ -4,13 +4,13 @@ import { NotFound, Conflict, BadRequest, Forbidden, GeneralError, NESTED_QUERY_C
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-interface TestRow {
+type TestRow = {
   id: string;
   name: string;
   email: string;
   created_at?: string;
   updated_at?: string;
-}
+};
 
 /** Builds a chainable PostgREST mock that resolves to `result` at the end of the chain. */
 function makeQuery(result: { data?: unknown; error?: unknown; count?: number | null } = {}) {
@@ -56,7 +56,7 @@ function makeQuery(result: { data?: unknown; error?: unknown; count?: number | n
 
 class UserRepository extends SupabaseRepository<TestRow> {
   readonly tableName = "users";
-  readonly timestamps = false; // disable for simpler assertions
+  override readonly timestamps = false; // disable for simpler assertions
 }
 
 // ─── Tests ────────────────────────────────────────────────────────────────────
@@ -117,7 +117,7 @@ describe("SupabaseRepository", () => {
       const chain = makeQuery({ data: [] });
       fromMock.mockReturnValue(chain);
       await repo.findAll({ where: { $or: [{ age: { $gt: 21 } }, { active: true }] } });
-      expect(chain["or"]).toHaveBeenCalledWith('age.gt.21,active.eq.true');
+      expect(chain["or"]).toHaveBeenCalledWith("age.gt.21,active.eq.true");
     });
 
     it("builds quoted parenthesized lists for $in inside $or", async () => {
@@ -375,14 +375,18 @@ describe("SupabaseRepository", () => {
 
       class ListeningRepo extends SupabaseRepository<TestRow> {
         readonly tableName = "posts";
-        readonly listenToChanges = true;
+        override readonly listenToChanges = true;
       }
 
       new ListeningRepo(mockApp as never);
       await Promise.resolve(); // flush queueMicrotask
 
       expect(mockSupabaseClient.channel).toHaveBeenCalledWith("mantle:changes:posts");
-      expect(channelMock.on).toHaveBeenCalledWith("postgres_changes", { event: "*", schema: "public", table: "posts" }, expect.any(Function));
+      expect(channelMock.on).toHaveBeenCalledWith(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "posts" },
+        expect.any(Function),
+      );
       expect(channelMock.subscribe).toHaveBeenCalled();
     });
 
@@ -404,15 +408,16 @@ describe("SupabaseRepository", () => {
 
       class ListeningRepo extends SupabaseRepository<TestRow> {
         readonly tableName = "posts";
-        readonly listenToChanges = true;
+        override readonly listenToChanges = true;
       }
 
       new ListeningRepo(mockApp as never);
       await Promise.resolve(); // flush queueMicrotask
 
       const row = { id: "1", name: "Alice", email: "alice@test.com" };
-      if (!changeHandler) throw new Error("changeHandler not captured");
-      changeHandler({ eventType: "INSERT", new: row, old: {} });
+      const handler = changeHandler as ((payload: unknown) => void) | null;
+      if (!handler) throw new Error("changeHandler not captured");
+      handler({ eventType: "INSERT", new: row, old: {} });
       expect(emitMock).toHaveBeenCalledWith("service:event", "posts", "created", row, { external: true });
     });
 
@@ -434,15 +439,16 @@ describe("SupabaseRepository", () => {
 
       class ListeningRepo extends SupabaseRepository<TestRow> {
         readonly tableName = "posts";
-        readonly listenToChanges = true;
+        override readonly listenToChanges = true;
       }
 
       new ListeningRepo(mockApp as never);
       await Promise.resolve(); // flush queueMicrotask
 
       const row = { id: "1", name: "Updated", email: "alice@test.com" };
-      if (!changeHandler) throw new Error("changeHandler not captured");
-      changeHandler({ eventType: "UPDATE", new: row, old: { id: "1" } });
+      const handler = changeHandler as ((payload: unknown) => void) | null;
+      if (!handler) throw new Error("changeHandler not captured");
+      handler({ eventType: "UPDATE", new: row, old: { id: "1" } });
       expect(emitMock).toHaveBeenCalledWith("service:event", "posts", "patched", row, { external: true });
     });
 
@@ -464,15 +470,16 @@ describe("SupabaseRepository", () => {
 
       class ListeningRepo extends SupabaseRepository<TestRow> {
         readonly tableName = "posts";
-        readonly listenToChanges = true;
+        override readonly listenToChanges = true;
       }
 
       new ListeningRepo(mockApp as never);
       await Promise.resolve(); // flush queueMicrotask
 
       const row = { id: "1", name: "Alice", email: "alice@test.com" };
-      if (!changeHandler) throw new Error("changeHandler not captured");
-      changeHandler({ eventType: "DELETE", new: {}, old: row });
+      const handler = changeHandler as ((payload: unknown) => void) | null;
+      if (!handler) throw new Error("changeHandler not captured");
+      handler({ eventType: "DELETE", new: {}, old: row });
       expect(emitMock).toHaveBeenCalledWith("service:event", "posts", "removed", row, { external: true });
     });
 

@@ -3,7 +3,15 @@ import type { AddressInfo } from "node:net";
 import type { Application } from "express";
 import { mantle, getContext, RepositoryService, VectorRepositoryService } from "@mantlejs/mantle";
 import { BadRequest, NotFound } from "@mantlejs/mantle";
-import type { HookContext, Id, Paginated, QueryParams, Repository, ServiceParams, VectorRepository } from "@mantlejs/mantle";
+import type {
+  HookContext,
+  Id,
+  Paginated,
+  QueryParams,
+  Repository,
+  ServiceParams,
+  VectorRepository,
+} from "@mantlejs/mantle";
 import { express } from "./express.js";
 
 async function startServer(expressApp: Application): Promise<{ port: number; stop: () => Promise<void> }> {
@@ -305,7 +313,9 @@ describe("express adapter", () => {
       const expressApp = app.get<Application>("express");
       const { port, stop } = await startServer(expressApp);
       try {
-        await fetch(`http://localhost:${port}/users?age[$gt]=21&$or[0][role]=admin&$or[1][role]=editor&tags[]=a&tags[]=b`);
+        await fetch(
+          `http://localhost:${port}/users?age[$gt]=21&$or[0][role]=admin&$or[1][role]=editor&tags[]=a&tags[]=b`,
+        );
         expect(capturedQuery).toEqual({
           age: { $gt: "21" },
           $or: [{ role: "admin" }, { role: "editor" }],
@@ -487,7 +497,9 @@ describe("express adapter", () => {
         });
         for (const [field, dir] of Object.entries(params?.sort ?? {})) {
           rows = [...rows].sort((a, b) => {
-            const cmp = a[field] < b[field] ? -1 : a[field] > b[field] ? 1 : 0;
+            const av = a[field] as string | number;
+            const bv = b[field] as string | number;
+            const cmp = av < bv ? -1 : av > bv ? 1 : 0;
             return dir === "asc" ? cmp : -cmp;
           });
         }
@@ -563,8 +575,9 @@ describe("express adapter", () => {
     function makeVectorRepo(): VectorRepository<Doc> {
       const notInSpec = () => Promise.reject(new Error("not exercised in this spec"));
       return {
-        findSimilar: async (vector: number[], topK: number) =>
-          [{ id: "1", title: `top-${topK} for [${vector.join(",")}]`, _score: 0.91 }],
+        findSimilar: async (vector: number[], topK: number) => [
+          { id: "1", title: `top-${topK} for [${vector.join(",")}]`, _score: 0.91 },
+        ],
         upsertVector: notInSpec,
         deleteVector: notInSpec,
         findAll: async () => [],
@@ -585,7 +598,7 @@ describe("express adapter", () => {
       });
 
       let hookSawMethod: string | undefined;
-      app.service("docs").hooks({
+      app.service<Doc>("docs").hooks({
         before: {
           all: [
             (ctx: HookContext<Doc>) => {
@@ -696,7 +709,12 @@ describe("POST /batch", () => {
     return { app, port, stop };
   }
 
-  function postBatch(port: number, calls: unknown, path = "/batch", headers: Record<string, string> = {}): Promise<Response> {
+  function postBatch(
+    port: number,
+    calls: unknown,
+    path = "/batch",
+    headers: Record<string, string> = {},
+  ): Promise<Response> {
     return fetch(`http://localhost:${port}${path}`, {
       method: "POST",
       headers: { "content-type": "application/json", ...headers },
@@ -808,7 +826,9 @@ describe("POST /batch", () => {
 });
 
 describe("CORS", () => {
-  async function startWith(options?: Parameters<typeof express>[1]): Promise<{ port: number; stop: () => Promise<void> }> {
+  async function startWith(
+    options?: Parameters<typeof express>[1],
+  ): Promise<{ port: number; stop: () => Promise<void> }> {
     const app = mantle().configure(express(undefined, options));
     app.use("users", new TestUserService());
     return startServer(app.get<Application>("express"));

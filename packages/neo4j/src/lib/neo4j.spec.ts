@@ -6,7 +6,7 @@ vi.mock("neo4j-driver", () => {
   }
   return {
     default: {
-      driver: () => new (MockDriver as never)(),
+      driver: () => new (MockDriver as unknown as new () => Record<string, unknown>)(),
       auth: { basic: (u: string, p: string) => ({ scheme: "basic", principal: u, credentials: p }) },
     },
   };
@@ -18,7 +18,9 @@ describe("neo4j plugin", () => {
   it("stores a Neo4j driver on the app under the 'neo4j' key", () => {
     const store: Record<string, unknown> = {};
     const app = {
-      set: (key: string, value: unknown) => { store[key] = value; },
+      set: (key: string, value: unknown) => {
+        store[key] = value;
+      },
       get: (key: string) => store[key],
     };
 
@@ -32,7 +34,9 @@ describe("neo4j plugin", () => {
   it("stores the database name on the app", () => {
     const store: Record<string, unknown> = {};
     const app = {
-      set: (key: string, value: unknown) => { store[key] = value; },
+      set: (key: string, value: unknown) => {
+        store[key] = value;
+      },
       get: (key: string) => store[key],
     };
 
@@ -45,7 +49,9 @@ describe("neo4j plugin", () => {
   it("defaults the database to 'neo4j' when not specified", () => {
     const store: Record<string, unknown> = {};
     const app = {
-      set: (key: string, value: unknown) => { store[key] = value; },
+      set: (key: string, value: unknown) => {
+        store[key] = value;
+      },
       get: (key: string) => store[key],
     };
 

@@ -75,7 +75,7 @@ describe("googleStrategy()", () => {
 // ─── Google provider: buildAuthUrl ───────────────────────────────────────────
 
 describe("googleProvider.buildAuthUrl()", () => {
-  let provider: ReturnType<Parameters<typeof vi.mocked<typeof createOAuthPlugin>>[1]>;
+  let provider: Parameters<typeof createOAuthPlugin>[1];
 
   beforeEach(() => {
     vi.mocked(createOAuthPlugin).mockClear();
@@ -118,7 +118,7 @@ describe("googleProvider.buildAuthUrl()", () => {
 // ─── Google provider: exchangeCode ───────────────────────────────────────────
 
 describe("googleProvider.exchangeCode()", () => {
-  let provider: ReturnType<Parameters<typeof vi.mocked<typeof createOAuthPlugin>>[1]>;
+  let provider: Parameters<typeof createOAuthPlugin>[1];
   const fetchMock = vi.fn();
 
   beforeEach(() => {
@@ -163,7 +163,7 @@ describe("googleProvider.exchangeCode()", () => {
 // ─── Google provider: fetchProfile ───────────────────────────────────────────
 
 describe("googleProvider.fetchProfile()", () => {
-  let provider: ReturnType<Parameters<typeof vi.mocked<typeof createOAuthPlugin>>[1]>;
+  let provider: Parameters<typeof createOAuthPlugin>[1];
   const fetchMock = vi.fn();
 
   beforeEach(() => {
@@ -174,9 +174,7 @@ describe("googleProvider.fetchProfile()", () => {
   });
 
   it("fetches userinfo with Bearer token and returns normalized profile", async () => {
-    fetchMock.mockResolvedValue(
-      makeOkResponse({ sub: "google-uid", email: "alice@gmail.com", name: "Alice" }),
-    );
+    fetchMock.mockResolvedValue(makeOkResponse({ sub: "google-uid", email: "alice@gmail.com", name: "Alice" }));
 
     const profile = await provider.fetchProfile("gtoken123");
 

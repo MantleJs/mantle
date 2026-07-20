@@ -20,7 +20,7 @@ import { errorHandler } from "./error-handler.js";
 
 export interface KoaOptions {
   /** Existing Koa application instance. When omitted, a new one is created. */
-  app?: InstanceType<typeof KoaLib>;
+  app?: KoaLib;
   /**
    * Mount an introspection endpoint (default `GET /_services`) returning a
    * `ServiceDescriptor[]` for every registered service. Off by default.
@@ -98,7 +98,7 @@ function toHttpRouter(router: Router): HttpRouterLike {
 
 export function koa(options: KoaOptions = {}): MantlePlugin {
   return (app: MantleApplication): void => {
-    const koaApp: InstanceType<typeof KoaLib> = options.app ?? new KoaLib();
+    const koaApp: KoaLib = options.app ?? new KoaLib();
 
     if (options.cors) {
       const corsOptions: CorsOptions = typeof options.cors === "object" ? options.cors : {};
@@ -117,8 +117,7 @@ export function koa(options: KoaOptions = {}): MantlePlugin {
     koaApp.use(errorHandler);
     koaApp.use(bodyParser());
     koaApp.use(async (ctx, next) => {
-      const correlationId =
-        (ctx.get("x-correlation-id") as string | undefined) || randomUUID();
+      const correlationId = (ctx.get("x-correlation-id") as string | undefined) || randomUUID();
       ctx.set("x-correlation-id", correlationId);
       await withContext({ correlationId }, next);
     });

@@ -3,7 +3,7 @@ import { marshall } from "@aws-sdk/util-dynamodb";
 import { assertOperators, BadRequest } from "@mantlejs/mantle";
 
 type Primitive = string | number | boolean | null;
-type WhereValue = Primitive | Primitive[] | Record<string, unknown>;
+type WhereValue = Primitive | Primitive[] | Record<string, unknown> | WhereClause[];
 export type WhereClause = Record<string, WhereValue>;
 
 const COMPARISON_OPS: Record<string, string> = {
@@ -111,7 +111,7 @@ function buildFieldCondition(field: string, value: WhereValue, ctx: BuildContext
 
   if (Array.isArray(value)) {
     // $in shorthand: { field: [a, b, c] }
-    return buildIn(n, value, ctx);
+    return buildIn(n, value as Primitive[], ctx);
   }
 
   if (typeof value === "object") {

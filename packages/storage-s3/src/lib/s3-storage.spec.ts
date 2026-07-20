@@ -122,7 +122,7 @@ describe("S3StorageAdapter#store", () => {
     const adapter = new S3StorageAdapter({ ...defaultConfig, keyPrefix: "uploads/" });
     const result = await adapter.store(makeStream("data"), fileInfo);
 
-    const uploadCall = MockUpload.mock.calls[0][0] as { params: { Key: string } };
+    const uploadCall = MockUpload.mock.calls[0][0] as unknown as { params: { Key: string } };
     expect(uploadCall.params.Key).toMatch(/^uploads\//);
     expect(result.path).toContain("/uploads/");
   });
@@ -134,7 +134,7 @@ describe("S3StorageAdapter#store", () => {
     });
     const result = await adapter.store(makeStream("data"), fileInfo);
 
-    const uploadCall = MockUpload.mock.calls[0][0] as { params: { Key: string } };
+    const uploadCall = MockUpload.mock.calls[0][0] as unknown as { params: { Key: string } };
     expect(uploadCall.params.Key).toBe("custom/avatar.png");
     expect(result.path).toBe("https://test-bucket.s3.us-east-1.amazonaws.com/custom/avatar.png");
   });

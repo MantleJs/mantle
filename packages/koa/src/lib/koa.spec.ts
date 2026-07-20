@@ -6,13 +6,15 @@ import { BadRequest, NotFound } from "@mantlejs/mantle";
 import type { HttpRouterLike, ServiceParams } from "@mantlejs/mantle";
 import { koa } from "./koa.js";
 
+type AppWithListen = ReturnType<typeof mantle> & { listen(port: number, callback?: () => void): Server };
+
 async function startApp(configure: (app: ReturnType<typeof mantle>) => void): Promise<{
   port: number;
   stop: () => Promise<void>;
 }> {
   const app = mantle().configure(koa());
   configure(app);
-  const server = app.listen(0) as Server;
+  const server = (app as AppWithListen).listen(0);
   await new Promise<void>((resolve) => server.once("listening", resolve));
   const port = (server.address() as AddressInfo).port;
   return {
@@ -333,7 +335,9 @@ describe("koa adapter", () => {
       });
 
       try {
-        await fetch(`http://localhost:${port}/users?age[$gt]=21&$or[0][role]=admin&$or[1][role]=editor&tags[]=a&tags[]=b`);
+        await fetch(
+          `http://localhost:${port}/users?age[$gt]=21&$or[0][role]=admin&$or[1][role]=editor&tags[]=a&tags[]=b`,
+        );
         expect(capturedQuery).toEqual({
           age: { $gt: "21" },
           $or: [{ role: "admin" }, { role: "editor" }],
@@ -481,7 +485,7 @@ describe("koa adapter", () => {
     it("stores the http.Server after listen()", async () => {
       const innerApp = mantle().configure(koa());
       innerApp.use("users", new TestUserService());
-      const server = innerApp.listen(0) as Server;
+      const server = (innerApp as AppWithListen).listen(0);
       await new Promise<void>((resolve) => server.once("listening", resolve));
       expect(innerApp.get("server")).toBe(server);
       expect(innerApp.get("http:server")).toBe(server);
@@ -494,7 +498,7 @@ describe("introspection endpoint", () => {
   async function startWith(options?: Parameters<typeof koa>[0]): Promise<{ port: number; stop: () => Promise<void> }> {
     const app = mantle().configure(koa(options));
     app.use("users", new TestUserService(), { methods: ["find", "get", "create"] });
-    const server = app.listen(0) as Server;
+    const server = (app as AppWithListen).listen(0);
     await new Promise<void>((resolve) => server.once("listening", resolve));
     const port = (server.address() as AddressInfo).port;
     return {
@@ -552,7 +556,7 @@ describe("POST /batch", () => {
   }> {
     const app = mantle().configure(koa(options));
     app.use("users", new TestUserService());
-    const server = app.listen(0) as Server;
+    const server = (app as AppWithListen).listen(0);
     await new Promise<void>((resolve) => server.once("listening", resolve));
     const port = (server.address() as AddressInfo).port;
     return {
@@ -562,7 +566,12 @@ describe("POST /batch", () => {
     };
   }
 
-  function postBatch(port: number, calls: unknown, path = "/batch", headers: Record<string, string> = {}): Promise<Response> {
+  function postBatch(
+    port: number,
+    calls: unknown,
+    path = "/batch",
+    headers: Record<string, string> = {},
+  ): Promise<Response> {
     return fetch(`http://localhost:${port}${path}`, {
       method: "POST",
       headers: { "content-type": "application/json", ...headers },
@@ -677,7 +686,7 @@ describe("CORS", () => {
   async function startWith(options?: Parameters<typeof koa>[0]): Promise<{ port: number; stop: () => Promise<void> }> {
     const app = mantle().configure(koa(options));
     app.use("users", new TestUserService());
-    const server = app.listen(0) as Server;
+    const server = (app as AppWithListen).listen(0);
     await new Promise<void>((resolve) => server.once("listening", resolve));
     const port = (server.address() as AddressInfo).port;
     return {
