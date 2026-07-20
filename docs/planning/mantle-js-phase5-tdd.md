@@ -312,7 +312,7 @@ Same shape as `pinoAdapter`: merges `getContext()` RequestContext into metadata,
 `log.withMetadata(merged)[level](msg)`. `child(bindings)` implemented by closing over merged bindings (not
 LogLayer's own `child()`, whose semantics differ) — bindings are folded into every `withMetadata` call.
 Documented in the README as the LogLayer integration path; `loglayer` itself is **not** a dependency of any
-Mantle package (PRD decision #2).
+Mantle package (PRD decision #1).
 
 **Specs:** level resolution by NODE_ENV; redaction of every `SENSITIVE_PATHS` entry (nested); gcp severity
 mapping; missing-pino install-hint error (module mocked away); `child` bindings on every record + context
@@ -404,7 +404,7 @@ prod mode, `@mantlejs/config` for all of the above, seed script, `README` walkth
 
 ## 10. Release engineering
 
-- **Tooling: `nx release`** (PRD decision #7). Config in `nx.json`: `projects` = all `packages/*` (examples
+- **Tooling: `nx release`** (PRD decision #6). Config in `nx.json`: `projects` = all `packages/*` (examples
   excluded), fixed/locked version group so every package releases in lockstep at the same version,
   `version.generatorOptions.currentVersionResolver: "disk"`, changelog generation on, `releaseTagPattern:
   "v{version}"`. Two release groups — `stable` (version `0.1.0`, dist-tag `latest`) and

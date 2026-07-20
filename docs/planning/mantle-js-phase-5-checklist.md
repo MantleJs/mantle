@@ -10,7 +10,7 @@ strictly in order: develop packages (items 1–8) → release plan (item 9) → 
 > [Phase 6 backlog](./mantle-js-phase-6-backlog.md), which also holds the website, the UI library, and the
 > Phase 4 non-goal deferrals. The first npm release moved **in** from Phase 4 item 8 (item 12 below).
 > **Update (2026-07-19):** `@mantlejs/auth-linkedin` added (item 5); `@mantlejs/mcp` promoted from the
-> experimental tier to a **stable `0.1.0` release requirement** (PRD decision #12).
+> experimental tier to a **stable `0.1.0` release requirement** (PRD decision #11).
 
 ---
 
@@ -24,7 +24,7 @@ strictly in order: develop packages (items 1–8) → release plan (item 9) → 
   `provider: "mcp"` (full hook pipeline, no bypass). `transport: "stdio" | "http"` (HTTP via the
   `http:router` contract, bearer token → `params.user`). Errors return `MantleError.toJSON()` (incl. `hint`)
   as MCP tool errors. Optional `events: true` exposes per-service event resources.
-  **This package is a release requirement and ships stable `0.1.0`** (PRD decision #12) — acceptance
+  **This package is a release requirement and ships stable `0.1.0`** (PRD decision #11) — acceptance
   coverage below is the compensating control for skipping the experimental tier.
   **Accept:** two-service app lists expected tools with correct schemas; unsupported operator → tool error
   naming it; hook `Forbidden` → tool error (pipeline proven); bearer-token auth spec; allowlist spec.
@@ -65,7 +65,7 @@ strictly in order: develop packages (items 1–8) → release plan (item 9) → 
   Additive `Logger.child?()` in core; `createLogger(options)` factory (pino as optional dependency; `level`
   env-aware, `redact` defaulting to exported `SENSITIVE_PATHS`, `pretty`, `gcp` severity mapping);
   `logRequest`/`logError` redaction (`redactParams`, redacted `error.data`); `loglayerAdapter` over a
-  duck-typed `LogLayerLike` (no loglayer dependency — PRD decision #2); README deployment guidance
+  duck-typed `LogLayerLike` (no loglayer dependency — PRD decision #1); README deployment guidance
   (Cloud Run, levels via `@mantlejs/config`, process-level handlers, LogLayer usage).
   **Accept:** level/redaction/gcp/child/`loglayerAdapter` specs; `includeParams: true` emits `[Redacted]`
   for sensitive paths; missing-pino install-hint spec; existing hook specs unchanged.
