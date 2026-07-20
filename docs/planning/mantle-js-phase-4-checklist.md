@@ -3,7 +3,7 @@
 Work through these in order. Each item maps to a package spec in the Phase 4 PRD.
 
 > **Prerequisites:** the [AI-First Review Remediation Checklist](./ai-first-review-checklist.md) Tier A items
-> (security/correctness fixes) must land before item 8 (npm release), and its Tier B items block work here:
+> (security/correctness fixes) must land before the first npm release (item 8, since moved to Phase 5), and its Tier B items block work here:
 > B-1 (refresh-token service) blocks item 1 — the client's `POST /authentication/refresh` retry targets an endpoint
 > that does not exist yet — and B-2 (`RepositoryService<T>`) blocks items 1 and 4, which need canonical query
 > semantics and a stable `Paginated<T>` shape to build against.
@@ -64,15 +64,13 @@ Work through these in order. Each item maps to a package spec in the Phase 4 PRD
       `file.getSignedUrl()`.)_
       Add `retrieve(key): Promise<Readable>`, `delete(key): Promise<void>`, and optional `getSignedUrl(key, options?): Promise<string>` to the `StorageAdapter` interface. Add `key: string` to `UploadedFile` (distinct from the existing `path`, which stays a display-oriented URL). Implement across all three backends: disk (`createReadStream`/`unlink` relative to `destination`), S3 (`GetObjectCommand`/`DeleteObjectCommand`/`@aws-sdk/s3-request-presigner`), GCS (`bucket.file(key)` stream/delete/`getSignedUrl`). Disk storage omits `getSignedUrl` entirely — no direct-download concept for local disk.
 
-- [ ] **8. First npm release — curated package set**
-      Prepare and publish packages (Phase 1–4) to the public npm registry in two tiers. Steps:
-  - Verify all packages build, test, and lint cleanly: `npx nx run-many -t build,test,lint`
-  - Confirm every `package.json` has `"publishConfig": { "access": "public" }`, correct `"exports"`, `"main"`, `"module"`, `"types"`, and `"files": ["dist"]` fields
-  - **Finalize the publish-tier list** — re-confirm the [Publish Tiering](./mantle-js-phase-4-prd.md#publish-tiering) split (stable `0.1.0` vs `0.1.0-experimental`) against actual test coverage and any real-world usage at release time; the planning-time split is a starting point, not a final answer. This needs a dedicated discussion before publishing, not a rubber stamp of the draft list.
-  - Set `version: "0.1.0"` (stable tier) or `"0.1.0-experimental"` (experimental tier) consistently; align `peerDependencies` ranges
-  - Verify all README files are complete (at minimum: installation, quick start, API reference)
-  - Publish in dependency order: `@mantlejs/mantle` → adapters/transports (including `@mantlejs/mongodb`) → `@mantlejs/auth*` → `@mantlejs/storage*` → `@mantlejs/sync` → `@mantlejs/openapi` → `@mantlejs/client` → `@mantlejs/react`
-  - Confirm each package is resolvable: `npm install @mantlejs/<name>` succeeds from an empty project
+- [x] **8. First npm release — curated package set** *(moved to Phase 5)*
+      Moved to the [Phase 5 checklist](./mantle-js-phase-5-checklist.md) so the release ships alongside the Phase 5
+      release-readiness work (canonical example, CLI/create-mantle verification, README pass, final publish-tier
+      discussion) instead of going out before it. The original item text — publish-tier finalization, package.json
+      field verification, dependency-order publish, install smoke tests — is carried over there verbatim in spirit;
+      see the [Publish Tiering](./mantle-js-phase-4-prd.md#publish-tiering) section of the Phase 4 PRD for the
+      planning-time tier split, which remains the starting point.
 
 ---
 
