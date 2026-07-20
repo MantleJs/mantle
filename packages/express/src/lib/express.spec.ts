@@ -75,6 +75,28 @@ describe("express adapter", () => {
     });
   });
 
+  describe("body parsing", () => {
+    it("parses application/x-www-form-urlencoded bodies into req.body", async () => {
+      const app = mantle().configure(express());
+      const expressApp = app.get<Application>("express");
+      expressApp.post("/form", (req, res) => {
+        res.json(req.body);
+      });
+      const { port, stop } = await startServer(expressApp);
+      try {
+        const res = await fetch(`http://localhost:${port}/form`, {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: new URLSearchParams({ code: "abc", state: "xyz" }).toString(),
+        });
+        expect(res.status).toBe(200);
+        expect(await res.json()).toEqual({ code: "abc", state: "xyz" });
+      } finally {
+        await stop();
+      }
+    });
+  });
+
   describe("standard REST routes", () => {
     let port: number;
     let stop: () => Promise<void>;

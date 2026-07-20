@@ -26,12 +26,23 @@ export interface CodeExchangeParams {
   codeVerifier?: string;
 }
 
+/** Raw callback payload fields a provider may need beyond code/state (e.g. Apple's `user` JSON). */
+export interface CallbackExtras {
+  body?: Record<string, unknown>;
+}
+
 export interface OAuthProvider {
   usePkce: boolean;
   defaultScope: string[];
+  /**
+   * HTTP method of the provider's callback. Default "GET". "POST" providers (Apple's
+   * `response_mode=form_post`) receive code/state (and any provider-specific fields) in the
+   * form-encoded body instead of the query string.
+   */
+  callbackMethod?: "GET" | "POST";
   buildAuthUrl(params: AuthUrlParams): string;
   exchangeCode(params: CodeExchangeParams): Promise<string>;
-  fetchProfile(accessToken: string): Promise<OAuthProfile>;
+  fetchProfile(accessToken: string, extras?: CallbackExtras): Promise<OAuthProfile>;
 }
 
 export interface OAuthPluginConfig {

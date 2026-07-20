@@ -123,6 +123,26 @@ describe("http adapter", () => {
         await stop();
       }
     });
+
+    it("parses application/x-www-form-urlencoded bodies into req.body for POST routes", async () => {
+      const { port, stop } = await startApp((app) => {
+        const router = app.get<HttpRouterLike>("http:router");
+        router.post("/form", (req, res) => {
+          res.json(req.body);
+        });
+      });
+      try {
+        const res = await fetch(`http://localhost:${port}/form`, {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: new URLSearchParams({ code: "abc", state: "xyz" }).toString(),
+        });
+        expect(res.status).toBe(200);
+        expect(await res.json()).toEqual({ code: "abc", state: "xyz" });
+      } finally {
+        await stop();
+      }
+    });
   });
 
   describe("standard REST routes via httpHandler (Node.js)", () => {
@@ -228,6 +248,24 @@ describe("http adapter", () => {
       expect(res.status).toBe(201);
       const body = (await res.json()) as User;
       expect(body.name).toBe("Carol");
+    });
+
+    it("parses application/x-www-form-urlencoded bodies via fetchHandler", async () => {
+      const app = mantle().configure(http());
+      const router = app.get<HttpRouterLike>("http:router");
+      router.post("/form", (req, res) => {
+        res.json(req.body);
+      });
+      const fetchHandler = app.get("fetchHandler") as (req: Request) => Promise<Response>;
+      const res = await fetchHandler(
+        new Request("http://localhost/form", {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: new URLSearchParams({ code: "abc", state: "xyz" }).toString(),
+        }),
+      );
+      expect(res.status).toBe(200);
+      expect(await res.json()).toEqual({ code: "abc", state: "xyz" });
     });
 
     it("returns x-correlation-id in response headers", async () => {

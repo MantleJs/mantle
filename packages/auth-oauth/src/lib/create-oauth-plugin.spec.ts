@@ -34,6 +34,7 @@ type RouteHandler = (req: MockReq, res: MockRes, next: (err?: unknown) => void) 
 interface MockReq {
   protocol: string;
   query: Record<string, string | undefined>;
+  body?: unknown;
   get(header: string): string | undefined;
 }
 
@@ -46,9 +47,13 @@ function makeRouter() {
   const routes = new Map<string, RouteHandler>();
   return {
     get: vi.fn((path: string, handler: RouteHandler) => {
-      routes.set(path, handler);
+      routes.set(`GET ${path}`, handler);
     }),
-    route: (path: string) => routes.get(path)!,
+    post: vi.fn((path: string, handler: RouteHandler) => {
+      routes.set(`POST ${path}`, handler);
+    }),
+    route: (path: string) => routes.get(`GET ${path}`)!,
+    postRoute: (path: string) => routes.get(`POST ${path}`)!,
   };
 }
 
@@ -377,6 +382,75 @@ describe("createOAuthPlugin()", () => {
       await router.route("/auth/test/callback")(req, makeRes(), vi.fn());
 
       expect(findOrCreateUser).toHaveBeenCalledWith(app, "accounts", "oauthId", expect.anything());
+    });
+
+    it("calls fetchProfile without extras for GET providers", async () => {
+      const { provider } = await invokeCallback();
+      expect(vi.mocked(provider.fetchProfile).mock.calls[0]).toEqual(["provider-access-token"]);
+    });
+  });
+
+  // ─── POST callback route ─────────────────────────────────────────────────────
+
+  describe("POST /auth/{providerKey}/callback (callbackMethod: 'POST')", () => {
+    async function invokePostCallback(
+      options: {
+        body?: unknown;
+        provider?: OAuthProvider;
+      } = {},
+    ) {
+      const provider = options.provider ?? makeProvider({ callbackMethod: "POST" });
+      const engine = makeEngine();
+      const router = makeRouter();
+      const app = makeApp(engine, router);
+      createOAuthPlugin("test", provider, BASE_CONFIG)(app);
+
+      const req = makeReq({ body: "body" in options ? options.body : { code: "auth-code", state: "fixed-state" } });
+      const res = makeRes();
+      const next = vi.fn();
+      await router.postRoute("/auth/test/callback")(req, res, next);
+      return { res, next, engine, provider, app };
+    }
+
+    it("registers the callback as a POST route (redirect route stays GET)", () => {
+      const router = makeRouter();
+      const app = makeApp(makeEngine(), router);
+      createOAuthPlugin("test", makeProvider({ callbackMethod: "POST" }), BASE_CONFIG)(app);
+      expect(router.post).toHaveBeenCalledWith("/auth/test/callback", expect.any(Function));
+      expect(router.get).toHaveBeenCalledWith("/auth/test", expect.any(Function));
+      expect(router.get).not.toHaveBeenCalledWith("/auth/test/callback", expect.any(Function));
+    });
+
+    it("validates and deletes state, then issues a token pair from the form body", async () => {
+      const { res, engine } = await invokePostCallback();
+      expect(mockStateStore.delete).toHaveBeenCalledWith("fixed-state");
+      expect(engine.createTokenPair).toHaveBeenCalledWith("1");
+      expect(res.json).toHaveBeenCalledWith({
+        accessToken: "mantle.jwt.token",
+        refreshToken: "mantle.refresh.token",
+        user: EXISTING_USER,
+      });
+    });
+
+    it("throws NotAuthenticated when state is missing from the body", async () => {
+      const { next } = await invokePostCallback({ body: { code: "auth-code" } });
+      expect(next).toHaveBeenCalledWith(expect.any(NotAuthenticated));
+    });
+
+    it("throws NotAuthenticated when the body carries an error field", async () => {
+      const { next } = await invokePostCallback({ body: { error: "user_cancelled_authorize" } });
+      expect(next).toHaveBeenCalledWith(expect.any(NotAuthenticated));
+    });
+
+    it("throws NotAuthenticated when the body is absent", async () => {
+      const { next } = await invokePostCallback({ body: undefined });
+      expect(next).toHaveBeenCalledWith(expect.any(NotAuthenticated));
+    });
+
+    it("passes the full form body to fetchProfile as extras.body", async () => {
+      const body = { code: "auth-code", state: "fixed-state", user: '{"name":{"firstName":"Ann"}}' };
+      const { provider } = await invokePostCallback({ body });
+      expect(provider.fetchProfile).toHaveBeenCalledWith("provider-access-token", { body });
     });
   });
 });

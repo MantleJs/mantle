@@ -17,6 +17,8 @@ export function parseBody(req: IncomingMessage): Promise<unknown> {
         } catch {
           resolve(undefined);
         }
+      } else if (contentType.includes("application/x-www-form-urlencoded")) {
+        resolve(Object.fromEntries(new URLSearchParams(raw)));
       } else {
         resolve(raw);
       }

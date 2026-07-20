@@ -255,6 +255,8 @@ export function http(options: HttpOptions = {}): MantlePlugin {
         } catch {
           body = undefined;
         }
+      } else if (contentType.includes("application/x-www-form-urlencoded")) {
+        body = Object.fromEntries(new URLSearchParams(await request.text()));
       }
 
       const result = await dispatch(router, request.method, url.pathname, query, headers, body, correlationId);

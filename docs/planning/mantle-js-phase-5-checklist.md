@@ -38,7 +38,7 @@ strictly in order: develop packages (items 1–8) → release plan (item 9) → 
   spec (chained dispatch through hooks, name collision → `BadRequest`); custom-resource specs (session
   params, reserved/duplicate URI → `BadRequest`); prompt specs (string + messages forms, capability gating).
 
-- [ ] **2. Add POST-callback support to `@mantlejs/auth-oauth`** *(TDD §2)*
+- [x] **2. Add POST-callback support to `@mantlejs/auth-oauth`** *(TDD §2)*
   Additive `OAuthProvider.callbackMethod?: "GET" | "POST"` (default `"GET"`) + `CallbackExtras` argument to
   `fetchProfile`. `createOAuthPlugin` registers `router.post(callbackPath)` for POST providers, reading
   `code`/`state`/`error` from the parsed form body; GET providers untouched. Verify `@mantlejs/http` parses

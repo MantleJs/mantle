@@ -47,6 +47,7 @@ export function express(existingApp?: Application, options: ExpressOptions = {})
     }
 
     expressApp.use(expressLib.json());
+    expressApp.use(expressLib.urlencoded({ extended: false }));
     expressApp.use((req, res, next) => {
       const correlationId = (req.headers["x-correlation-id"] as string | undefined) ?? randomUUID();
       res.setHeader("x-correlation-id", correlationId);
