@@ -46,7 +46,7 @@ strictly in order: develop packages (items 1–8) → release plan (item 9) → 
   **Accept:** POST happy path + missing-state specs; `extras.body` reaches `fetchProfile`; all existing
   GET-provider specs green without modification.
 
-- [ ] **3. Implement `@mantlejs/auth-apple`** *(TDD §3)*
+- [x] **3. Implement `@mantlejs/auth-apple`** *(TDD §3)*
   New package over `@mantlejs/auth-oauth` + Arctic. `AppleStrategyConfig` = `OAuthPluginConfig` minus
   `clientSecret`, plus `teamId`/`keyId`/`privateKey` (ES256 client-secret JWT signed per exchange by Arctic).
   `callbackMethod: "POST"` with `response_mode=form_post`; `exchangeCode` returns the id_token;

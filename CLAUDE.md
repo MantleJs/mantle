@@ -63,6 +63,7 @@ mantle/
 │   ├── auth-google/     @mantlejs/auth-google  Google Sign-In strategy (PKCE, no Passport.js)
 │   ├── auth-github/     @mantlejs/auth-github  GitHub Sign-In strategy (no Passport.js)
 │   ├── auth-facebook/   @mantlejs/auth-facebook Facebook Sign-In strategy (no Passport.js)
+│   ├── auth-apple/      @mantlejs/auth-apple   Sign in with Apple strategy (form_post, no Passport.js)
 │   ├── auth-redis/      @mantlejs/auth-redis   Redis-backed refresh-token + OAuth-state stores
 │   ├── storage/         @mantlejs/storage      File upload/download via busboy, local disk storage
 │   ├── storage-s3/      @mantlejs/storage-s3   AWS S3 storage adapter for @mantlejs/storage
@@ -104,6 +105,7 @@ mantle/
 | @mantlejs/auth-google   | @mantlejs/mantle, @mantlejs/auth-oauth                                                      |
 | @mantlejs/auth-github   | @mantlejs/mantle, @mantlejs/auth-oauth                                                      |
 | @mantlejs/auth-facebook | @mantlejs/mantle, @mantlejs/auth-oauth                                                      |
+| @mantlejs/auth-apple    | @mantlejs/mantle, @mantlejs/auth-oauth                                                      |
 | @mantlejs/auth-redis    | @mantlejs/mantle, @mantlejs/auth, @mantlejs/auth-oauth                                      |
 | @mantlejs/storage       | @mantlejs/mantle                                                                            |
 | @mantlejs/storage-s3    | @mantlejs/mantle, @mantlejs/storage                                                         |

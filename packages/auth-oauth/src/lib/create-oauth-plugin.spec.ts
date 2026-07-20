@@ -142,7 +142,9 @@ describe("createOAuthPlugin()", () => {
     const neutralRouter = makeRouter();
     const legacyRouter = makeRouter();
     const app = makeApp(makeEngine(), legacyRouter);
-    const store = (app.get as ReturnType<typeof vi.fn>).getMockImplementation();
+    const store = (app.get as ReturnType<typeof vi.fn>).getMockImplementation() as
+      | ((key: string) => unknown)
+      | undefined;
     (app.get as ReturnType<typeof vi.fn>).mockImplementation((key: string) =>
       key === "http:router" ? neutralRouter : store?.(key),
     );

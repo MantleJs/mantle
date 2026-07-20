@@ -1,0 +1,40 @@
+{
+  "name": "@mantlejs/auth-apple",
+  "version": "0.0.1",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    "./package.json": "./package.json",
+    ".": {
+      "@mantle/source": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "!**/*.tsbuildinfo"
+  ],
+  "nx": {
+    "name": "auth-apple"
+  },
+  "description": "Apple Sign-In strategy for Mantle JS",
+  "license": "MIT",
+  "keywords": [
+    "mantle",
+    "auth",
+    "apple",
+    "oauth2"
+  ],
+  "dependencies": {
+    "arctic": "^3.7.0",
+    "tslib": "^2.3.0"
+  },
+  "peerDependencies": {
+    "@mantlejs/auth-oauth": "^0.0.1",
+    "@mantlejs/mantle": "^0.0.1"
+  }
+}
