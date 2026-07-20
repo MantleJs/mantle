@@ -16,18 +16,27 @@ strictly in order: develop packages (items 1–8) → release plan (item 9) → 
 
 ## Stage 1 — Packages
 
-- [ ] **1. Implement `@mantlejs/mcp` — expose Mantle services as MCP tools** *(TDD §1)*
+- [x] **1. Implement `@mantlejs/mcp` — expose Mantle services as MCP tools** *(TDD §1)*
   New package: `@mantlejs/mantle` + `@modelcontextprotocol/sdk`. `mcp(options)` builds an MCP server from
-  registered services via `ServiceHandle.describe()` — one tool per method (`users_find`, …), input schemas
-  from the attached TypeBox schema plus a `QueryParams` schema constrained to
+  registered services via `ServiceHandle.describe()` — one tool per **exposed** method (`users_find`, …),
+  input schemas from the attached TypeBox schema plus a `QueryParams` schema constrained to
   `describe().capabilities.operators`; every call routes through the service dispatch path with
-  `provider: "mcp"` (full hook pipeline, no bypass). `transport: "stdio" | "http"` (HTTP via the
+  `provider: "mcp"` (full hook pipeline, no bypass). **Deny-by-default expose map**: `services` is required,
+  maps path → methods (`true` = all registered; `"*"` escape hatch); unknown path/method →
+  configure-time `BadRequest`. `query.defaultLimit`/`maxLimit` clamp find results (defaults 25/100),
+  advertised in the generated schema, truncation noted in results. App-authored composite `tools` run with
+  session params (no privileged path); **no batch tool**. `transport: "stdio" | "http"` (HTTP via the
   `http:router` contract, bearer token → `params.user`). Errors return `MantleError.toJSON()` (incl. `hint`)
-  as MCP tool errors. Optional `events: true` exposes per-service event resources.
+  as MCP tool errors. Optional `events: true` exposes event resources for expose-map services only.
+  App-authored `resources` (read-only reference content) and `prompts` (client-surfaced templates) round
+  out the MCP surface — both run with session params, both validated at configure time.
   **This package is a release requirement and ships stable `0.1.0`** (PRD decision #11) — acceptance
   coverage below is the compensating control for skipping the experimental tier.
-  **Accept:** two-service app lists expected tools with correct schemas; unsupported operator → tool error
-  naming it; hook `Forbidden` → tool error (pipeline proven); bearer-token auth spec; allowlist spec.
+  **Accept:** two-service app lists expected tools with correct schemas; expose-map spec (per-method
+  filtering, deny-by-default, unknown path/method → `BadRequest`); unsupported operator → tool error naming
+  it; hook `Forbidden` → tool error (pipeline proven); bearer-token auth spec; limit-clamp spec; custom-tool
+  spec (chained dispatch through hooks, name collision → `BadRequest`); custom-resource specs (session
+  params, reserved/duplicate URI → `BadRequest`); prompt specs (string + messages forms, capability gating).
 
 - [ ] **2. Add POST-callback support to `@mantlejs/auth-oauth`** *(TDD §2)*
   Additive `OAuthProvider.callbackMethod?: "GET" | "POST"` (default `"GET"`) + `CallbackExtras` argument to

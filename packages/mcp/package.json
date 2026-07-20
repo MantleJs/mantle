@@ -1,0 +1,39 @@
+{
+  "name": "@mantlejs/mcp",
+  "version": "0.0.1",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    "./package.json": "./package.json",
+    ".": {
+      "@mantle/source": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "!**/*.tsbuildinfo"
+  ],
+  "nx": {
+    "name": "mcp"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "tslib": "^2.3.0"
+  },
+  "description": "Model Context Protocol (MCP) server adapter for Mantle JS — expose services as MCP tools",
+  "license": "MIT",
+  "keywords": [
+    "mantle",
+    "mcp",
+    "model-context-protocol",
+    "tools"
+  ],
+  "peerDependencies": {
+    "@mantlejs/mantle": "^0.0.1"
+  }
+}

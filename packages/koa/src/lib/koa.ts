@@ -47,6 +47,7 @@ interface KoaCtxLike {
   headers: Record<string, string | string[] | undefined>;
   status: number;
   body: unknown;
+  request?: { body?: unknown };
   get(field: string): string;
   redirect(url: string): void;
 }
@@ -60,6 +61,7 @@ function toHttpRouter(router: Router): HttpRouterLike {
         protocol: ctx.protocol,
         query: ctx.query as Record<string, unknown>,
         headers: ctx.headers as Record<string, string | string[] | undefined>,
+        body: ctx.request?.body,
         get: (header) => ctx.get(header) || undefined,
       };
       const res: HttpResponseLike = {

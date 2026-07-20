@@ -73,6 +73,7 @@ mantle/
 │   ├── config/          @mantlejs/config       Environment-aware configuration loading
 │   ├── socketio/        @mantlejs/socketio     Socket.IO transport adapter
 │   ├── openapi/         @mantlejs/openapi      OpenAPI 3.1 document generation + Swagger UI
+│   ├── mcp/             @mantlejs/mcp          MCP server — expose services as MCP tools (stdio + HTTP)
 │   ├── sync/            @mantlejs/sync         Cross-instance event sync (Redis/Supabase Realtime)
 │   ├── client/          @mantlejs/client       Browser/Node.js/React Native client SDK (REST + Socket.IO)
 │   ├── react/           @mantlejs/react        React hooks over the client SDK (TanStack Query v5)
@@ -113,6 +114,7 @@ mantle/
 | @mantlejs/config        | @mantlejs/mantle                                                                            |
 | @mantlejs/socketio      | @mantlejs/mantle                                                                            |
 | @mantlejs/openapi       | @mantlejs/mantle                                                                            |
+| @mantlejs/mcp           | @mantlejs/mantle (+ @modelcontextprotocol/sdk)                                              |
 | @mantlejs/sync          | @mantlejs/mantle                                                                            |
 | @mantlejs/client        | nothing (optional peer: socket.io-client; dev-only: @mantlejs/mantle for conformance specs) |
 | @mantlejs/react         | @mantlejs/client (peers: react, @tanstack/react-query)                                      |

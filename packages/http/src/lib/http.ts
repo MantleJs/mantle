@@ -76,7 +76,7 @@ async function dispatch(
 function toHttpRouter(router: Router): HttpRouterLike {
   const adapt =
     (handler: HttpRouteHandler): RouteHandler =>
-    async (_params, _body, query, headers) => {
+    async (_params, body, query, headers) => {
       let status = 200;
       let responseBody: unknown = null;
       let redirectUrl: string | undefined;
@@ -86,6 +86,7 @@ function toHttpRouter(router: Router): HttpRouterLike {
         protocol: headers["x-forwarded-proto"] ?? "http",
         query,
         headers,
+        body,
         get: (header) => headers[header.toLowerCase()],
       };
       const res: HttpResponseLike = {

@@ -28,38 +28,114 @@ speak MCP; hand-rolling the protocol buys nothing).
 ### Public surface
 
 ```typescript
+/** Context handed to app-authored tools. Inner dispatch calls run the full hook pipeline. */
+export interface McpToolContext {
+  app: MantleApplication;
+  /** provider: "mcp"; user/authenticated resolved from the session's bearer token (HTTP transport). */
+  params: ServiceParams;
+}
+
+/** App-authored read-only resource. `read` runs with the session's params — no privileged path. */
+export interface McpResourceDefinition {
+  /** Unique. The `mantle://events/` namespace is reserved for event resources → BadRequest. */
+  uri: string;
+  name: string;
+  description?: string;
+  /** Default "text/plain". */
+  mimeType?: string;
+  read: (ctx: McpToolContext) => Promise<string>;
+}
+
+/** App-authored prompt template. `get` returns a string (single user message) or full messages. */
+export interface McpPromptDefinition {
+  name: string;
+  description?: string;
+  arguments?: Array<{ name: string; description?: string; required?: boolean }>;
+  get: (
+    args: Record<string, string>,
+    ctx: McpToolContext,
+  ) => Promise<string | { description?: string; messages: McpPromptMessage[] }>;
+}
+
+/** App-authored (composite/task-level) tool, e.g. chaining two service calls. */
+export interface McpToolDefinition {
+  /** Must not collide with a generated tool name → configure-time BadRequest. */
+  name: string;
+  description: string;
+  /** JSON Schema (e.g. TypeBox) for the tool arguments. */
+  inputSchema: unknown;
+  handler: (args: unknown, ctx: McpToolContext) => Promise<unknown>;
+}
+
 export interface McpOptions {
-  /** Service paths to expose. Default: all registered services. */
-  services?: string[];
+  /**
+   * Expose map — REQUIRED, deny-by-default. Service path → methods to expose as tools
+   * (`true` = every method registered in `app.use()` for that service). `"*"` exposes all
+   * methods of all services (deliberate escape hatch for prototyping). Unknown path or
+   * method → configure-time BadRequest.
+   */
+  services: Record<string, string[] | true> | "*";
   /** "stdio" runs a standalone MCP server; "http" mounts streamable HTTP on the app's transport. */
   transport: "stdio" | "http";
   /** HTTP transport only: mount path. Default: "/mcp". */
   path?: string;
   /** Server identity reported during MCP initialization. Defaults: name "mantle", app version. */
   serverInfo?: { name?: string; version?: string };
-  /** Expose service events ("created" | "updated" | "patched" | "removed") as MCP resources. Default: false. */
+  /** Expose service events ("created" | "updated" | "patched" | "removed") as MCP resources
+   *  — for services in the expose map only. Default: false. */
   events?: boolean;
+  /** App-authored tools registered alongside the generated ones. */
+  tools?: McpToolDefinition[];
+  /** App-authored read-only resources (reference data, docs) served alongside event resources. */
+  resources?: McpResourceDefinition[];
+  /** App-authored prompt templates (surfaced by MCP clients as user-invokable commands). */
+  prompts?: McpPromptDefinition[];
+  /** find() guardrails, applied to params.query before dispatch and advertised in generated schemas. */
+  query?: {
+    /** Applied when the caller sends no limit. Default: 25. */
+    defaultLimit?: number;
+    /** Hard clamp on limit. Default: 100. */
+    maxLimit?: number;
+  };
 }
 
 export function mcp(options: McpOptions): MantlePlugin;
 ```
 
+**Non-goal:** no `batch` tool. Agents batch natively via parallel tool calls, a generic
+`{ service, method, args }[]` tool would need its own expose-map re-validation (bypass risk), and its input
+schema cannot be specialized per service. Composite needs are served by `tools`; revisit only on demonstrated
+round-trip pain.
+
 ### Tool generation
 
-At configure time, iterate the app's registered services (respecting `options.services`); for each
-`ServiceHandle`, call `describe()` and emit one tool per entry in `descriptor.methods`:
+At configure time, resolve the expose map: for each entry, look up the service (unknown path →
+`BadRequest`), call `describe()`, and intersect the requested methods with `descriptor.methods` (a requested
+method the service does not register → `BadRequest`; `true` selects all of `descriptor.methods`). Emit one
+tool per exposed method:
 
 - **Naming:** `{path}_{method}` with `/` and `-` in the path normalized to `_` (`users_find`,
   `blog_posts_create`). Custom methods registered in `app.use()` options get tools the same way.
 - **Input schemas** (JSON Schema — TypeBox output is already JSON Schema):
   - `find`: `{ query?: <QueryParamsSchema> }` where the `where`-operator enum is constrained to
-    `descriptor.capabilities.operators` — an agent is never offered `$ilike` against DynamoDB
+    `descriptor.capabilities.operators` — an agent is never offered `$ilike` against DynamoDB — and `limit`
+    carries `maximum: maxLimit` plus a description stating `defaultLimit`, so the caller plans around the
+    clamp instead of discovering it
   - `get`/`remove`: `{ id: string | number, query?: … }`
   - `create`: `{ data: <entity schema> }` from the service's attached TypeBox schema; `{ data: { type: "object" } }`
     when no schema is attached (mirror the OpenAPI generator's never-skip rule)
   - `update`/`patch`: `{ id, data }` (patch uses `Partial`-ized schema: all properties optional)
 - **Descriptions:** from the descriptor (service description + per-method text when present); fall back to a
-  generated sentence ("Find users records matching a query").
+  generated sentence ("Find users records matching a query"). `update` and `remove` descriptions carry a
+  destructive-operation note ("replaces the entire record" / "permanently deletes the record") for clients
+  that surface tool annotations.
+- **Output schemas:** `get`/`create`/`update`/`patch` emit the entity schema as the MCP `outputSchema` when
+  one is attached — free structure for clients that consume it.
+- **Custom tools** (`options.tools`) are registered alongside the generated ones. A name collision with a
+  generated tool (or another custom tool) → configure-time `BadRequest`. Handlers receive
+  `(args, { app, params })` where `params` is the same session params generated tools use (`provider: "mcp"`,
+  bearer-resolved `user`) — inner `dispatch()` calls run the full hook pipeline, so custom tools get no
+  privileged path. Handler errors map through the same `MantleError.toJSON()` tool-error shape.
 
 Schema assembly reuses the same descriptor-reading approach as `@mantlejs/openapi` — but no shared code package
 is introduced for it; the two generators read the same public `describe()` surface independently (revisit if a
@@ -72,6 +148,11 @@ Every tool call routes through the service's dispatch path — the exact call sh
 Tool-call arguments map onto `(id, data, params)`; `query` lands in `params.query` exactly as a REST query
 would after `parseQueryString` (values arrive typed from JSON, so no string coercion is needed — pass
 `coerce: false`/skip the coercion path).
+
+**find clamp:** before dispatch, `limit = min(limit ?? defaultLimit, maxLimit)` (defaults 25/100). This is
+MCP-provider policy layered on `params.query` — app hooks can still be stricter. When the clamp truncated the
+requested (or unbounded) result, the tool result includes a note ("returned 100 of 4,231 — page with
+`skip`/`limit`, trim fields with `select`") so the agent pages instead of assuming it saw everything.
 
 ### Transports
 
@@ -96,9 +177,22 @@ Hook/service errors are caught and returned as MCP **tool errors** (`isError: tr
 are reserved for malformed MCP requests. A plain `Error` (should not happen — typed errors are the rule) maps
 to the `GeneralError` shape.
 
+### Custom resources and prompts
+
+`options.resources` serves app-authored read-only content (schema docs, enum/config values) next to the
+event resources; `options.prompts` serves prompt templates that MCP clients surface as user-invokable
+commands. Both handlers receive the session's `McpToolContext` (same params as tools — inner `dispatch()`
+calls run the full hook pipeline), and both map failures through the `MantleError` shape (as MCP protocol
+errors — resources/prompts have no in-band error channel). Duplicate URIs/names and the reserved
+`mantle://events/` namespace are rejected at `mcp()` time. The `resources` capability is declared when
+either `events: true` or custom resources exist; `prompts` only when prompts exist. Subscribing to a custom
+resource is a no-op (no update signal exists); event resources keep their live notifications.
+
 ### Events as resources (`events: true`)
 
-Each exposed service contributes a resource `mantle://events/{path}`; the resource's contents are the last N
+Each service **in the expose map** contributes a resource `mantle://events/{path}` — services not exposed as
+tools contribute no event resource either, so a hidden service's existence and change stream never leak over
+MCP. The resource's contents are the last N
 (default 50, ring buffer) service events with `{ event, path, data, timestamp }`. Subscriptions use MCP
 resource-updated notifications driven by the service event emitters. This is deliberately minimal — agents that
 need real-time should use the socket transport; this exists so an agent can poll "what changed".
@@ -109,12 +203,25 @@ All specs in-process with `@mantlejs/memory` services — no real MCP client nee
 `InMemoryTransport` pair to drive `listTools`/`callTool`.
 
 - Tool listing: two services (one schema'd `RepositoryService`, one custom with a custom method) → expected
-  tool names + input schemas (operator enum matches `describe().capabilities.operators`)
-- `services` allowlist filters; unknown path in allowlist → configure-time `BadRequest`
+  tool names + input schemas (operator enum matches `describe().capabilities.operators`; `limit` carries
+  `maximum: maxLimit`)
+- Expose map: per-method filtering (`users: ["find", "get"]` → no `users_create` tool); `true` selects all
+  registered methods; `"*"` exposes everything; unknown path or method → configure-time `BadRequest`
 - `callTool("users_find", { query: { where: { age: { $gt: 21 } } } })` returns rows; unsupported operator →
   tool error naming the operator (proves `assertOperators` surfaced)
+- Clamp: find with no limit gets `defaultLimit`; limit above `maxLimit` clamps and the result carries the
+  truncation note
+- Custom tool: chained two-service handler runs both hook pipelines with the session params; name collision
+  with a generated tool → configure-time `BadRequest`; handler `MantleError` → tool error shape
 - Hook throwing `Forbidden` → tool error with code 403 + hint (proves pipeline ran); event emitted on create
   when hooks succeed
+- Events resources: only expose-map services listed; hidden service contributes no resource
+- Custom resources: listed alongside event resources (and without `events: true`); read returns the
+  declared mimeType + text with session params; handler `MantleError` surfaces; duplicate/reserved URI →
+  configure-time `BadRequest`
+- Prompts: listed with arguments; string return → single user message; full messages pass through; handler
+  receives session params; unknown prompt → error; duplicate name → configure-time `BadRequest`; no
+  `prompts` capability when none defined
 - HTTP: bearer token populates `params.user` (spec via a hook asserting it); missing token + `authenticate`
   hook → 401-shaped tool error
 

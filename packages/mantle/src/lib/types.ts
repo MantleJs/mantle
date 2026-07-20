@@ -157,6 +157,8 @@ export interface HttpRequestLike {
   protocol: string;
   query: Record<string, unknown>;
   headers: Record<string, string | string[] | undefined>;
+  /** Parsed request body for POST routes. Express/koa/http all populate it when the request carries one. */
+  body?: unknown;
   get(header: string): string | undefined;
 }
 
