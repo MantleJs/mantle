@@ -61,7 +61,7 @@ strictly in order: develop packages (items 1–8) → release plan (item 9) → 
   Update `CLAUDE.md` dependency matrix + root README.
   **Accept:** specs mirroring `google-strategy.spec.ts` + tenant default/override specs.
 
-- [ ] **5. Implement `@mantlejs/auth-linkedin`** *(TDD §5)*
+- [x] **5. Implement `@mantlejs/auth-linkedin`** *(TDD §5)*
   New package over `@mantlejs/auth-oauth` + Arctic `LinkedIn`. LinkedIn's OpenID Connect flow ("Sign In with
   LinkedIn using OpenID Connect" product — not the legacy v2 profile API); no PKCE (state round-trip CSRF
   protection, same posture as GitHub/Facebook); scopes `openid profile email`; profile from

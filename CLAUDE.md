@@ -65,6 +65,7 @@ mantle/
 │   ├── auth-facebook/   @mantlejs/auth-facebook Facebook Sign-In strategy (no Passport.js)
 │   ├── auth-apple/      @mantlejs/auth-apple   Sign in with Apple strategy (form_post, no Passport.js)
 │   ├── auth-microsoft/  @mantlejs/auth-microsoft Microsoft Sign-In strategy (Entra ID, PKCE, no Passport.js)
+│   ├── auth-linkedin/   @mantlejs/auth-linkedin Sign In with LinkedIn strategy (OpenID Connect, no Passport.js)
 │   ├── auth-redis/      @mantlejs/auth-redis   Redis-backed refresh-token + OAuth-state stores
 │   ├── storage/         @mantlejs/storage      File upload/download via busboy, local disk storage
 │   ├── storage-s3/      @mantlejs/storage-s3   AWS S3 storage adapter for @mantlejs/storage
@@ -108,6 +109,7 @@ mantle/
 | @mantlejs/auth-facebook  | @mantlejs/mantle, @mantlejs/auth-oauth                                                      |
 | @mantlejs/auth-apple     | @mantlejs/mantle, @mantlejs/auth-oauth                                                      |
 | @mantlejs/auth-microsoft | @mantlejs/mantle, @mantlejs/auth-oauth                                                      |
+| @mantlejs/auth-linkedin  | @mantlejs/mantle, @mantlejs/auth-oauth                                                      |
 | @mantlejs/auth-redis     | @mantlejs/mantle, @mantlejs/auth, @mantlejs/auth-oauth                                      |
 | @mantlejs/storage        | @mantlejs/mantle                                                                            |
 | @mantlejs/storage-s3     | @mantlejs/mantle, @mantlejs/storage                                                         |

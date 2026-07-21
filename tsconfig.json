@@ -107,6 +107,9 @@
     },
     {
       "path": "./packages/auth-microsoft"
+    },
+    {
+      "path": "./packages/auth-linkedin"
     }
   ]
 }

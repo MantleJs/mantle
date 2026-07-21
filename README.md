@@ -65,6 +65,7 @@ Dependencies always point inward. Nothing in Domain or Application layers knows 
 | `@mantlejs/auth-facebook`  | Facebook Sign-In strategy (authorization code flow, no Passport.js)                                                                       |
 | `@mantlejs/auth-apple`     | Sign in with Apple strategy (form_post callback, ES256 client-secret JWT, no Passport.js)                                                 |
 | `@mantlejs/auth-microsoft` | Microsoft Sign-In strategy (Entra ID, authorization code + PKCE, no Passport.js)                                                          |
+| `@mantlejs/auth-linkedin`  | LinkedIn Sign-In strategy (OpenID Connect, authorization code flow, no Passport.js)                                                       |
 | `@mantlejs/auth-redis`     | Redis-backed `RefreshTokenStore` + OAuth `StateStore` for multi-instance deployments                                                      |
 | `@mantlejs/storage`        | File upload via busboy, local disk storage                                                                                                |
 | `@mantlejs/storage-s3`     | AWS S3 storage adapter for `@mantlejs/storage` (supports MinIO, R2, and other S3-compatible stores)                                       |
