@@ -22,7 +22,19 @@
     "!**/*.tsbuildinfo"
   ],
   "nx": {
-    "name": "create-mantle"
+    "name": "create-mantle",
+    "targets": {
+      "e2e-scaffold": {
+        "executor": "nx:run-commands",
+        "options": {
+          "command": "node e2e/scaffold-smoke.mjs",
+          "cwd": "packages/create-mantle"
+        },
+        "dependsOn": [
+          { "projects": ["mantle", "express", "schema", "memory", "cli", "create-mantle"], "target": "build" }
+        ]
+      }
+    }
   },
   "dependencies": {
     "tslib": "^2.3.0",

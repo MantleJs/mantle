@@ -1,3 +1,4 @@
+import type { Server } from "node:http";
 import { randomUUID } from "crypto";
 import expressLib, { type Application, type RequestHandler } from "express";
 import corsLib from "cors";
@@ -5,6 +6,13 @@ import type { BatchCall, CorsOptions, MantleApplication, MantlePlugin, ServiceOp
 import { CORS_DEFAULT_METHODS, resolveCorsOrigin, withContext } from "@mantlejs/mantle";
 import { mountServiceRoutes } from "./routes.js";
 import { errorHandler } from "./error-handler.js";
+
+declare module "@mantlejs/mantle" {
+  interface MantleApplication {
+    /** Added by `@mantlejs/express` — starts the underlying `http.Server`. */
+    listen(port: number, callback?: () => void): Server;
+  }
+}
 
 export interface ExpressOptions {
   /**

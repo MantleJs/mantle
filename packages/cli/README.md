@@ -38,6 +38,9 @@ mantle new my-api
 # Scaffold with flags (non-interactive)
 mantle new my-api --database pg --auth local --package-manager npm
 
+# Scaffold with CORS and Redis-backed OAuth state/refresh-token storage
+mantle new my-api --database mongodb --auth google --cors --redis --package-manager npm
+
 # Generate a service, repository, schema, and spec
 mantle g service users
 
@@ -78,12 +81,19 @@ Scaffolds a new Mantle project in `./<project-name>/`:
 | Option | Choices | Default | Description |
 |---|---|---|---|
 | `--transport` | `express` | `express` | HTTP transport |
-| `--database` | `pg`, `sqlite`, `none` | prompted | Database adapter |
-| `--auth` | `local`, `google`, `github`, `none` | prompted | Auth strategy |
+| `--database` | `pg`, `sqlite`, `mongodb`, `none` | prompted | Database adapter |
+| `--auth` | `local`, `google`, `github`, `facebook`, `apple`, `microsoft`, `linkedin`, `none` | prompted | Auth strategy |
+| `--cors` | — | `false` | Enable CORS on the transport (`@mantlejs/express`'s `cors` option) |
+| `--redis` | — | `false` | Wire `@mantlejs/auth-redis` state/refresh-token stores (ignored when `--auth none`) |
 | `--package-manager` | `npm`, `yarn`, `pnpm` | prompted | Package manager |
 | `--skip-install` | — | `false` | Skip running install after scaffold |
 
 When `--database`, `--auth`, or `--package-manager` are omitted, the CLI prompts interactively.
+`--cors` and `--redis` are flag-only (no prompt) — omit them to leave both off.
+
+`sqlite` scaffolds use Knex's `better-sqlite3` client, matching the `better-sqlite3` driver
+dependency it installs. Every choice of `--auth` other than `apple` takes a `clientId`/`clientSecret`
+pair; `apple` takes `teamId`/`keyId`/`privateKey` instead (Sign in with Apple has no client secret).
 
 ---
 
@@ -96,6 +106,12 @@ Generates code in `src/services/<name>/` by default. Override with `--directory 
 | `service` | `s` | `<name>.service.ts`, `<name>.repository.ts`, `<name>.schema.ts`, `<name>.service.spec.ts` |
 | `hook` | `h` | `<name>.hook.ts`, `<name>.hook.spec.ts` |
 | `repository` | `r` | `<name>.repository.ts` |
+| `authentication` | `auth` | `src/authentication.ts` (detected auth strategy config) |
+| `migration` | `m` | `migrations/<timestamp>_<name>.ts` (requires `@mantlejs/knex`) |
+
+`service`/`repository` detect the project's database from `package.json` and generate a matching
+repository base class: `KnexRepository` (`@mantlejs/knex` installed), `MongoRepository`
+(`@mantlejs/mongodb` installed), or `MemoryRepository` as the fallback (`--database none`).
 
 **Examples:**
 
@@ -139,10 +155,10 @@ import type { NewProjectOptions, GeneratorName } from "@mantlejs/cli";
 | Type | Description |
 |---|---|
 | `NewProjectOptions` | Options accepted by `newProject()` |
-| `GeneratorName` | `"service" \| "hook" \| "repository"` |
+| `GeneratorName` | `"service" \| "hook" \| "repository" \| "authentication" \| "migration"` |
 | `Transport` | `"express"` |
-| `Database` | `"pg" \| "sqlite" \| "none"` |
-| `Auth` | `"local" \| "google" \| "github" \| "none"` |
+| `Database` | `"pg" \| "sqlite" \| "mongodb" \| "none"` |
+| `Auth` | `"local" \| "google" \| "github" \| "facebook" \| "apple" \| "microsoft" \| "linkedin" \| "none"` |
 | `PackageManager` | `"npm" \| "yarn" \| "pnpm"` |
 
 ---

@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { program } from "commander";
 import { newProject } from "../lib/new.js";
+import type { Transport, Database, Auth } from "../lib/new.js";
 import { generateCommand } from "../lib/generate.js";
 import { addPackage } from "../lib/add.js";
 
@@ -10,15 +11,22 @@ program
   .command("new <project-name>")
   .description("Scaffold a new Mantle project")
   .option("--transport <transport>", "HTTP transport (express)", "express")
-  .option("--database <db>", "Database adapter (pg, sqlite, none)")
-  .option("--auth <auth>", "Auth strategy (local, google, github, none)")
+  .option("--database <db>", "Database adapter (pg, sqlite, mongodb, none)")
+  .option(
+    "--auth <auth>",
+    "Auth strategy (local, google, github, facebook, apple, microsoft, linkedin, none)",
+  )
+  .option("--cors", "Enable CORS on the transport", false)
+  .option("--redis", "Wire @mantlejs/auth-redis state/refresh-token stores", false)
   .option("--package-manager <pm>", "Package manager (npm, yarn, pnpm)")
   .option("--skip-install", "Skip package installation", false)
   .action(async (projectName: string, opts: Record<string, unknown>) => {
     await newProject(projectName, {
-      transport: opts.transport as "express" | undefined,
-      database: opts.database as "pg" | "sqlite" | "none" | undefined,
-      auth: opts.auth as "local" | "google" | "github" | "none" | undefined,
+      transport: opts.transport as Transport | undefined,
+      database: opts.database as Database | undefined,
+      auth: opts.auth as Auth | undefined,
+      cors: opts.cors as boolean | undefined,
+      redis: opts.redis as boolean | undefined,
       packageManager: opts.packageManager as "npm" | "yarn" | "pnpm" | undefined,
       skipInstall: opts.skipInstall as boolean | undefined,
     });

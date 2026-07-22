@@ -22,20 +22,19 @@ npx create-mantle my-app
 
 `create-mantle` follows the npm initializer convention. Running `npm create mantle my-app` resolves to `create-mantle` on the npm registry and invokes the `create-mantle` bin. This means users never need to install the package globally.
 
-### Templates
-
-| Template  | Description                                      |
-| --------- | ------------------------------------------------ |
-| `minimal` | Bare Mantle app — kernel only, no adapters       |
-| `full`    | Mantle + Express + Knex + Auth + Logger wired up |
+`create-mantle` is a thin wrapper around `@mantlejs/cli`'s `newProject()` — see that package's
+README for the full scaffold surface (database/auth/CORS/Redis options, what gets generated).
 
 ---
 
 ## Quick start
 
 ```bash
-# Scaffold a new project
+# Scaffold a new project (interactive prompts)
 npm create mantle@latest my-app
+
+# Scaffold non-interactively (flags go after `--`)
+npm create mantle@latest my-app -- --database pg --auth local --package-manager npm
 
 # Move into the project
 cd my-app
@@ -51,39 +50,46 @@ npm run dev
 
 ## API
 
-### `createMantle(options)`
+### `newProject(name, options)`
 
-Programmatic entry point used by the CLI bin. Returns a `Promise<void>` that resolves when the project has been scaffolded.
+Re-exported from `@mantlejs/cli`; the bin's programmatic entry point. Returns a `Promise<void>`
+that resolves once the project has been scaffolded (and installed, unless `skipInstall` is set).
 
 ```typescript
-import { createMantle } from "create-mantle";
+import { newProject } from "create-mantle";
 
-await createMantle({
-  name: "my-app",
-  directory: "./my-app",
-  template: "full",
+await newProject("my-app", {
+  database: "pg",
+  auth: "local",
+  packageManager: "npm",
 });
 ```
 
-#### Options
+#### CLI flags
 
-| Option      | Type                  | Default     | Description                                              |
-| ----------- | --------------------- | ----------- | -------------------------------------------------------- |
-| `name`      | `string`              | —           | Project name (required). Written to `package.json`.      |
-| `directory` | `string`              | —           | Target directory where files will be written (required). |
-| `template`  | `"minimal" \| "full"` | `"minimal"` | Which starter template to use.                           |
+| Flag | Values | Default | Description |
+|---|---|---|---|
+| `--database <db>` | `pg`, `sqlite`, `mongodb`, `none` | prompted | Database adapter |
+| `--auth <auth>` | `local`, `google`, `github`, `facebook`, `apple`, `microsoft`, `linkedin`, `none` | prompted | Auth strategy |
+| `--cors` | — | `false` | Enable CORS on the transport |
+| `--redis` | — | `false` | Wire `@mantlejs/auth-redis` state/refresh-token stores |
+| `--package-manager <pm>` | `npm`, `yarn`, `pnpm` | prompted | Package manager |
+| `--skip-install` | — | `false` | Skip running install after scaffold |
 
 ---
 
 ## Types
 
 ```typescript
-import type { CreateMantleOptions } from "create-mantle";
+import type { NewProjectOptions, Database, Auth, PackageManager } from "create-mantle";
 ```
 
-| Type                  | Description                          |
-| --------------------- | ------------------------------------ |
-| `CreateMantleOptions` | Options accepted by `createMantle()` |
+| Type | Description |
+|---|---|
+| `NewProjectOptions` | Options accepted by `newProject()` |
+| `Database` | `"pg" \| "sqlite" \| "mongodb" \| "none"` |
+| `Auth` | `"local" \| "google" \| "github" \| "facebook" \| "apple" \| "microsoft" \| "linkedin" \| "none"` |
+| `PackageManager` | `"npm" \| "yarn" \| "pnpm"` |
 
 ---
 
@@ -93,6 +99,7 @@ import type { CreateMantleOptions } from "create-mantle";
 npx nx build create-mantle   # compile
 npx nx test create-mantle    # run tests
 npx nx lint create-mantle    # lint
+npx nx run create-mantle:e2e-scaffold   # full scaffold → build → test → boot → CRUD → SIGTERM smoke test
 ```
 
 ---

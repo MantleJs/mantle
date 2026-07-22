@@ -87,7 +87,7 @@ strictly in order: develop packages (items 1–8) → release plan (item 9) → 
   **Accept:** composition spec green; docs landed; canonical example's `articles` service (item 10) uses the
   pattern in real code.
 
-- [ ] **8. CLI + `create-mantle` template refresh and smoke test** *(TDD §8)*
+- [x] **8. CLI + `create-mantle` template refresh and smoke test** *(TDD §8)*
   Templates offer the current surface (mongodb database choice, `cors`, all seven auth strategies — local,
   google, github, facebook, apple, microsoft, linkedin — plus the redis stores, versions from a single
   `versions.ts` map). CI `e2e-scaffold` target: non-interactive `create-mantle` → install (workspace-linked /

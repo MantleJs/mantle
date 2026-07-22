@@ -54,6 +54,38 @@ export const PACKAGE_WIRINGS: Record<string, PackageWiring> = {
       "facebookStrategy({ clientId: process.env.FACEBOOK_CLIENT_ID!, clientSecret: process.env.FACEBOOK_CLIENT_SECRET! })",
     envVars: ["FACEBOOK_CLIENT_ID=your-facebook-client-id", "FACEBOOK_CLIENT_SECRET=your-facebook-client-secret"],
   },
+  "@mantlejs/auth-apple": {
+    imports: [{ names: ["appleStrategy"], path: "@mantlejs/auth-apple" }],
+    configureCall:
+      "appleStrategy({ clientId: process.env.APPLE_CLIENT_ID!, teamId: process.env.APPLE_TEAM_ID!, keyId: process.env.APPLE_KEY_ID!, privateKey: process.env.APPLE_PRIVATE_KEY! })",
+    envVars: [
+      "APPLE_CLIENT_ID=your-apple-services-id",
+      "APPLE_TEAM_ID=your-apple-team-id",
+      "APPLE_KEY_ID=your-apple-key-id",
+      "APPLE_PRIVATE_KEY=your-apple-p8-private-key",
+    ],
+  },
+  "@mantlejs/auth-microsoft": {
+    imports: [{ names: ["microsoftStrategy"], path: "@mantlejs/auth-microsoft" }],
+    configureCall:
+      'microsoftStrategy({ clientId: process.env.MICROSOFT_CLIENT_ID!, clientSecret: process.env.MICROSOFT_CLIENT_SECRET!, tenant: process.env.MICROSOFT_TENANT ?? "common" })',
+    envVars: [
+      "MICROSOFT_CLIENT_ID=your-microsoft-client-id",
+      "MICROSOFT_CLIENT_SECRET=your-microsoft-client-secret",
+      "MICROSOFT_TENANT=common",
+    ],
+  },
+  "@mantlejs/auth-linkedin": {
+    imports: [{ names: ["linkedinStrategy"], path: "@mantlejs/auth-linkedin" }],
+    configureCall:
+      "linkedinStrategy({ clientId: process.env.LINKEDIN_CLIENT_ID!, clientSecret: process.env.LINKEDIN_CLIENT_SECRET! })",
+    envVars: ["LINKEDIN_CLIENT_ID=your-linkedin-client-id", "LINKEDIN_CLIENT_SECRET=your-linkedin-client-secret"],
+  },
+  "@mantlejs/mongodb": {
+    imports: [{ names: ["mongodb"], path: "@mantlejs/mongodb" }],
+    configureCall: 'mongodb({ uri: process.env.MONGODB_URI!, dbName: process.env.MONGODB_DB_NAME ?? "app" })',
+    envVars: ["MONGODB_URI=mongodb://localhost:27017", "MONGODB_DB_NAME=app"],
+  },
   "@mantlejs/sync": {
     imports: [{ names: ["sync", "redisAdapter"], path: "@mantlejs/sync" }],
     configureCall: "sync({ adapter: redisAdapter({ url: process.env.REDIS_URL }) })",

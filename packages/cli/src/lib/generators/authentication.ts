@@ -6,18 +6,78 @@ export interface AuthenticationGeneratorOptions {
   cwd?: string;
 }
 
+interface OAuthStrategyDef {
+  packageName: string;
+  importName: string;
+  envPrefix: string;
+  configFields: string[];
+}
+
+const OAUTH_STRATEGIES: OAuthStrategyDef[] = [
+  {
+    packageName: "@mantlejs/auth-google",
+    importName: "googleStrategy",
+    envPrefix: "GOOGLE",
+    configFields: ["clientId: process.env.GOOGLE_CLIENT_ID!", "clientSecret: process.env.GOOGLE_CLIENT_SECRET!"],
+  },
+  {
+    packageName: "@mantlejs/auth-github",
+    importName: "githubStrategy",
+    envPrefix: "GITHUB",
+    configFields: ["clientId: process.env.GITHUB_CLIENT_ID!", "clientSecret: process.env.GITHUB_CLIENT_SECRET!"],
+  },
+  {
+    packageName: "@mantlejs/auth-facebook",
+    importName: "facebookStrategy",
+    envPrefix: "FACEBOOK",
+    configFields: [
+      "clientId: process.env.FACEBOOK_CLIENT_ID!",
+      "clientSecret: process.env.FACEBOOK_CLIENT_SECRET!",
+    ],
+  },
+  {
+    packageName: "@mantlejs/auth-apple",
+    importName: "appleStrategy",
+    envPrefix: "APPLE",
+    configFields: [
+      "clientId: process.env.APPLE_CLIENT_ID!",
+      "teamId: process.env.APPLE_TEAM_ID!",
+      "keyId: process.env.APPLE_KEY_ID!",
+      "privateKey: process.env.APPLE_PRIVATE_KEY!",
+    ],
+  },
+  {
+    packageName: "@mantlejs/auth-microsoft",
+    importName: "microsoftStrategy",
+    envPrefix: "MICROSOFT",
+    configFields: [
+      "clientId: process.env.MICROSOFT_CLIENT_ID!",
+      "clientSecret: process.env.MICROSOFT_CLIENT_SECRET!",
+      'tenant: process.env.MICROSOFT_TENANT ?? "common"',
+    ],
+  },
+  {
+    packageName: "@mantlejs/auth-linkedin",
+    importName: "linkedinStrategy",
+    envPrefix: "LINKEDIN",
+    configFields: [
+      "clientId: process.env.LINKEDIN_CLIENT_ID!",
+      "clientSecret: process.env.LINKEDIN_CLIENT_SECRET!",
+    ],
+  },
+];
+
 interface AuthPackages {
   hasAuth: boolean;
   hasLocal: boolean;
-  hasGoogle: boolean;
-  hasGitHub: boolean;
-  hasFacebook: boolean;
+  hasRedis: boolean;
+  oauthStrategies: OAuthStrategyDef[];
 }
 
 async function detectAuthPackages(cwd: string): Promise<AuthPackages> {
   const pkgPath = join(cwd, "package.json");
   if (!(await fileExists(pkgPath))) {
-    return { hasAuth: false, hasLocal: false, hasGoogle: false, hasGitHub: false, hasFacebook: false };
+    return { hasAuth: false, hasLocal: false, hasRedis: false, oauthStrategies: [] };
   }
 
   const raw = await readFile(pkgPath, "utf-8");
@@ -27,9 +87,8 @@ async function detectAuthPackages(cwd: string): Promise<AuthPackages> {
   return {
     hasAuth: "@mantlejs/auth" in deps,
     hasLocal: "@mantlejs/auth-local" in deps,
-    hasGoogle: "@mantlejs/auth-google" in deps,
-    hasGitHub: "@mantlejs/auth-github" in deps,
-    hasFacebook: "@mantlejs/auth-facebook" in deps,
+    hasRedis: "@mantlejs/auth-redis" in deps,
+    oauthStrategies: OAUTH_STRATEGIES.filter((strategy) => strategy.packageName in deps),
   };
 }
 
@@ -49,20 +108,14 @@ export async function generateAuthentication(options: AuthenticationGeneratorOpt
     console.log('    import { localStrategy } from "@mantlejs/auth-local";');
     console.log("    app.configure(localStrategy());");
   }
-  if (authPkgs.hasGoogle) {
-    console.log("\n  Or use googleStrategy() directly:");
-    console.log('    import { googleStrategy } from "@mantlejs/auth-google";');
-    console.log("    app.configure(googleStrategy({ clientId: ..., clientSecret: ... }));");
+  for (const strategy of authPkgs.oauthStrategies) {
+    console.log(`\n  Or use ${strategy.importName}() directly:`);
+    console.log(`    import { ${strategy.importName} } from "${strategy.packageName}";`);
+    console.log(`    app.configure(${strategy.importName}({ ${strategy.configFields.join(", ")} }));`);
   }
-  if (authPkgs.hasGitHub) {
-    console.log("\n  Or use githubStrategy() directly:");
-    console.log('    import { githubStrategy } from "@mantlejs/auth-github";');
-    console.log("    app.configure(githubStrategy({ clientId: ..., clientSecret: ... }));");
-  }
-  if (authPkgs.hasFacebook) {
-    console.log("\n  Or use facebookStrategy() directly:");
-    console.log('    import { facebookStrategy } from "@mantlejs/auth-facebook";');
-    console.log("    app.configure(facebookStrategy({ clientId: ..., clientSecret: ... }));");
+  if (authPkgs.hasRedis) {
+    console.log("\n  @mantlejs/auth-redis detected — pass redisStateStore()/redisRefreshTokenStore() into");
+    console.log("  the strategy/auth() config to share OAuth state and refresh tokens across instances.");
   }
   console.log();
 }
@@ -81,25 +134,9 @@ function authenticationTemplate(pkgs: AuthPackages): string {
     configures.push("app.configure(localStrategy());");
   }
 
-  if (pkgs.hasGoogle) {
-    imports.push('import { googleStrategy } from "@mantlejs/auth-google";');
-    configures.push(
-      "app.configure(googleStrategy({ clientId: process.env.GOOGLE_CLIENT_ID!, clientSecret: process.env.GOOGLE_CLIENT_SECRET! }));",
-    );
-  }
-
-  if (pkgs.hasGitHub) {
-    imports.push('import { githubStrategy } from "@mantlejs/auth-github";');
-    configures.push(
-      "app.configure(githubStrategy({ clientId: process.env.GITHUB_CLIENT_ID!, clientSecret: process.env.GITHUB_CLIENT_SECRET! }));",
-    );
-  }
-
-  if (pkgs.hasFacebook) {
-    imports.push('import { facebookStrategy } from "@mantlejs/auth-facebook";');
-    configures.push(
-      "app.configure(facebookStrategy({ clientId: process.env.FACEBOOK_CLIENT_ID!, clientSecret: process.env.FACEBOOK_CLIENT_SECRET! }));",
-    );
+  for (const strategy of pkgs.oauthStrategies) {
+    imports.push(`import { ${strategy.importName} } from "${strategy.packageName}";`);
+    configures.push(`app.configure(${strategy.importName}({ ${strategy.configFields.join(", ")} }));`);
   }
 
   if (configures.length === 0) {
