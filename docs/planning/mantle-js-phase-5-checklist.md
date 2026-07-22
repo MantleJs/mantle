@@ -70,7 +70,7 @@ strictly in order: develop packages (items 1–8) → release plan (item 9) → 
   **Accept:** specs mirroring `google-strategy.spec.ts` (no-PKCE URL construction; exchange failure;
   userinfo normalization with/without email; missing `sub` → `GeneralError`).
 
-- [ ] **6. Production-ready logging in `@mantlejs/logger`** *(TDD §6)*
+- [x] **6. Production-ready logging in `@mantlejs/logger`** *(TDD §6)*
   Additive `Logger.child?()` in core; `createLogger(options)` factory (pino as optional dependency; `level`
   env-aware, `redact` defaulting to exported `SENSITIVE_PATHS`, `pretty`, `gcp` severity mapping);
   `logRequest`/`logError` redaction (`redactParams`, redacted `error.data`); `loglayerAdapter` over a
@@ -79,7 +79,7 @@ strictly in order: develop packages (items 1–8) → release plan (item 9) → 
   **Accept:** level/redaction/gcp/child/`loglayerAdapter` specs; `includeParams: true` emits `[Redacted]`
   for sensitive paths; missing-pino install-hint spec; existing hook specs unchanged.
 
-- [ ] **7. Verify + document multi-repository services** *(TDD §7)*
+- [x] **7. Verify + document multi-repository services** *(TDD §7)*
   Spec-only in `@mantlejs/mantle`: custom service composing two `MemoryRepository`s through the full
   `app.use` pipeline (hooks + events), including non-atomicity assertion. Docs section "Services with
   multiple repositories" (pattern, cross-adapter composition, `withTransaction` boundaries — same-instance

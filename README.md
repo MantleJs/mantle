@@ -119,6 +119,60 @@ app.service("users").hooks({
 app.listen(3030);
 ```
 
+## Services with multiple repositories
+
+`RepositoryService<T>` is the framework-owned bridge from HTTP query strings to a single
+`Repository<T>` — reach for it whenever a service reads and writes exactly one collection.
+When a service legitimately needs more than one (writing an activity-log entry alongside the
+record it just created, upserting an embedding after a text write, …), compose the repositories
+directly behind a hand-written `Service<T>` instead of trying to force a second repository through
+`RepositoryService`:
+
+```typescript
+import type { Id, Repository, Service, ServiceParams } from "@mantlejs/mantle";
+
+class ArticleService implements Service<Article> {
+  constructor(
+    private readonly articles: Repository<Article>,
+    private readonly activity: Repository<ActivityEntry>,
+  ) {}
+
+  async find(params?: ServiceParams) {
+    return this.articles.findAll({ where: params?.query });
+  }
+
+  async get(id: Id) {
+    return this.articles.findById(id);
+  }
+
+  async create(data: Partial<Article>) {
+    const article = await this.articles.save(data);
+    await this.activity.save({ articleId: article.id, action: "created" });
+    return article;
+  }
+
+  // ...update/patch/remove delegate to `this.articles`
+}
+
+app.use("/articles", new ArticleService(new ArticleRepository(app), new ActivityRepository(app)));
+```
+
+Registered this way, a multi-repository service runs through `app.use()` exactly like a
+`RepositoryService` — the full hook pipeline (`before`/`after`/`error`) and `service:event`
+emission apply identically; hooks and transports cannot tell the difference.
+
+**Cross-repository writes are not atomic.** If the second write fails, the first has already
+committed and is not rolled back — the same non-atomicity as `app.batch()` (see the Phase 4
+batch-atomicity notes). Whether that matters depends on the repositories involved:
+
+- **Same Knex instance:** repositories sharing one `KnexRepository`-derived instance can share a
+  transaction — pass a `withTransaction`-scoped repository into the service (or construct the
+  service inside the transaction callback) so both writes commit or roll back together.
+- **Cross-adapter (e.g. Knex + Mongo, or any two different adapters):** there is no distributed
+  transaction. Design for eventual consistency — make the secondary write idempotent/retryable, or
+  treat its failure as non-fatal and reconcile out of band — rather than assuming both writes
+  succeed or fail together.
+
 ## Development
 
 This monorepo is managed with [Nx](https://nx.dev).

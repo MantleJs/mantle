@@ -36,6 +36,10 @@ interface ParsedQuery {
  * - With `options.schema`, string where-values are coerced to the field's declared type;
  *   without one they pass through unchanged.
  * - `update`/`patch`/`remove` propagate the repository's `NotFound` untouched.
+ *
+ * For a service backed by more than one repository (e.g. writing an activity-log entry
+ * alongside the primary record), compose them directly behind a hand-written `Service<T>`
+ * instead — see "Services with multiple repositories" in the root README.
  */
 export class RepositoryService<T, D = Partial<T>> implements Service<T, D> {
   constructor(
