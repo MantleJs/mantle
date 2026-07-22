@@ -23,6 +23,8 @@ export interface Logger {
   info(msg: string, context?: Record<string, unknown>): void;
   warn(msg: string, context?: Record<string, unknown>): void;
   error(msg: string, context?: Record<string, unknown>): void;
+  /** Returns a logger with `bindings` merged into every record. Optional — callers must feature-check. */
+  child?(bindings: Record<string, unknown>): Logger;
 }
 
 export interface Paginated<T> {

@@ -91,15 +91,14 @@ import { express } from "@mantlejs/express";
 import { knex } from "@mantlejs/knex";
 import { auth, authenticate, sanitizeUser } from "@mantlejs/auth";
 import { localStrategy, hashPassword } from "@mantlejs/auth-local";
-import { logger, pinoAdapter, logRequest, logError } from "@mantlejs/logger";
-import pino from "pino";
+import { logger, createLogger, logRequest, logError } from "@mantlejs/logger";
 
 const app = mantle()
   .configure(express())
   .configure(knex({ client: "pg", connection: process.env.DATABASE_URL }))
   .configure(auth({ secret: process.env.JWT_SECRET! }))
   .configure(localStrategy())
-  .configure(logger(pinoAdapter(pino({ level: process.env.LOG_LEVEL ?? "info" }))));
+  .configure(logger(await createLogger({ gcp: process.env.NODE_ENV === "production" })));
 
 app.use("/users", new UserService(new UserRepository(app)), {
   methods: ["find", "get", "create", "update", "patch", "remove"],

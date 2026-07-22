@@ -1,10 +1,13 @@
 import type { HookFunction, Logger } from "@mantlejs/mantle";
+import { redactPaths, SENSITIVE_PATHS } from "./redact.js";
 
 export interface LogRequestOptions {
   /** Log level for successful calls. Default: 'debug' */
   level?: "debug" | "info";
   /** Include params in the log record. Default: false — may contain sensitive data */
   includeParams?: boolean;
+  /** Paths redacted from `params` when includeParams is true. Default: SENSITIVE_PATHS. */
+  redactParams?: string[];
 }
 
 /**
@@ -14,7 +17,7 @@ export interface LogRequestOptions {
  * (after or error phase) emits the log record with elapsed duration and status.
  */
 export function logRequest(options: LogRequestOptions = {}): HookFunction {
-  const { level = "debug", includeParams = false } = options;
+  const { level = "debug", includeParams = false, redactParams = SENSITIVE_PATHS } = options;
   const timers = new WeakMap<object, number>();
 
   return function logRequestHook(ctx) {
@@ -35,7 +38,7 @@ export function logRequest(options: LogRequestOptions = {}): HookFunction {
         status: ctx.error ? "error" : "ok",
       };
       if (ctx.id !== undefined) record["id"] = ctx.id;
-      if (includeParams) record["params"] = ctx.params;
+      if (includeParams) record["params"] = redactPaths(ctx.params, redactParams);
       const msg = ctx.error ? "Service call failed" : "Service call completed";
       log[level](msg, record);
     }

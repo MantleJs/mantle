@@ -1,5 +1,6 @@
 import { MantleError } from "@mantlejs/mantle";
 import type { HookFunction, Logger } from "@mantlejs/mantle";
+import { redactPaths } from "./redact.js";
 
 export interface LogErrorOptions {
   /** Log 4xx errors as 'warn', 5xx errors as 'error'. Default: true */
@@ -31,6 +32,7 @@ export function logError(options: LogErrorOptions = {}): HookFunction {
     };
 
     if (includeStack) record["stack"] = err.stack;
+    if (err instanceof MantleError && err.data !== undefined) record["data"] = redactPaths(err.data);
 
     log[logLevel]("Service error", record);
     return ctx;

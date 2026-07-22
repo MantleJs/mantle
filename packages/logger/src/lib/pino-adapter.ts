@@ -7,6 +7,7 @@ export interface PinoLike {
   info(obj: object, msg: string): void;
   warn(obj: object, msg: string): void;
   error(obj: object, msg: string): void;
+  child?(bindings: Record<string, unknown>): PinoLike;
 }
 
 /**
@@ -23,10 +24,19 @@ export function pinoAdapter(pino: PinoLike): Logger {
       fn(merged, msg);
     };
 
-  return {
+  const adapter: Logger = {
     debug: wrap(pino.debug.bind(pino)),
     info: wrap(pino.info.bind(pino)),
     warn: wrap(pino.warn.bind(pino)),
     error: wrap(pino.error.bind(pino)),
   };
+
+  // pino.child() bakes `bindings` into every subsequent record; re-wrapping the child
+  // instance through pinoAdapter keeps RequestContext merging working on it too.
+  if (typeof pino.child === "function") {
+    const child = pino.child.bind(pino);
+    adapter.child = (bindings: Record<string, unknown>): Logger => pinoAdapter(child(bindings));
+  }
+
+  return adapter;
 }

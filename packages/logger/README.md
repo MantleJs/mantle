@@ -10,7 +10,7 @@ Structured logging plugin for [Mantle JS](https://github.com/mantlejs/mantle). P
 npm install @mantlejs/logger pino
 ```
 
-`pino` is an optional peer dependency. If you prefer winston or another logger, skip it — see [Using a different logger](#using-a-different-logger).
+`pino` is an optional peer dependency, loaded lazily by `createLogger()`. If you prefer winston, LogLayer, or another logger, skip it — see [Using a different logger](#using-a-different-logger). To pretty-print in development, also install `pino-pretty` (also optional — see [`createLogger(options?)`](#createloggeroptions)).
 
 ---
 
@@ -102,14 +102,13 @@ pino({ level: 'info' }, pino.multistream([
 ## Quick start
 
 ```typescript
-import pino from "pino";
 import { mantle } from "@mantlejs/mantle";
 import { express } from "@mantlejs/express";
-import { logger, pinoAdapter, logRequest, logError } from "@mantlejs/logger";
+import { logger, createLogger, logRequest, logError } from "@mantlejs/logger";
 
 const app = mantle()
   .configure(express())
-  .configure(logger(pinoAdapter(pino({ level: process.env.LOG_LEVEL ?? "info" }))));
+  .configure(logger(await createLogger({ gcp: process.env.NODE_ENV === "production" })));
 
 const requestLogger = logRequest();
 
@@ -160,7 +159,49 @@ import { pinoAdapter } from "@mantlejs/logger";
 const adapter = pinoAdapter(pino({ level: process.env.LOG_LEVEL ?? "info" }));
 ```
 
-`PinoLike` is a minimal duck-type — any object with `debug`, `info`, `warn`, and `error` methods accepting `(object, message)` will work.
+`PinoLike` is a minimal duck-type — any object with `debug`, `info`, `warn`, and `error` methods accepting `(object, message)` will work. If the wrapped instance has a `child(bindings)` method (real pino instances do), the returned `Logger` gets one too — see [`Logger.child(bindings)`](#loggerchildbindings) below.
+
+---
+
+### `createLogger(options?)`
+
+Builds a `Logger` backed by pino, with production-ready defaults baked in: environment-aware level, PII redaction, and Google Cloud severity mapping. `pino` is loaded lazily — nothing is required at module load time, only when `createLogger()` actually runs.
+
+```typescript
+function createLogger(options?: CreateLoggerOptions): Promise<Logger>;
+
+interface CreateLoggerOptions {
+  /** Default: "info" when NODE_ENV === "production", else "debug". */
+  level?: "debug" | "info" | "warn" | "error";
+  /** Pino redact paths. Default: SENSITIVE_PATHS. Pass [] to disable. */
+  redact?: string[];
+  /** Pretty-print via pino-pretty when available. Default: false. Ignored in production. */
+  pretty?: boolean;
+  /** Google Cloud structured logging: level -> `severity` labels, message key "message". Default: false. */
+  gcp?: boolean;
+  /** Extra pino options merged last (escape hatch). */
+  pino?: Record<string, unknown>;
+}
+```
+
+```typescript
+import { logger, createLogger } from "@mantlejs/logger";
+
+app.configure(
+  logger(
+    await createLogger({
+      pretty: process.env.NODE_ENV !== "production",
+      gcp: process.env.NODE_ENV === "production",
+    }),
+  ),
+);
+```
+
+- **`redact`** — defaults to the exported `SENSITIVE_PATHS` (`["password", "*.password", "*.accessToken", "*.refreshToken", "*.authorization", "*.cookie"]`), passed straight to pino's `redact.paths` with `censor: "[Redacted]"`. Pass `[]` to disable pino-level redaction entirely (e.g. if you configure your own).
+- **`pretty`** — when `true` and not in production, `createLogger` checks whether `pino-pretty` is resolvable before setting `transport: { target: "pino-pretty" }`. If it isn't installed, logging still works — output falls back to plain JSON and a one-time `console.warn` names the missing package. `pretty` has no effect in production.
+- **`gcp`** — sets `messageKey: "message"` and a `formatters.level` mapping (`debug`→`DEBUG`, `info`→`INFO`, `warn`→`WARNING`, `error`→`ERROR`) so [Cloud Logging](https://cloud.google.com/logging/docs/structured-logging) picks up the right severity and renders the message field. See [Deployment](#deployment) below.
+- **`pino`** — an escape hatch merged into the built options object last, so it can override any computed default (including `level` or `redact`).
+- If `pino` cannot be resolved (not installed), `createLogger()` throws a `GeneralError` naming the missing package, with `hint: "Install it with: npm install pino"`.
 
 ---
 
@@ -183,8 +224,12 @@ interface LogRequestOptions {
    * sensitive paths before they reach the transport.
    */
   includeParams?: boolean;
+  /** Paths redacted from `params` when includeParams is true. Default: SENSITIVE_PATHS. */
+  redactParams?: string[];
 }
 ```
+
+`redactParams` runs a small own-code deep walk over `params` — replacing matched fields with `"[Redacted]"` — **before** the record reaches the logger. This works for every adapter, not just `pinoAdapter`; pino's own `redact` option (configured via `createLogger`) remains defense in depth on top of it.
 
 ```typescript
 const requestLogger = logRequest();
@@ -259,9 +304,73 @@ app.service("users").hooks({
   "code": 409,
   "name": "Conflict",
   "message": "Email already exists",
+  "data": { "field": "email" },
   "stack": "..."
 }
 ```
+
+`data` (the `MantleError`'s `data` payload) is only present when the error carries one, and is redacted with the same `SENSITIVE_PATHS` walk used by `logRequest`'s `redactParams`.
+
+---
+
+### `Logger.child(bindings)`
+
+`Logger` (from `@mantlejs/mantle`) declares `child` as **optional** — implementations may omit it, and callers must feature-check before use:
+
+```typescript
+interface Logger {
+  debug(msg: string, context?: Record<string, unknown>): void;
+  info(msg: string, context?: Record<string, unknown>): void;
+  warn(msg: string, context?: Record<string, unknown>): void;
+  error(msg: string, context?: Record<string, unknown>): void;
+  child?(bindings: Record<string, unknown>): Logger;
+}
+```
+
+Both adapters this package ships implement it:
+
+- **`pinoAdapter`** — delegates to the wrapped instance's own `pino.child(bindings)`, re-wrapped through `pinoAdapter` so `RequestContext` merging (`correlationId`, etc.) keeps working on the child logger too. If the wrapped object has no `child` method, the returned `Logger` won't have one either.
+- **`loglayerAdapter`** — has no native LogLayer `child()` involved; bindings are closed over and folded into every subsequent `withMetadata()` call instead.
+
+```typescript
+const requestLog = log.child?.({ requestId: "abc-123" }) ?? log;
+requestLog.info("handling request"); // every record includes requestId: "abc-123"
+```
+
+Mantle's own hooks never call `child` unconditionally — it's an opt-in for application code that wants scoped loggers (e.g. one per background job, per queue consumer).
+
+---
+
+### `loglayerAdapter(logLayerInstance)`
+
+Wraps a [LogLayer](https://loglayer.dev) instance to satisfy the `Logger` interface. `loglayer` itself is **not** a dependency of any Mantle package — `LogLayerLike` is a duck-type, so any object shaped like a LogLayer instance works.
+
+```typescript
+function loglayerAdapter(log: LogLayerLike): Logger;
+
+interface LogLayerLike {
+  withMetadata(meta: Record<string, unknown>): {
+    debug(msg: string): void;
+    info(msg: string): void;
+    warn(msg: string): void;
+    error(msg: string): void;
+  };
+  child?(): unknown;
+}
+```
+
+```typescript
+import { LogLayer, ConsoleTransport } from "loglayer";
+import { logger, loglayerAdapter } from "@mantlejs/logger";
+
+const log = new LogLayer({ transport: new ConsoleTransport({ logger: console }) });
+
+app.configure(logger(loglayerAdapter(log)));
+```
+
+Like `pinoAdapter`, every call merges the current `RequestContext` into the metadata passed to `withMetadata()`. `child(bindings)` closes over the merged bindings rather than calling LogLayer's own `child()` (whose semantics differ) — bindings are folded into every subsequent `withMetadata()` call, and nested `child()` calls compose.
+
+See [Using LogLayer](#using-loglayer) below for a transport fan-out example.
 
 ---
 
@@ -277,43 +386,39 @@ Mantle's default log records are intentionally narrow — only service metadata 
 | `correlationId` | Yes | A UUID — not PII |
 | `ctx.id` | Yes | A resource identifier — usually not PII |
 
-### Redacting fields with pino
+### Redacting fields with `createLogger`
 
-If you use `pinoAdapter`, configure field redaction on the pino instance via pino's built-in [`redact`](https://getpino.io/#/docs/redaction) option. It uses `fast-redact` with JSONPath patterns and runs before serialisation:
+`createLogger({ redact })` is the recommended approach when using pino — it configures pino's built-in [`redact`](https://getpino.io/#/docs/redaction) option (`fast-redact` with JSONPath patterns, applied before serialisation) and defaults to the exported `SENSITIVE_PATHS`:
 
 ```typescript
-import pino from "pino";
-import { logger, pinoAdapter } from "@mantlejs/logger";
+import { logger, createLogger } from "@mantlejs/logger";
 
 app.configure(
   logger(
-    pinoAdapter(
-      pino({
-        level: process.env.LOG_LEVEL ?? "info",
-        redact: {
-          paths: [
-            "user.email",
-            "user.password",
-            "params.query.token",
-            "*.creditCard",
-          ],
-          censor: "[REDACTED]",
-        },
-      }),
-    ),
+    await createLogger({
+      redact: ["user.email", "user.password", "params.query.token", "*.creditCard"],
+    }),
   ),
 );
 ```
 
-This is the recommended approach — pino's redaction is fast, well-tested, and applies globally to every record without any changes to Mantle hooks or the `Logger` interface.
+This applies globally to every record without any changes to Mantle hooks or the `Logger` interface. If you build a pino instance yourself instead of using `createLogger`, pass the same `redact` option directly to `pino({ ... })` before wrapping it with `pinoAdapter`.
+
+### Redacting with `logRequest`/`logError` (works with any adapter)
+
+`logRequest({ redactParams })` and `logError()` run their own small deep-walk redaction (see [`redactPaths`](#redactpathsvalue-paths) below) over `params` and `error.data` respectively, before the record reaches *any* logger — pino, LogLayer, winston, or a custom one. This is defense in depth on top of pino-level redaction, and the only redaction available to non-pino adapters.
 
 ### Redacting with winston or a custom logger
 
-Configure redaction at the transport or formatter level in your logger of choice. Mantle does not add a redaction layer on top of the underlying logger.
+Configure redaction at the transport or formatter level in your logger of choice. Mantle does not add a redaction layer on top of the underlying logger — except via `logRequest`/`logError` as described above.
 
 ---
 
 ## Using a different logger
+
+### LogLayer
+
+Use `loglayerAdapter` — see [`loglayerAdapter(logLayerInstance)`](#loglayeradapterloglayerinstance) above.
 
 ### Winston
 
@@ -347,19 +452,132 @@ app.set("logger", {
 
 ---
 
+### `redactPaths(value, paths?)`
+
+The own-code deep-walk redaction helper used internally by `logRequest` and `logError`. Exported so application code can reuse it.
+
+```typescript
+function redactPaths(value: unknown, paths?: string[]): unknown; // default: SENSITIVE_PATHS
+```
+
+Path syntax is a small subset of pino's `redact.paths`: a bare key (`"password"`) matches only at the top level; a `"*.key"` entry matches `key` at any depth. Returns a deep clone — the input is never mutated.
+
+```typescript
+import { redactPaths, SENSITIVE_PATHS } from "@mantlejs/logger";
+
+redactPaths({ user: { password: "hunter2" } });
+// => { user: { password: "[Redacted]" } }
+
+SENSITIVE_PATHS; // ["password", "*.password", "*.accessToken", "*.refreshToken", "*.authorization", "*.cookie"]
+```
+
+---
+
 ## Types
 
 ```typescript
-import type { PinoLike, LogRequestOptions, LogErrorOptions } from "@mantlejs/logger";
+import type {
+  PinoLike,
+  LogLayerLike,
+  CreateLoggerOptions,
+  LogRequestOptions,
+  LogErrorOptions,
+} from "@mantlejs/logger";
 import type { Logger } from "@mantlejs/mantle";
 ```
 
 | Type | Description |
 |---|---|
-| `Logger` | Core interface — re-exported from `@mantlejs/mantle` |
+| `Logger` | Core interface — re-exported from `@mantlejs/mantle`. `child` is optional. |
 | `PinoLike` | Duck-type accepted by `pinoAdapter()` |
+| `LogLayerLike` | Duck-type accepted by `loglayerAdapter()` |
+| `CreateLoggerOptions` | Options for `createLogger()` |
 | `LogRequestOptions` | Options for `logRequest()` |
 | `LogErrorOptions` | Options for `logError()` |
+
+---
+
+## Deployment
+
+### Cloud Run
+
+Pass `gcp: true` to `createLogger()` when running on Cloud Run (or any GKE/Cloud Logging environment). It maps Mantle's four levels to Cloud Logging `severity` labels and renames the message field, so structured fields survive intact in the Logs Explorer instead of being flattened into `textPayload`:
+
+```typescript
+const log = await createLogger({ gcp: process.env.NODE_ENV === "production" });
+```
+
+Write to **stdout only** — Cloud Run collects container stdout/stderr automatically. Don't configure file transports; there's no persistent disk, and a second write target only adds latency. This is also why `pretty` is ignored in production: pretty-printed multi-line output does not parse as structured JSON by the log agent.
+
+### Level configuration via `@mantlejs/config`
+
+Read the log level from `@mantlejs/config` instead of hardcoding it, so it can be overridden per environment without a redeploy. `config()` and `logger()` both call `app.set("logger", ...)` — `config()` sets it to the raw config object, `logger()` overwrites it with the actual `Logger` instance — so **configure `config()` before `logger()`**:
+
+```typescript
+import { config } from "@mantlejs/config";
+import { logger, createLogger } from "@mantlejs/logger";
+import type { CreateLoggerOptions } from "@mantlejs/logger";
+
+app.configure(config()); // reads config/default.json + config/{NODE_ENV}.json + MANTLE_* env vars
+
+const { level } = app.get<{ logger?: { level?: string } }>("config").logger ?? {};
+app.configure(logger(await createLogger({ level: level as CreateLoggerOptions["level"] })));
+```
+
+```jsonc
+// config/default.json
+{ "logger": { "level": "info" } }
+```
+
+```
+MANTLE_LOGGER__LEVEL=debug npm start   # env override, no redeploy
+```
+
+### Process-level error handlers
+
+Pino/LogLayer only capture errors that flow through a service call. Wire the two Node.js process-level events too, so nothing crashes silently:
+
+```typescript
+const log = await createLogger();
+
+process.on("uncaughtException", (err) => {
+  log.error("Uncaught exception", { component: "mantle:process", name: err.name, message: err.message, stack: err.stack });
+  process.exit(1);
+});
+
+process.on("unhandledRejection", (reason) => {
+  const err = reason instanceof Error ? reason : new Error(String(reason));
+  log.error("Unhandled rejection", { component: "mantle:process", name: err.name, message: err.message, stack: err.stack });
+});
+```
+
+### Log-based metrics
+
+Every record `logRequest`/`logError` emit carries a `component` field (`mantle:request` or `mantle:error`). Build log-based metrics/alerts (Cloud Monitoring, Datadog, Grafana Loki) filtered on `component`, without needing a separate metrics pipeline:
+
+- `component="mantle:request" AND status="error"` — error rate by `path`/`method`
+- `component="mantle:request"` — p50/p95 `durationMs` by `path`
+- `component="mantle:error" AND code>=500` — 5xx volume, paged separately from 4xx noise
+
+### Using LogLayer
+
+`loglayerAdapter` lets LogLayer's own transport fan-out do double duty — one Mantle `Logger` writing to multiple destinations at once:
+
+```typescript
+import { LogLayer, MultiTransport, ConsoleTransport, DatadogTransport } from "loglayer";
+import { logger, loglayerAdapter } from "@mantlejs/logger";
+
+const log = new LogLayer({
+  transport: new MultiTransport([
+    new ConsoleTransport({ logger: console }),
+    new DatadogTransport({ apiKey: process.env.DATADOG_API_KEY! }),
+  ]),
+});
+
+app.configure(logger(loglayerAdapter(log)));
+```
+
+`logRequest` and `logError` work unchanged — they only depend on the `Logger` interface, never on LogLayer directly.
 
 ---
 

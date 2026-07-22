@@ -123,6 +123,41 @@ describe("pinoAdapter()", () => {
     adapter.debug("no-context");
     expect(pino.calls[0]).toEqual({ obj: {}, msg: "no-context" });
   });
+
+  it("does not expose child() when the underlying pino-like object lacks it", () => {
+    const pino = makePino();
+    const adapter = pinoAdapter(pino);
+    expect(adapter.child).toBeUndefined();
+  });
+
+  it("child() delegates to pino.child(bindings) and re-wraps the result", () => {
+    const pino = makePino();
+    const childPino = makePino();
+    const childSpy = vi.fn((bindings: Record<string, unknown>) => {
+      expect(bindings).toEqual({ service: "users" });
+      return childPino;
+    });
+    const adapter = pinoAdapter({ ...pino, child: childSpy });
+
+    const child = adapter.child!({ service: "users" });
+    child.info("hello");
+
+    expect(childSpy).toHaveBeenCalledWith({ service: "users" });
+    expect(childPino.calls[0]).toEqual({ obj: {}, msg: "hello" });
+  });
+
+  it("child() logger still merges RequestContext", () => {
+    const pino = makePino();
+    const childPino = makePino();
+    const adapter = pinoAdapter({ ...pino, child: () => childPino });
+
+    const child = adapter.child!({ service: "users" });
+    withContext({ correlationId: "req-abc" }, () => {
+      child.info("hello");
+    });
+
+    expect(childPino.calls[0]).toEqual({ obj: { correlationId: "req-abc" }, msg: "hello" });
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -241,6 +276,26 @@ describe("logRequest()", () => {
     hook(ctx);
     expect(log.calls["debug"][0][1]).not.toHaveProperty("id");
   });
+
+  it("redacts SENSITIVE_PATHS in params when includeParams is true", () => {
+    const log = makeLogger();
+    const ctx = makeCtx(makeApp(log), { params: { provider: "rest", query: { password: "shh" } } });
+    const hook = logRequest({ includeParams: true });
+    hook(ctx);
+    hook(ctx);
+    const params = log.calls["debug"][0][1]!["params"] as Record<string, unknown>;
+    expect((params["query"] as Record<string, unknown>)["password"]).toBe("[Redacted]");
+  });
+
+  it("respects a custom redactParams list", () => {
+    const log = makeLogger();
+    const ctx = makeCtx(makeApp(log), { params: { provider: "rest", query: { secret: "shh" } } });
+    const hook = logRequest({ includeParams: true, redactParams: ["*.secret"] });
+    hook(ctx);
+    hook(ctx);
+    const params = log.calls["debug"][0][1]!["params"] as Record<string, unknown>;
+    expect((params["query"] as Record<string, unknown>)["secret"]).toBe("[Redacted]");
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -319,5 +374,19 @@ describe("logError()", () => {
       path: "orders",
       provider: "socket.io",
     });
+  });
+
+  it("redacts sensitive fields in error.data", () => {
+    const log = makeLogger();
+    const ctx = makeCtx(makeApp(log), { error: new BadRequest("bad", { password: "shh", ok: "kept" }) });
+    logError({ includeStack: false })(ctx);
+    expect(log.calls["warn"][0][1]!["data"]).toEqual({ password: "[Redacted]", ok: "kept" });
+  });
+
+  it("omits data from the record when the error has no data", () => {
+    const log = makeLogger();
+    const ctx = makeCtx(makeApp(log), { error: new BadRequest("bad") });
+    logError({ includeStack: false })(ctx);
+    expect(log.calls["warn"][0][1]).not.toHaveProperty("data");
   });
 });
