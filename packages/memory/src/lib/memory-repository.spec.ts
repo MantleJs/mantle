@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { MemoryRepository, MEMORY_OPERATORS } from "./memory-repository.js";
-import { NotFound, NESTED_QUERY_CASES, NESTED_QUERY_RECORDS } from "@mantlejs/mantle";
+import { Conflict, NotFound, NESTED_QUERY_CASES, NESTED_QUERY_RECORDS } from "@mantlejs/mantle";
 import type { NestedQueryRecord } from "@mantlejs/mantle";
 
 type User = {
@@ -67,6 +67,13 @@ describe("MemoryRepository", () => {
       const user = await r.save({ name: "Alice", email: "alice@example.com", age: 30 });
       expect(user.createdAt).toBeUndefined();
       expect(user.updatedAt).toBeUndefined();
+    });
+
+    it("throws Conflict when the id already exists", async () => {
+      await repo.save({ id: "fixed-id", name: "Bob", email: "bob@example.com", age: 25 });
+      await expect(repo.save({ id: "fixed-id", name: "Bob2", email: "bob2@example.com", age: 26 })).rejects.toThrow(
+        Conflict,
+      );
     });
   });
 

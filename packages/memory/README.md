@@ -106,7 +106,7 @@ All methods mirror the `Repository<T>` interface and return `Promise<T>` or `Pro
 | --- | --- |
 | `findAll(params?)` | Return all records matching `QueryParams` |
 | `findById(id)` | Return a single record or `null` |
-| `save(data)` | Insert a new record; throws `BadRequest` if `id` already exists |
+| `save(data)` | Insert a new record; throws `Conflict` if `id` already exists |
 | `saveAll(data[])` | Insert multiple records |
 | `updateById(id, data)` | Full replace (all fields); throws `NotFound` if absent |
 | `patchById(id, data)` | Partial update (merge); throws `NotFound` if absent |

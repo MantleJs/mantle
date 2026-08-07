@@ -1,5 +1,5 @@
 import type { Id, QueryParams, Repository, RepositoryCapabilities } from "@mantlejs/mantle";
-import { assertOperators, NotFound } from "@mantlejs/mantle";
+import { assertOperators, Conflict, NotFound } from "@mantlejs/mantle";
 
 /** All query operators supported by the in-memory adapter — the full Mantle operator set (it's the test reference). */
 export const MEMORY_OPERATORS: ReadonlySet<string> = new Set([
@@ -97,6 +97,10 @@ export class MemoryRepository<T extends Record<string, unknown>> implements Repo
       this.autoId && data[this.idField] === undefined
         ? crypto.randomUUID()
         : (data[this.idField] as Id);
+
+    if (this._store.has(id)) {
+      throw new Conflict(`Record with id ${id} already exists`);
+    }
 
     const now = new Date().toISOString();
     const record = {
