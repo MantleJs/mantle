@@ -16,6 +16,19 @@ npm install @mantlejs/schema
 
 ## Concepts
 
+### Why TypeBox + Ajv
+
+The two libraries split the job along their strengths instead of overlapping: **TypeBox is the
+authoring surface** — one schema definition yields both the TypeScript type and a JSON Schema
+object, with no codegen step. **Ajv is the validation engine** — it JIT-compiles each schema into
+an optimized validator function (cached per schema, see `validate()` below) and implements the
+JSON Schema spec, including string formats, more completely than TypeBox's own built-in
+`Value.Check` runtime checker, which skips format validation entirely. Using TypeBox alone would
+mean either no format validation or hand-rolling it; using Ajv alone would mean hand-writing JSON
+Schema with no inferred TypeScript type. Combined, you define a schema once and get compile-time
+types plus spec-compliant, high-performance runtime validation from it — the trade-off is that Ajv
+becomes a hard runtime dependency (see the BYOV escape hatch below if that's unacceptable).
+
 ### One schema, two outputs
 
 TypeBox generates a TypeScript type and a JSON Schema object from the same definition, with no build step:

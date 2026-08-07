@@ -366,9 +366,9 @@ interface QueryParams {
 ## Development
 
 ```bash
-npx nx build core    # compile
-npx nx test core     # run tests
-npx nx lint core     # lint
+npx nx build mantle    # compile
+npx nx test mantle     # run tests
+npx nx lint mantle     # lint
 ```
 
 ## Publishing
@@ -376,20 +376,20 @@ npx nx lint core     # lint
 Build before publishing:
 
 ```bash
-npx nx build core
+npx nx build mantle
 ```
 
 First publish (scoped packages require `--access public`):
 
 ```bash
-cd packages/core
+cd packages/mantle
 npm publish --access public
 ```
 
-Subsequent releases — bump `version` in `packages/core/package.json`, then:
+Subsequent releases — bump `version` in `packages/mantle/package.json`, then:
 
 ```bash
-cd packages/core
+cd packages/mantle
 npm publish
 ```
 
@@ -402,7 +402,7 @@ The workspace includes a local registry to smoke-test a publish before pushing t
 npx nx run @mantle/source:local-registry
 
 # Terminal 2 — publish to it
-cd packages/core
+cd packages/mantle
 npm publish --registry http://localhost:4873
 
 # Install from it in another project
