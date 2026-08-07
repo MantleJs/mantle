@@ -105,6 +105,16 @@ app.service("users").hooks({
 });
 ```
 
+> `UserSchema` appears in three places above, but only one of them does anything at request time.
+> The `schema` passed to `app.use()` is **inert metadata** — it's stored for tooling introspection
+> (`describe()`, `GET /_services`, OpenAPI/MCP generation later) and never validates or transforms
+> a request on its own. Actual enforcement comes only from the `validate(UserSchema)` hooks in
+> `before`, and the `password` strip only happens because of the explicit `resolver()` in `after`.
+> Passing `schema` to `app.use()` without also wiring `validate()` hooks means nothing is validated.
+> (Exception: `RepositoryService` reads `schema.properties[key].type` to coerce `where`-clause query
+> values — see "String coercion" under `RepositoryService` in the `@mantlejs/mantle` README — but
+> that's query coercion, not body validation.)
+
 ---
 
 ## API
