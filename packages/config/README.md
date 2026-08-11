@@ -112,26 +112,29 @@ Returns a `MantlePlugin`. Call via `app.configure(config(options))`.
 ```typescript
 import { config } from "@mantlejs/config";
 
-app.configure(config({
-  directory: "config",          // optional — default: process.cwd() + '/config'
-  schema: AppConfigSchema,      // optional — TypeBox schema for startup validation
-  envVar: "NODE_ENV",           // optional — env var that selects the overlay file
-  envPrefix: "MYAPP_",          // optional — default: 'MANTLE_'
-}));
+app.configure(
+  config({
+    directory: "config", // optional — default: process.cwd() + '/config'
+    schema: AppConfigSchema, // optional — TypeBox schema for startup validation
+    envVar: "NODE_ENV", // optional — env var that selects the overlay file
+    envPrefix: "MYAPP_", // optional — default: 'MANTLE_'
+  }),
+);
 ```
 
 Side effects:
+
 - Sets `app.set('config', mergedConfig)` — the full merged object
 - Sets `app.set(key, value)` for each top-level key in the merged config
 
 #### `ConfigOptions`
 
-| Field | Type | Default | Description |
-| --- | --- | --- | --- |
-| `directory` | `string` | `process.cwd() + '/config'` | Directory containing config JSON files |
-| `schema` | `TSchema` | — | TypeBox schema; throws `GeneralError` if merged config is invalid |
-| `envVar` | `string` | `"NODE_ENV"` | Env var used to select the environment overlay file |
-| `envPrefix` | `string` | `"MANTLE_"` | Prefix for env var overrides — use your app name to avoid collisions |
+| Field       | Type      | Default                     | Description                                                          |
+| ----------- | --------- | --------------------------- | -------------------------------------------------------------------- |
+| `directory` | `string`  | `process.cwd() + '/config'` | Directory containing config JSON files                               |
+| `schema`    | `TSchema` | —                           | TypeBox schema; throws `GeneralError` if merged config is invalid    |
+| `envVar`    | `string`  | `"NODE_ENV"`                | Env var used to select the environment overlay file                  |
+| `envPrefix` | `string`  | `"MANTLE_"`                 | Prefix for env var overrides — use your app name to avoid collisions |
 
 ---
 
@@ -143,7 +146,7 @@ const cfg = app.get<AppConfig>("config");
 
 // Individual top-level keys (set as a convenience by the plugin)
 const port = app.get<number>("port");
-const db = app.get<AppConfig["db"]>("db");  // the whole "db" object — only top-level keys are set this way
+const db = app.get<AppConfig["db"]>("db"); // the whole "db" object — only top-level keys are set this way
 
 // Nested values require reading the full config
 const maxPool = app.get<AppConfig>("config").db.pool.max;
@@ -153,20 +156,21 @@ const maxPool = app.get<AppConfig>("config").db.pool.max;
 
 ## Environment variable overrides
 
-| Env var | Maps to |
-| --- | --- |
-| `MANTLE_PORT=8080` | `config.port = 8080` |
+| Env var                    | Maps to                       |
+| -------------------------- | ----------------------------- |
+| `MANTLE_PORT=8080`         | `config.port = 8080`          |
 | `MANTLE_DB__CLIENT=mysql2` | `config.db.client = "mysql2"` |
-| `MANTLE_DB__POOL__MAX=25` | `config.db.pool.max = 25` |
+| `MANTLE_DB__POOL__MAX=25`  | `config.db.pool.max = 25`     |
 
 With `envPrefix: "MYAPP_"`:
 
-| Env var | Maps to |
-| --- | --- |
-| `MYAPP_PORT=8080` | `config.port = 8080` |
+| Env var                  | Maps to                   |
+| ------------------------ | ------------------------- |
+| `MYAPP_PORT=8080`        | `config.port = 8080`      |
 | `MYAPP_DB__POOL__MAX=25` | `config.db.pool.max = 25` |
 
 Key segments are lowercased. Values are coerced:
+
 - If the existing value is a `number`, the env string is passed through `Number()`.
 - If the existing value is a `boolean`, `"true"` and `"1"` become `true`; everything else becomes `false`.
 - Otherwise the raw string is used.
@@ -179,8 +183,8 @@ Key segments are lowercased. Values are coerced:
 import type { ConfigOptions } from "@mantlejs/config";
 ```
 
-| Type | Description |
-| --- | --- |
+| Type            | Description                  |
+| --------------- | ---------------------------- |
 | `ConfigOptions` | Options passed to `config()` |
 
 ---
