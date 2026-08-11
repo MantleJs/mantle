@@ -43,7 +43,7 @@ LOG_LEVEL=warn npm start    # warn + error only
 
 ### Component field
 
-All records emitted by Mantle packages include a `component` field (`mantle:core`, `mantle:knex`, `mantle:request`, `mantle:error`, etc.). Use this field in your log aggregation tool (CloudWatch, Datadog, Grafana Loki) to filter framework-internal logs without restarting the process.
+Records emitted by Mantle packages include a `component` field — currently `mantle:core` (service registration/teardown), `mantle:request` and `mantle:error` (this package's `logRequest`/`logError` hooks), and `mantle:sync` (`@mantlejs/sync`). Use this field in your log aggregation tool (CloudWatch, Datadog, Grafana Loki) to filter framework-internal logs without restarting the process.
 
 ### Correlation ID
 
@@ -293,7 +293,7 @@ app.service("users").hooks({
 });
 ```
 
-**Emitted record:**
+**Emitted record** (message: `"Service error"`):
 
 ```json
 {
