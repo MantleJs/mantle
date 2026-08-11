@@ -25,7 +25,9 @@ npm install @sinclair/typebox
 Config is assembled by merging three sources in order — later values override earlier ones:
 
 1. `config/default.json` — base config present in all environments
-2. `config/{NODE_ENV}.json` — environment-specific overrides (e.g. `config/production.json`)
+2. `config/{NODE_ENV}.json` — environment-specific overrides (e.g. `config/production.json`).
+   If `NODE_ENV` (or a custom `envVar`) is unset, this defaults to `"development"`, so
+   `config/development.json` is the overlay loaded by default.
 3. `MANTLE_*` environment variables — highest priority, applied last
 
 ### Environment variable overrides
@@ -141,7 +143,7 @@ const cfg = app.get<AppConfig>("config");
 
 // Individual top-level keys (set as a convenience by the plugin)
 const port = app.get<number>("port");
-const dbClient = app.get<string>("db");  // only top-level keys are set this way
+const db = app.get<AppConfig["db"]>("db");  // the whole "db" object — only top-level keys are set this way
 
 // Nested values require reading the full config
 const maxPool = app.get<AppConfig>("config").db.pool.max;
