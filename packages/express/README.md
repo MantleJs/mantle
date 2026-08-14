@@ -30,7 +30,10 @@ app.listen(3030, () => console.log("Listening on port 3030"));
 
 Returns a `MantlePlugin`. When applied via `app.configure(express())`, it:
 
-- Creates (or reuses) an Express application and stores it under `app.get("express")`.
+- Creates (or reuses) an Express application and stores it under `app.get("http:router")` — the
+  transport-neutral contract other Mantle packages (`@mantlejs/auth-oauth`, `@mantlejs/mcp`,
+  `@mantlejs/openapi`) use to mount their own raw routes regardless of which HTTP transport is
+  configured.
 - Patches `app.use()` so that every service registration automatically mounts REST routes.
 - Attaches an error handler after all routes are registered.
 - Adds `app.listen(port, callback?)` as a shorthand for `expressApp.listen(...)`.
