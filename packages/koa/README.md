@@ -48,7 +48,7 @@ Every response includes an `x-correlation-id` header. If the request supplies th
 
 ### `@mantlejs/socketio` compatibility
 
-After `app.listen()` the underlying `http.Server` is stored at `app.get('server')`. Socket.IO adapters can attach to this server without needing access to the Koa instance.
+After `app.listen()` the underlying `http.Server` is stored at `app.get("http:server")`. Socket.IO adapters can attach to this server without needing access to the Koa instance.
 
 ---
 
@@ -109,9 +109,12 @@ app.configure(koa({ app: new Koa() }));
 ```
 
 Side effects:
+- Stores a `@koa/router`-backed adapter under `app.get("http:router")` — the transport-neutral contract
+  other Mantle packages (`@mantlejs/auth-oauth`, `@mantlejs/mcp`, `@mantlejs/openapi`) use to mount their
+  own raw routes regardless of which HTTP transport is configured.
 - Stores the Koa application at `app.get("koa")`
 - Stores the `@koa/router` Router at `app.get("koa:router")`
-- Stores the `http.Server` at `app.get("server")` after `app.listen()`
+- Stores the `http.Server` at `app.get("http:server")` after `app.listen()`
 
 #### `KoaOptions`
 
