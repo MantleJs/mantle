@@ -162,7 +162,8 @@ After calling `app.configure(http())`:
 | ----------------- | ----------------- | ----------------------------------------------------------------- |
 | `'httpHandler'`   | `NodeHttpHandler` | Node.js `(req, res) => void` handler for `http.createServer`      |
 | `'fetchHandler'`  | `FetchHandler`    | Fetch API `(request) => Promise<Response>` handler for edge runtimes |
-| `'server'`        | `http.Server`     | Set after `app.listen()` is called                                |
+| `'http:router'`   | `HttpRouterLike`  | The transport-neutral contract other Mantle packages (`@mantlejs/auth-oauth`, `@mantlejs/mcp`, `@mantlejs/openapi`) use to mount their own raw routes regardless of which HTTP transport is configured |
+| `'http:server'`   | `http.Server`     | Set after `app.listen()` is called                                |
 
 ### Route conventions
 
