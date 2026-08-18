@@ -20,7 +20,7 @@ npm install @mantlejs/socketio socket.io
 
 ### Real-time events
 
-When a service method mutates data (`create`, `update`, `patch`, `remove`), the adapter automatically emits a corresponding event (`created`, `updated`, `patched`, `removed`) to subscribed clients. Clients can subscribe to a service path to receive live updates.
+When a service method mutates data (`create`, `update`, `patch`, `remove`), Mantle emits an internal `service:event`; `@mantlejs/socketio` listens for it and can re-emit it to clients as `{path} {event}` (e.g. `"messages created"`). Delivery is **opt-in** — it only reaches connections targeted by a channel publisher (see "Channels" below). Configuring the transport alone does not broadcast anything.
 
 ### Provider
 
@@ -65,6 +65,10 @@ socket.on("messages created", (message: unknown) => {
   console.log("New message:", message);
 });
 ```
+
+> The `messages created` event above only fires once a publisher is registered for the `messages`
+> service — see [Channels quick start](#channels-quick-start) below. Without one, mutations still
+> happen but nothing is broadcast to any client.
 
 ---
 
@@ -147,7 +151,7 @@ app.configure(
 | Field           | Type                     | Default        | Description                                        |
 | --------------- | ------------------------ | -------------- | -------------------------------------------------- |
 | `path`          | `string`                 | `"/socket.io"` | URL path the Socket.IO server listens on           |
-| `timeout`       | `number`                 | `30000`        | Ping timeout in ms before closing idle connections |
+| `timeout`       | `number`                 | `20000`        | Ping timeout in ms before closing idle connections (engine.io's built-in default; only overridden when set) |
 | `serverOptions` | `Partial<ServerOptions>` | —              | Additional Socket.IO `Server` constructor options  |
 
 ---
