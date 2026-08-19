@@ -14,74 +14,114 @@ npm install @mantlejs/pinecone @pinecone-database/pinecone
 
 ## Concepts
 
+### The `pinecone()` plugin
+
+`pinecone(config)` is a Mantle plugin. It creates a `Pinecone` client (from `@pinecone-database/pinecone`)
+and stores it on the application at `app.get("pinecone")`. `PineconeRepository` reads this client from
+the app in its constructor, so `.configure(pinecone(...))` must run before any repository is instantiated.
+
 ### Vector storage
 
-Pinecone is a managed vector database. Each record is stored as a high-dimensional float array (the "embedding") plus a metadata object. `PineconeRepository` maps a Mantle entity to a Pinecone vector by serialising all non-`id` fields as metadata and delegating embedding generation to the subclass via `toVector()`.
+Pinecone is a managed vector database. Each record is stored as a high-dimensional float array (the "embedding") plus a metadata object. `PineconeRepository` maps a Mantle entity to a Pinecone vector by serialising all non-`idField` fields as metadata.
 
 ### Embedding generation
 
-Embeddings are intentionally decoupled from the repository. Subclasses implement `toVector(data)` to call their embedding model of choice (OpenAI, Cohere, a local model, etc.). This keeps the adapter model-agnostic.
+`save()` and `saveAll()` write a **zero-vector placeholder** (sized to `vectorDimension`) — they never
+call an embedding model. Attach a real embedding separately with `upsertVector(id, vector, data)`, using
+a vector from your embedding model of choice (OpenAI, Cohere, a local model, etc.). This keeps the
+adapter model-agnostic: it never generates embeddings itself.
 
 ### Namespace
 
-A single Pinecone index can be partitioned into isolated namespaces. Pass `namespace` to `PineconeRepositoryOptions` to scope all operations to a namespace. Omit it to use the default namespace.
+A single Pinecone index can be partitioned into isolated namespaces. Declare `namespace` as a required
+property on your repository subclass to scope all operations to that namespace.
 
 ---
 
 ## Quick start
 
 ```typescript
-import { Pinecone } from "@pinecone-database/pinecone";
 import { mantle } from "@mantlejs/mantle";
-import { PineconeRepository } from "@mantlejs/pinecone";
+import { pinecone, PineconeRepository } from "@mantlejs/pinecone";
 
-const pc = new Pinecone({ apiKey: process.env.PINECONE_API_KEY! });
-const index = pc.index("documents");
-
-interface Document {
+interface Document extends Record<string, unknown> {
   id: string;
   title: string;
   body: string;
 }
 
 class DocumentRepository extends PineconeRepository<Document> {
-  async toVector(data: Partial<Document>): Promise<number[]> {
-    // Call your embedding model here
-    const text = [data.title, data.body].filter(Boolean).join(" ");
-    return myEmbeddingModel.embed(text);
-  }
+  readonly indexName = "documents";
+  readonly namespace = "prod";
+  readonly vectorDimension = 1536; // must match your embedding model's output size
 }
 
-const app = mantle();
-const repo = new DocumentRepository({ index, namespace: "prod" });
+const app = mantle().configure(pinecone({ apiKey: process.env.PINECONE_API_KEY }));
+
+const repo = new DocumentRepository(app);
 
 app.use("/documents", new DocumentService(repo));
 app.listen(3030);
+
+// save() only writes a zero-vector placeholder — attach the real embedding separately:
+const doc = await repo.save({ title: "Hello", body: "World" });
+const vector = await myEmbeddingModel.embed(`${doc.title} ${doc.body}`);
+await repo.upsertVector(doc.id, vector, doc);
 ```
 
 ---
 
 ## API
 
-### `PineconeRepository<T, D>` (abstract class)
+### `pinecone(config?)`
 
-An abstract base class that implements `Repository<T, D>` for Pinecone.
+Returns a `MantlePlugin`. Call via `app.configure(pinecone(config))`.
 
 ```typescript
-abstract class PineconeRepository<T extends { id: string }, D = Partial<T>> implements Repository<T, D> {
-  constructor(options: PineconeRepositoryOptions);
-  abstract toVector(data: D): Promise<number[]>;
+app.configure(
+  pinecone({
+    apiKey: process.env.PINECONE_API_KEY, // optional — falls back to the PINECONE_API_KEY env var
+  }),
+);
+```
+
+Side effects:
+
+- Stores the `Pinecone` client at `app.get("pinecone")`
+
+#### `PineconeConfig`
+
+`Partial<PineconeConfiguration>` — every option accepted by the underlying `@pinecone-database/pinecone`
+client's constructor (`apiKey`, custom fetch implementation, etc.) is passed straight through.
+
+---
+
+### `PineconeRepository<T, D>` (abstract class)
+
+An abstract base class that implements `VectorRepository<T, D>` for Pinecone. Requires `pinecone()` to
+be configured first — the constructor reads the client via `app.get("pinecone")`.
+
+```typescript
+abstract class PineconeRepository<T extends Record<string, unknown>, D = Partial<T>>
+  implements VectorRepository<T, D>
+{
+  constructor(app: MantleApplication);
+
+  abstract readonly indexName: string;
+  abstract readonly namespace: string;
+  abstract readonly vectorDimension: number;
 }
 ```
 
-Subclasses must implement `toVector()`. All other `Repository<T>` methods are provided as concrete implementations.
+#### Properties
 
-#### `PineconeRepositoryOptions`
-
-| Option      | Type     | Default     | Description                               |
-| ----------- | -------- | ----------- | ----------------------------------------- |
-| `index`     | `Index`  | —           | A Pinecone `Index` instance (required)    |
-| `namespace` | `string` | `undefined` | Pinecone namespace to scope operations to |
+| Property          | Type      | Default | Description                                                                 |
+| ------------------ | --------- | ------- | ----------------------------------------------------------------------------- |
+| `indexName`        | `string`  | —       | Pinecone index name **(required)**                                          |
+| `namespace`        | `string`  | —       | Pinecone namespace to scope operations to **(required)**                    |
+| `vectorDimension`  | `number`  | —       | Vector dimensionality of the index — sizes the zero-vector placeholder written by `save()`/`saveAll()` **(required)** |
+| `idField`          | `string`  | `"id"`  | Metadata key that holds the record id                                       |
+| `timestamps`       | `boolean` | `true`  | Auto-write `createdAt` / `updatedAt` ISO-8601 strings                       |
 
 #### `VectorRepository<T>` methods
 
@@ -101,8 +141,8 @@ Every `findSimilar` result carries the Pinecone match score as `_score` — **hi
 | `findAll(params?)`     | List all records, with optional `QueryParams` filtering  |
 | `findPage(params?)`    | One page via Pinecone's native `paginationToken` as the `cursor`. `where`/`skip`/`sort` are rejected with `BadRequest` — the list API cannot filter or order |
 | `findById(id)`         | Fetch a single record by ID; returns `null` if not found |
-| `save(data)`           | Insert a new record (generates embedding via `toVector`) |
-| `saveAll(data[])`      | Batch insert multiple records                            |
+| `save(data)`           | Insert a new record with a **zero-vector placeholder** (sized to `vectorDimension`) — does not generate a real embedding; call `upsertVector()` for that |
+| `saveAll(data[])`      | Batch insert multiple records, each with a zero-vector placeholder |
 | `updateById(id, data)` | Replace all metadata for a record                        |
 | `patchById(id, data)`  | Update individual metadata fields for a record           |
 | `deleteById(id)`       | Delete a record; throws `NotFound` if absent             |
@@ -110,15 +150,43 @@ Every `findSimilar` result carries the Pinecone match score as `_score` — **hi
 
 ---
 
+### `toPineconeFilter(where)`
+
+Converts a Mantle `QueryParams.where` clause into a Pinecone metadata filter object. Used internally by
+`findAll()` and `findSimilar()`; exported for writing raw SDK calls inside a custom repository method.
+
+| Operator                          | Pinecone filter                    |
+| ---------------------------------- | ----------------------------------- |
+| `{ field: value }`                 | `{ field: { $eq: value } }`         |
+| `{ field: null }`                  | `{ field: { $eq: null } }`          |
+| `{ field: [a, b] }`                | `{ field: { $in: [a, b] } }`        |
+| `{ field: { $lt/$lte/$gt/$gte } }` | passed through unchanged            |
+| `{ field: { $ne/$in/$nin } }`      | passed through unchanged            |
+| `{ $or: [...] }`                   | `{ $or: [mapped…] }`                |
+| `{ $and: [...] }`                  | `{ $and: [mapped…] }`               |
+
+`$like` and other pattern-matching operators are unsupported — Pinecone metadata filters have no
+wildcard matching — and throw `BadRequest` naming the operator.
+
+```typescript
+import { toPineconeFilter } from "@mantlejs/pinecone";
+
+const filter = toPineconeFilter({ category: "docs", views: { $gt: 100 } });
+// { category: { $eq: "docs" }, views: { $gt: 100 } }
+```
+
+---
+
 ## Types
 
 ```typescript
-import type { PineconeRepositoryOptions } from "@mantlejs/pinecone";
+import type { PineconeConfig, WhereClause } from "@mantlejs/pinecone";
 ```
 
-| Type                        | Description                                      |
-| --------------------------- | ------------------------------------------------ |
-| `PineconeRepositoryOptions` | Options for the `PineconeRepository` constructor |
+| Type            | Description                                       |
+| ---------------- | -------------------------------------------------- |
+| `PineconeConfig` | Options passed to `pinecone()`                    |
+| `WhereClause`    | Input type for `toPineconeFilter()`               |
 
 ---
 
