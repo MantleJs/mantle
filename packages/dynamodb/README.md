@@ -39,7 +39,7 @@ The repository uses:
 | Operator                           | DynamoDB expression        |
 | ---------------------------------- | -------------------------- |
 | `{ field: value }`                 | `#n = :v`                  |
-| `{ field: null }`                  | `attribute_not_exists(#n)` |
+| `{ field: null }`                  | `(attribute_not_exists(#n) OR #n = :v)` — matches a missing attribute or an explicit DynamoDB `NULL`-type value |
 | `{ field: { $gt } }`               | `#n > :v`                  |
 | `{ field: { $gte } }`              | `#n >= :v`                 |
 | `{ field: { $lt } }`               | `#n < :v`                  |
@@ -270,6 +270,22 @@ const { expression, names, values } = dynamodbify({
 ### `buildKeyCondition(partitionKey, sortKey, where)`
 
 Splits a where clause into a `KeyConditionExpression` and an optional `FilterExpression` for use in `QueryCommand`.
+
+---
+
+### Error mapping
+
+AWS SDK errors are translated to typed `MantleError` subclasses by exception name:
+
+| DynamoDB exception name                | Error thrown  |
+| --------------------------------------- | ------------- |
+| `ResourceNotFoundException`             | `NotFound`    |
+| `ConditionalCheckFailedException`       | `NotFound`    |
+| `ProvisionedThroughputExceededException`, `RequestLimitExceeded`, `ServiceUnavailable` | `Unavailable` |
+| `AccessDeniedException`, `UnauthorizedException` | `Forbidden`   |
+| `ValidationException`                   | `BadRequest`  |
+| `TransactionConflictException`, `TransactionCanceledException` | `Conflict`    |
+| other                                    | `GeneralError` |
 
 ---
 
