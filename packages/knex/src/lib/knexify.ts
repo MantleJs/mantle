@@ -36,7 +36,7 @@ export const KNEX_OPERATORS: ReadonlySet<string> = new Set([
  *   Comparison : $lt, $lte, $gt, $gte
  *   Equality   : $ne, $in, $nin
  *   Logical    : $or, $and
- *   Pattern    : $like, $notlike, $ilike (PostgreSQL only)
+ *   Pattern    : $like, $notlike, $ilike (all clients — Knex compiles LIKE/ILIKE per dialect)
  *   Containment: $contains — jsonb `@>` via whereJsonSupersetOf (PostgreSQL only)
  *   Null       : field: null  →  IS NULL
  *                field: { $ne: null }  →  IS NOT NULL

@@ -181,7 +181,7 @@ Operators supported in `where`:
 - Not-equal: `{ field: { $ne: value } }` (value `null` → `IS NOT NULL`)
 - Inclusion: `$in`, `$nin`
 - Logical: `$or`, `$and` (accept arrays of where clauses)
-- Pattern: `$like`, `$notlike`, `$ilike` (PostgreSQL only)
+- Pattern: `$like`, `$notlike`, `$ilike`
 - Containment: `$contains` (jsonb `@>` semantics; memory, supabase, knex on pg, dynamodb, mongodb)
 - Nested paths: dot-path keys like `"metadata.tags"` (memory, supabase, mongodb; supabase maps to PostgREST `->`/`->>`, mongodb is native)
 

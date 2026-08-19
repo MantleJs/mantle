@@ -127,6 +127,16 @@ Every `findSimilar` result carries the computed pgvector distance as `_score` �
 similar** (it is a distance, not a similarity, unlike the Pinecone/Qdrant adapters where higher
 wins). The same value is mirrored to the deprecated `_distance` field for one release.
 
+#### Vector methods
+
+| Method                                | Description                                                                                                                                             |
+| -------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `findSimilar(vector, topK, params?)`   | Top-K nearest records ordered by `distanceOperator`; see `_score` note above.                                                                            |
+| `upsertVector(id, vector, data)`       | Inserts or updates a record and its embedding via `ON CONFLICT (idField) MERGE` — a real upsert, unlike the base `KnexRepository.save()`, which is create-only and throws `Conflict` on a duplicate id. |
+| `deleteVector(id)`                     | Deletes the record and its embedding by id. Delegates to `deleteById`.                                                                                   |
+
+All three methods throw `GeneralError` if the repository isn't connected to a PostgreSQL (`pg`) client.
+
 ---
 
 ### `QueryParams` — supported `where` operators
@@ -149,7 +159,7 @@ wins). The same value is mirrored to the deprecated `_distance` field for one re
 { role: { $in: ["admin", "editor"] } }
 { role: { $nin: ["guest"] } }
 
-// Pattern matching (PostgreSQL)
+// Pattern matching (all clients — Knex compiles LIKE/ILIKE per dialect)
 { name: { $like: "Alice%" } }
 { name: { $ilike: "alice%" } }   // case-insensitive
 { name: { $notlike: "Bob%" } }
