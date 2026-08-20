@@ -65,7 +65,7 @@ app.listen(3030);
 
 Returns a `RefreshTokenStore` backed by Redis. Pass it as `refreshTokenStore` in the `auth()` config.
 
-Layout: each `jti` is a string key holding its subject, expiring with the token (`SET … EX`); each subject keeps a set of its outstanding `jti`s so `revokeAll` can find them.
+Layout: each `jti` is a string key holding its subject, expiring with the token (`SET … EX`); each subject keeps a set of its outstanding `jti`s so `revokeAll` can find them. The set's own TTL is re-armed to the newest token's expiry on every `add` — under a fixed `refreshExpiresIn` the newest token always expires last, so the set outlives all its members. Stale members left behind by an individual `jti` key's expiry are harmless: `consume` and `revokeAll` both treat a missing `jti` key as already gone.
 
 #### Options
 
