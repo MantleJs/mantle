@@ -1,6 +1,6 @@
 # @mantlejs/auth-facebook
 
-Facebook OAuth 2.0 strategy for [Mantle JS](https://github.com/mantlejs/mantle). Implements the authorization code flow — no Passport.js dependency. Registers `GET /auth/facebook` and `GET /auth/facebook/callback` on the Express app, then finds or creates a user record and returns a Mantle JWT pair.
+Facebook OAuth 2.0 strategy for [Mantle JS](https://github.com/mantlejs/mantle). Implements the authorization code flow — no Passport.js dependency. Registers `GET /auth/facebook` and `GET /auth/facebook/callback` on the configured HTTP transport (`@mantlejs/express`, `@mantlejs/koa`, or `@mantlejs/http`), then finds or creates a user record and returns a Mantle JWT pair.
 
 ---
 
@@ -95,7 +95,7 @@ type FacebookStrategyConfig = {
 | `GET`  | `/auth/facebook`          | Redirect to Facebook consent screen    |
 | `GET`  | `/auth/facebook/callback` | Handle callback, issue Mantle JWT pair |
 
-**Must be configured after** `express()` and `auth()`.
+**Must be configured after** an HTTP transport (`@mantlejs/express`, `@mantlejs/koa`, or `@mantlejs/http`) and `auth()`.
 
 ---
 
