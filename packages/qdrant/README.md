@@ -58,7 +58,7 @@ const doc = await repo.save({ title: "Intro to Qdrant", body: "..." });
 await repo.upsertVector(doc.id, embeddingVector, { title: doc.title, body: doc.body });
 
 // Similarity search
-const similar = await repo.findSimilar(queryVector, 10, { where: { body: { $like: "Qdrant" } } });
+const similar = await repo.findSimilar(queryVector, 10, { where: { category: "guide" } });
 ```
 
 ---
@@ -154,8 +154,6 @@ distance, where lower is more similar.
 | `$ne: null`         | `must_not is_null`                  |
 | `$in`               | `match.any`                         |
 | `$nin`              | `must_not match.any`                |
-| `$like / $ilike`    | `match.text`                        |
-| `$notlike`          | `must_not match.text`               |
 | `$or`               | `should`                            |
 | `$and`              | `must`                              |
 
