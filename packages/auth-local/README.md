@@ -20,8 +20,8 @@ A Mantle plugin that registers a `"local"` strategy with the auth engine. When `
 
 1. Queries the entity service (default: `"users"`) for a record matching the `usernameField`
 2. Verifies the submitted password against the stored Argon2id hash
-3. Issues a JWT via `engine.createJwt({ sub: String(user.id) })`
-4. Returns `{ accessToken, user }`
+3. Issues an access + refresh token pair via `engine.createTokenPair(sub)`
+4. Returns `{ accessToken, refreshToken, user }`
 
 The lookup is an internal call — it bypasses any `authenticate("jwt")` hooks on the users service.
 
@@ -97,6 +97,7 @@ Content-Type: application/json
 ```json
 {
   "accessToken": "eyJhbGciOiJIUzI1NiJ9...",
+  "refreshToken": "eyJhbGciOiJIUzI1NiJ9...",
   "user": { "id": 1, "email": "alice@example.com" }
 }
 ```
@@ -168,7 +169,7 @@ app
   .configure(auth({ secret }))
   .configure(localStrategy());
 
-// Wrong — throws "Auth plugin is not configured"
+// Wrong — throws "@mantlejs/auth must be configured before @mantlejs/auth-local"
 app
   .configure(localStrategy())
   .configure(auth({ secret }));
