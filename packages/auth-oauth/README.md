@@ -27,15 +27,24 @@ Each strategy package implements the `OAuthProvider` interface — three methods
 interface OAuthProvider {
   usePkce: boolean;
   defaultScope: string[];
+  callbackMethod?: "GET" | "POST"; // default "GET" — "POST" for form_post providers (e.g. Apple)
   buildAuthUrl(params: AuthUrlParams): string;
   exchangeCode(params: CodeExchangeParams): Promise<string>; // returns provider access token
-  fetchProfile(accessToken: string): Promise<OAuthProfile>; // returns { id, email?, name? }
+  fetchProfile(accessToken: string, extras?: CallbackExtras): Promise<OAuthProfile>; // returns { id, email?, name? }
 }
 ```
 
+`extras` is only populated for `callbackMethod: "POST"` providers — it carries the raw callback body
+(`{ body?: Record<string, unknown> }`) for fields that only exist in a form-encoded POST payload, not the
+query string (e.g. Apple's `user` JSON, only sent on first authorization).
+
 ### `createOAuthPlugin`
 
-The factory that wires a provider into Mantle. It registers two routes (`GET /auth/{providerKey}` and `GET /auth/{providerKey}/callback`) on the transport's `http:router`, manages PKCE state (generating the code verifier via Arctic; the provider derives the challenge), performs find-or-create on the configured user service, and issues the Mantle JWT pair via `@mantlejs/auth`.
+The factory that wires a provider into Mantle. It registers two routes (`GET /auth/{providerKey}` and
+`/auth/{providerKey}/callback` — `GET` by default, or `POST` when `provider.callbackMethod` is `"POST"`)
+on the transport's `http:router`, manages PKCE state (generating the code verifier via Arctic; the
+provider derives the challenge), performs find-or-create on the configured user service, and issues the
+Mantle JWT pair via `@mantlejs/auth`.
 
 ### State store
 
@@ -136,14 +145,17 @@ function createOAuthPlugin(providerKey: string, provider: OAuthProvider, config:
 | `provider`    | The `OAuthProvider` implementation for this strategy.                                                                                  |
 | `config`      | User-supplied configuration (client ID, secret, optional overrides).                                                                   |
 
-**Throws** at plugin registration time if `@mantlejs/auth` or `@mantlejs/express` is not configured before this plugin.
+**Throws** at plugin registration time if `@mantlejs/auth` or an HTTP transport (`@mantlejs/express`,
+`@mantlejs/koa`, or `@mantlejs/http`) is not configured before this plugin.
 
 **Routes registered:**
 
-| Method | Path                  | Description                                                                          |
-| ------ | --------------------- | ------------------------------------------------------------------------------------ |
-| `GET`  | `/auth/{providerKey}` | Redirect to provider consent screen. Generates state + PKCE (if `provider.usePkce`). |
-| `GET`  | `config.callbackUrl`  | Verify state, exchange code, fetch profile, find-or-create user, issue JWT pair.     |
+| Method             | Path                  | Description                                                                          |
+| ------------------- | --------------------- | ------------------------------------------------------------------------------------ |
+| `GET`               | `/auth/{providerKey}` | Redirect to provider consent screen. Generates state + PKCE (if `provider.usePkce`). |
+| `GET` or `POST`\*   | `config.callbackUrl`  | Verify state, exchange code, fetch profile, find-or-create user, issue JWT pair.     |
+
+\* `POST` when `provider.callbackMethod === "POST"` (e.g. Apple's `response_mode=form_post`); `GET` otherwise.
 
 **Response on successful callback:**
 
@@ -180,7 +192,9 @@ import type {
   OAuthStateData,
   AuthUrlParams,
   CodeExchangeParams,
+  CallbackExtras,
 } from "@mantlejs/auth-oauth";
+import { createStateStore } from "@mantlejs/auth-oauth";
 ```
 
 | Type                 | Description                                                         |
@@ -192,6 +206,15 @@ import type {
 | `OAuthStateData`     | Stored entry: `{ codeVerifier?: string; expiresAt: number }`        |
 | `AuthUrlParams`      | Params passed to `provider.buildAuthUrl()`                          |
 | `CodeExchangeParams` | Params passed to `provider.exchangeCode()`                          |
+| `CallbackExtras`     | Raw callback extras passed to `provider.fetchProfile()`: `{ body?: Record<string, unknown> }` — populated only for `callbackMethod: "POST"` providers |
+
+`createStateStore(ttlMs?)` — factory behind the default in-memory `OAuthStateStore`, exported in case you
+want the default backend with a non-default TTL (default `600_000` — 10 minutes) instead of writing a
+custom store:
+
+```typescript
+app.configure(myStrategy({ clientId, clientSecret, stateStore: createStateStore(5 * 60 * 1000) }));
+```
 
 ---
 
