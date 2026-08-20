@@ -24,7 +24,12 @@ The built-in `diskStorage()` adapter writes files to a local directory. The `Sto
 
 ### How files reach the hook
 
-The `@mantlejs/express` transport puts the raw `IncomingMessage` at `params.request`. `handleUpload()` reads from that to parse the multipart body. This means the hook only runs in HTTP contexts — internal service calls with no `provider` receive no upload processing (and no errors).
+`@mantlejs/express` and `@mantlejs/koa` both put the raw Node `IncomingMessage` at `params.request`. `handleUpload()` reads from that to parse the multipart body. This means the hook only runs in HTTP contexts — internal service calls with no `provider` receive no upload processing (and no errors).
+
+**`@mantlejs/http` is not currently supported.** Its router never sets `params.request`, so `handleUpload()`
+treats every request on that transport the same as an internal call — uploads silently pass through (or
+throw `BadRequest("Upload field '<field>' is required")` if `required: true`), indistinguishable from a
+genuine internal call. If you need file uploads, configure `@mantlejs/express` or `@mantlejs/koa`.
 
 ---
 
@@ -186,7 +191,8 @@ app.service("photos").hooks({
 
 | Condition | Result |
 | --- | --- |
-| `params.request` is absent (internal call) | Returns context unchanged |
+| `params.request` is absent (internal call, or an unsupported transport) and `required: false` | Returns context unchanged |
+| `params.request` is absent (internal call, or an unsupported transport) and `required: true` | Throws `BadRequest` |
 | File field not present in form and `required: false` | Returns context unchanged |
 | File field not present in form and `required: true` | Throws `BadRequest` |
 | MIME type not in `allowedMimeTypes` | Throws `BadRequest` |
