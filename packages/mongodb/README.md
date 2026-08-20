@@ -24,7 +24,7 @@ Subclasses declare `readonly collectionName: string`. Collections are created la
 
 ### Query translation
 
-Mantle `QueryParams.where` operators map almost directly onto MongoDB query operators — `$lt`/`$lte`/`$gt`/`$gte`/`$ne`/`$in`/`$nin`/`$or`/`$and` are native MongoDB syntax already, and dot-path keys (`"metadata.owner.name"`) are native too. `$contains` is translated to jsonb-`@>`-equivalent MongoDB conditions. `$like`/`$ilike`/`$notlike` are **not** supported (PostgreSQL-only) and throw `BadRequest` — use the raw `collection` escape hatch with `$regex` for pattern matching. Unsupported operators are rejected loudly via `assertOperators`.
+Mantle `QueryParams.where` operators map almost directly onto MongoDB query operators — `$lt`/`$lte`/`$gt`/`$gte`/`$ne`/`$in`/`$nin`/`$or`/`$and` are native MongoDB syntax already, and dot-path keys (`"metadata.owner.name"`) are native too. `$contains` is translated to jsonb-`@>`-equivalent MongoDB conditions. `$like`/`$ilike`/`$notlike` are **not** supported by this adapter and throw `BadRequest` — use the raw `collection` escape hatch with `$regex` for pattern matching. Unsupported operators are rejected loudly via `assertOperators`.
 
 ### Vector search (Atlas)
 
@@ -160,6 +160,16 @@ Implements `Repository<T, D>` for MongoDB. Subclasses must declare `collectionNa
 #### `QueryParams.where` operators
 
 Equality, `null`, `$lt`, `$lte`, `$gt`, `$gte`, `$ne`, `$in`, `$nin`, `$or`, `$and`, `$contains`, and dot-path keys. `$contains` follows the shared jsonb-`@>` conformance semantics (`NESTED_QUERY_CASES` in `@mantlejs/mantle`): scalar operand → array-element match, array operand → `$all`, object operand → recursive dot-path superset. `$like`/`$ilike`/`$notlike` throw `BadRequest`.
+
+#### Error mapping
+
+Driver errors are translated to typed `MantleError` subclasses:
+
+| Condition                                                | Error thrown  |
+| ---------------------------------------------------------- | ------------- |
+| Duplicate key (`code` `11000` or `11001`)                 | `Conflict`    |
+| `MongoNetworkError`, `MongoServerSelectionError`           | `Unavailable` |
+| anything else                                              | `GeneralError` |
 
 ---
 

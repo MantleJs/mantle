@@ -3,9 +3,9 @@ import { assertOperators } from "@mantlejs/mantle";
 
 /**
  * Exactly the `$`-operators `toMongoFilter` accepts. Everything else — including the
- * PostgreSQL-only `$like`/`$ilike`/`$notlike` family — is rejected with `BadRequest`
- * via `assertOperators`; use the raw `collection` escape hatch with `$regex` for
- * pattern matching instead.
+ * `$like`/`$ilike`/`$notlike` family, which this adapter does not support — is rejected
+ * with `BadRequest` via `assertOperators`; use the raw `collection` escape hatch with
+ * `$regex` for pattern matching instead.
  */
 export const MONGO_OPERATORS = [
   "$lt",
