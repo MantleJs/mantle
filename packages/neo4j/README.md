@@ -129,7 +129,7 @@ Subclasses must declare `label`. All `GraphRepository<T>` methods are provided a
 | `createNode(data)`                                  | `CREATE (n:Label $props) RETURN n`                        |
 | `findNodeById(id)`                                  | `MATCH (n:Label {id: $id}) RETURN n`                      |
 | `findNodes(params?)`                                | `MATCH (n:Label) WHERE … RETURN n ORDER BY … SKIP … LIMIT …` |
-| `createRelationship(fromId, toId, type, props?)`    | `MATCH (a), (b) WHERE … CREATE (a)-[r:TYPE $props]->(b)` |
+| `createRelationship(fromId, toId, type, props?)`    | `MATCH (a:Label {id: $from}), (b:Label {id: $to}) CREATE (a)-[r:TYPE $props]->(b)` |
 | `traverse(startId, relation, depth?)`               | `MATCH (start)-[r:TYPE*1..depth]->(n) RETURN n`           |
 | `deleteNode(id)`                                    | `MATCH (n:Label {id: $id}) DETACH DELETE n`               |
 | `raw<R>(query, params?)`                            | Raw Cypher passthrough (the `GraphRepository` escape hatch) |
@@ -169,6 +169,22 @@ await repo.withTransaction(async (txRepo) => {
 | `$notlike`                | `NOT (n.field CONTAINS $p)`                 |
 | `$or`                     | `(a OR b OR …)`                             |
 | `$and`                    | `(a AND b AND …)`                           |
+
+---
+
+### `toNeo4jWhere(where, alias?)`
+
+Converts a Mantle `QueryParams.where` clause into a parameterised Cypher `WHERE` expression and
+parameter map. Used internally by `findNodes()`; exported for writing raw Cypher in a custom
+repository method. The node alias defaults to `"n"`.
+
+```typescript
+import { toNeo4jWhere } from "@mantlejs/neo4j";
+
+const { clause, params } = toNeo4jWhere({ age: { $gte: 30 } });
+// clause: "n.age >= $_w_0"
+// params: { _w_0: 30 }
+```
 
 ---
 
