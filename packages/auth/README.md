@@ -156,6 +156,25 @@ Reads `Authorization: Bearer <token>` from `params.headers`. On success writes t
 
 Silently skips (passes through) when `params.provider` is undefined — internal service calls are trusted.
 
+**Resolving the full user record — `authenticate("jwt", { entity })`**
+
+By default `params.user` is just the raw JWT payload (`{ sub, iat, exp, ... }`). Pass `entity` to resolve
+the actual user record instead:
+
+```typescript
+app.service("messages").hooks({
+  before: {
+    all: [authenticate("jwt", { entity: "users" })],
+  },
+});
+```
+
+With `entity` set, the hook calls `app.service(entity).get(payload.sub)` internally (no `provider`, so
+the target service's own auth guards are bypassed for this lookup) and writes the result to
+`params.user`. The raw JWT payload moves to `params.authPayload` instead. If the subject no longer
+resolves to a user (e.g. deleted after the token was issued), the hook throws
+`NotAuthenticated("User for this token no longer exists")`.
+
 **`authenticate("custom")`**
 
 For non-JWT strategies: delegates to `engine.authenticate(strategyName, context.data, context.params)` and writes the result to `params.user`. Skips for internal calls.
