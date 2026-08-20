@@ -1,6 +1,6 @@
 # @mantlejs/auth-google
 
-Google OAuth 2.0 strategy for [Mantle JS](https://github.com/mantlejs/mantle). Implements the authorization code flow with PKCE — no Passport.js dependency. Registers `GET /auth/google` and `GET /auth/google/callback` on the Express app, then finds or creates a user record and returns a Mantle JWT pair.
+Google OAuth 2.0 strategy for [Mantle JS](https://github.com/mantlejs/mantle). Implements the authorization code flow with PKCE — no Passport.js dependency. Registers `GET /auth/google` and `GET /auth/google/callback` on the configured HTTP transport (`@mantlejs/express`, `@mantlejs/koa`, or `@mantlejs/http`), then finds or creates a user record and returns a Mantle JWT pair.
 
 ---
 
@@ -93,7 +93,7 @@ type GoogleStrategyConfig = {
 | `GET` | `/auth/google` | Redirect to Google consent screen |
 | `GET` | `/auth/google/callback` | Handle callback, issue Mantle JWT pair |
 
-**Must be configured after** `express()` and `auth()`.
+**Must be configured after** an HTTP transport (`@mantlejs/express`, `@mantlejs/koa`, or `@mantlejs/http`) and `auth()`.
 
 ---
 
