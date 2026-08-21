@@ -81,7 +81,7 @@ await newProject("my-app", {
 ## Types
 
 ```typescript
-import type { NewProjectOptions, Database, Auth, PackageManager } from "create-mantle";
+import type { NewProjectOptions, Database, Auth, PackageManager, Transport } from "create-mantle";
 ```
 
 | Type | Description |
@@ -90,6 +90,7 @@ import type { NewProjectOptions, Database, Auth, PackageManager } from "create-m
 | `Database` | `"pg" \| "sqlite" \| "mongodb" \| "none"` |
 | `Auth` | `"local" \| "google" \| "github" \| "facebook" \| "apple" \| "microsoft" \| "linkedin" \| "none"` |
 | `PackageManager` | `"npm" \| "yarn" \| "pnpm"` |
+| `Transport` | `"express"` |
 
 ---
 
