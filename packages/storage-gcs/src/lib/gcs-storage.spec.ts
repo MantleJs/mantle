@@ -258,7 +258,7 @@ describe("GcsStorageAdapter#getSignedUrl", () => {
     const url = await adapter.getSignedUrl("uploads/photo.jpg");
 
     expect(url).toBe("https://signed.example/file.png");
-    expect(mockFile.getSignedUrl).toHaveBeenCalledWith({ action: "read", expires: 900_000 });
+    expect(mockFile.getSignedUrl).toHaveBeenCalledWith({ version: "v4", action: "read", expires: 900_000 });
     vi.useRealTimers();
   });
 
@@ -270,7 +270,7 @@ describe("GcsStorageAdapter#getSignedUrl", () => {
     const adapter = new GcsStorageAdapter(defaultConfig);
     await adapter.getSignedUrl("uploads/photo.jpg", { expiresIn: 60 });
 
-    expect(mockFile.getSignedUrl).toHaveBeenCalledWith({ action: "read", expires: 60_000 });
+    expect(mockFile.getSignedUrl).toHaveBeenCalledWith({ version: "v4", action: "read", expires: 60_000 });
     vi.useRealTimers();
   });
 });

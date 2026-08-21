@@ -92,6 +92,7 @@ export class GcsStorageAdapter implements StorageAdapter {
     const bucket = await this.getBucket();
 
     const [url] = await bucket.file(key).getSignedUrl({
+      version: "v4",
       action: "read",
       expires: Date.now() + (options.expiresIn ?? DEFAULT_SIGNED_URL_EXPIRES_IN) * 1000,
     });
