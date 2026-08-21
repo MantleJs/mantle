@@ -20,10 +20,11 @@ npx @mantlejs/cli new my-api
 
 ## Concepts
 
-`@mantlejs/cli` has two top-level commands:
+`@mantlejs/cli` has three top-level commands:
 
 - **`mantle new`** — scaffold a complete runnable Mantle project from scratch. Prompts for transport, database, auth strategy, and package manager, then writes all boilerplate files and runs install.
 - **`mantle generate` (alias `g`)** — add generated code into an existing project. Generates services, hooks, and repositories following Mantle's layer conventions.
+- **`mantle add`** — install a Mantle package into an existing project and, for packages with known wiring, automatically add the import and `.configure()` call to `src/app.ts`.
 
 Generated service tests use `@mantlejs/memory` so they run without a database.
 
@@ -92,8 +93,28 @@ When `--database`, `--auth`, or `--package-manager` are omitted, the CLI prompts
 `--cors` and `--redis` are flag-only (no prompt) — omit them to leave both off.
 
 `sqlite` scaffolds use Knex's `better-sqlite3` client, matching the `better-sqlite3` driver
-dependency it installs. Every choice of `--auth` other than `apple` takes a `clientId`/`clientSecret`
-pair; `apple` takes `teamId`/`keyId`/`privateKey` instead (Sign in with Apple has no client secret).
+dependency it installs. Every `--auth` choice takes `clientId`/`clientSecret`; `apple` additionally
+takes `teamId`/`keyId`/`privateKey` in place of `clientSecret` (Sign in with Apple has no static
+client secret, but still uses `clientId` as the Services ID).
+
+---
+
+### `mantle add <package>`
+
+Installs a Mantle package into an existing project and wires it up automatically where possible.
+
+```bash
+mantle add @mantlejs/auth-local
+```
+
+1. Detects the project's package manager from its lockfile (`pnpm-lock.yaml` → pnpm, `yarn.lock` →
+   yarn, otherwise npm) and installs `<package>`.
+2. If the package has known wiring (e.g. `@mantlejs/logger`, `@mantlejs/socketio`, `@mantlejs/koa`,
+   `@mantlejs/auth` and its strategy packages, `@mantlejs/mongodb`, `@mantlejs/sync`,
+   `@mantlejs/config`), rewrites `src/app.ts` to add the import and `.configure()` call, and prints
+   any required `.env` additions.
+3. For a package with no known wiring, or when `src/app.ts` can't be automatically modified, prints
+   the import and `.configure()` line to add manually instead of failing.
 
 ---
 
