@@ -74,7 +74,7 @@ import { sync } from "@mantlejs/sync";
 import { supabase, supabaseAdapter } from "@mantlejs/supabase";
 
 app
-  .configure(supabase())
+  .configure(supabase({ url: process.env.SUPABASE_URL!, key: process.env.SUPABASE_KEY! }))
   .configure(sync({ adapter: supabaseAdapter() }));
 ```
 
@@ -123,7 +123,7 @@ function redisAdapter(options?: RedisAdapterOptions): SyncAdapter;
 ## Types
 
 ```typescript
-import type { SyncMessage, SyncAdapter, SyncOptions, RedisAdapterOptions } from "@mantlejs/sync";
+import type { SyncMessage, SyncMessageParams, SyncAdapter, SyncOptions, RedisAdapterOptions } from "@mantlejs/sync";
 import { sync, redisAdapter } from "@mantlejs/sync";
 ```
 
@@ -137,9 +137,27 @@ interface SyncMessage {
   path: string;           // service path (e.g. "users")
   event: string;          // event name (e.g. "created")
   result: unknown;        // the service method result
-  params: Record<string, unknown>;
+  params: SyncMessageParams;
 }
 ```
+
+### `SyncMessageParams`
+
+The whitelisted subset of `ServiceParams` that actually crosses the broker — **not** the full params
+object from the originating call:
+
+```typescript
+interface SyncMessageParams {
+  provider?: string;
+  query?: Record<string, unknown>;
+  user?: { id: string | number };
+}
+```
+
+`sync()` reduces every outgoing (and incoming) message to this shape before it touches the adapter. It
+never carries `headers` (live credentials), the full `user` record, or the non-serializable `connection`
+object — so request auth tokens and full user documents can never leak across the pub/sub channel, even
+if a custom adapter logs or persists raw messages.
 
 ### `SyncAdapter`
 
