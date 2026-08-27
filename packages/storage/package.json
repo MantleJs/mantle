@@ -26,6 +26,15 @@
   },
   "description": "File upload/download storage plugin for Mantle JS",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MantleJs/mantle.git",
+    "directory": "packages/storage"
+  },
+  "homepage": "https://github.com/MantleJs/mantle/tree/main/packages/storage#readme",
+  "publishConfig": {
+    "access": "public"
+  },
   "keywords": [
     "mantle",
     "storage",

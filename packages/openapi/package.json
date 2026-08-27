@@ -29,6 +29,15 @@
   },
   "description": "OpenAPI document generation for Mantle JS services",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MantleJs/mantle.git",
+    "directory": "packages/openapi"
+  },
+  "homepage": "https://github.com/MantleJs/mantle/tree/main/packages/openapi#readme",
+  "publishConfig": {
+    "access": "public"
+  },
   "keywords": [
     "mantle",
     "openapi",

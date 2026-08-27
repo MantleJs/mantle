@@ -26,6 +26,15 @@
   },
   "description": "Local (email + password) authentication strategy for Mantle JS",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MantleJs/mantle.git",
+    "directory": "packages/auth-local"
+  },
+  "homepage": "https://github.com/MantleJs/mantle/tree/main/packages/auth-local#readme",
+  "publishConfig": {
+    "access": "public"
+  },
   "keywords": [
     "mantle",
     "auth",

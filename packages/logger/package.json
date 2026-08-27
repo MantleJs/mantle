@@ -26,6 +26,15 @@
   },
   "description": "Structured logging plugin for Mantle JS — pino adapter and request/error hook factories",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MantleJs/mantle.git",
+    "directory": "packages/logger"
+  },
+  "homepage": "https://github.com/MantleJs/mantle/tree/main/packages/logger#readme",
+  "publishConfig": {
+    "access": "public"
+  },
   "keywords": [
     "mantle",
     "logger",

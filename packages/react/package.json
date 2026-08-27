@@ -34,6 +34,15 @@
   },
   "description": "React bindings for Mantle JS — hooks and providers over the Mantle client SDK",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MantleJs/mantle.git",
+    "directory": "packages/react"
+  },
+  "homepage": "https://github.com/MantleJs/mantle/tree/main/packages/react#readme",
+  "publishConfig": {
+    "access": "public"
+  },
   "keywords": [
     "mantle",
     "react",

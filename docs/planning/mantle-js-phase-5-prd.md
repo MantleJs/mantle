@@ -310,16 +310,27 @@ Per the [Phase 4 Publish Tiering decision](./mantle-js-phase-4-prd.md#publish-ti
 
 | Tier | Packages |
 | --- | --- |
-| **Stable `0.1.0`** | `@mantlejs/mantle`, `express`, `koa`, `http`, `knex`, `auth`, `auth-local`, `auth-oauth`, `auth-google`, `auth-github`, `auth-facebook`, **`auth-apple`**, **`auth-microsoft`**, **`auth-linkedin`**, `auth-redis`, `storage`, `storage-s3`, `storage-gcs`, `logger`, `schema`, `memory`, `config`, `socketio`, `supabase`, `sync`, **`mcp`**, `client`, `react`, `cli`, `create-mantle` |
-| **`0.1.0-experimental`** | `@mantlejs/dynamodb`, `pinecone`, `qdrant`, `neo4j`, `mongodb`, `openapi` |
+| **Stable `0.1.0`** | `@mantlejs/mantle`, `express`, `koa`, `http`, `knex`, `auth`, `auth-local`, `auth-oauth`, `auth-google`, `auth-github`, `auth-facebook`, **`auth-apple`**, **`auth-microsoft`**, **`auth-linkedin`**, `auth-redis`, `storage`, `storage-s3`, `storage-gcs`, `logger`, `schema`, `memory`, `config`, `socketio`, `supabase`, `sync`, **`mcp`**, **`openapi`**, `client`, `react`, `cli`, `create-mantle` |
+| **`0.1.0-experimental`** | `@mantlejs/dynamodb`, `pinecone`, `qdrant`, `neo4j`, `mongodb` |
 
 `auth-apple`/`auth-microsoft`/`auth-linkedin` join the stable tier despite being new this phase: they are thin
 strategies over the battle-tested `auth-oauth` base, matching the other auth strategies already in stable.
 `@mantlejs/mcp` also ships **stable — it is a release requirement**, a deliberate exception to the standing
 "no substantial new package goes straight to stable in the phase it's introduced" rule (see
-[Decisions](#architectural--design-decisions) #12): agent access is the headline differentiator of this
+[Decisions](#architectural--design-decisions) #11): agent access is the headline differentiator of this
 release, and it earns stable status through flagship-level acceptance specs plus end-to-end exercise in the
 canonical example before publish.
+
+**Update (2026-08-26 — item 9 tier-list finalization):** `@mantlejs/openapi` promoted from experimental to
+stable alongside `mcp` (see [Decisions](#architectural--design-decisions) #12). The dedicated coverage review
+required by the checklist found `openapi` at 100% statement / 93.5% branch coverage with zero defects
+surfaced during the README audit — the strongest results of any package reviewed in that pass, stable or
+experimental — so grouping it with the database adapters no longer reflected its actual confidence level.
+`dynamodb`/`pinecone`/`qdrant`/`neo4j`/`mongodb` stay experimental: three had real, user-facing defects found
+and fixed during the same review (`pinecone`'s README described a constructor API that didn't exist in code;
+`qdrant`'s flagship Quick Start example used an unsupported operator that would throw at runtime; `dynamodb`
+had the lowest branch coverage of the group at 62.8%), so none demonstrated readiness for promotion this
+release.
 
 ### Stages
 
@@ -404,6 +415,7 @@ mantle/
 | 9 | Multi-repository services — new abstraction? | **No.** The `Service` contract already supports arbitrary repository composition in custom services; `RepositoryService` staying 1:1 is a feature (it's the trivial bridge, not the ceiling). Phase 5 ships proof (spec), documentation, and a real usage in the canonical example. Cross-adapter transactions are explicitly out — same reasoning as Phase 4's batch-atomicity decision. |
 | 10 | Where does the release live in the sequence? | **Last.** Packages → release plan → examples → publish. The examples and CLI smoke tests are the release gate; publishing before them (the Phase 4 ordering) would have shipped unverified packages — that's why item 8 moved here. |
 | 11 | `@mantlejs/mcp` — stable or experimental at first release? | **Stable `0.1.0` — it is a release requirement.** A deliberate exception (2026-07-19) to the "no new package goes straight to stable in its introduction phase" rule: agent access via MCP is the headline differentiator of the first release, and tagging it experimental would undercut that story. Compensating controls: the acceptance specs prove the full hook pipeline runs under MCP, and the canonical example exercises the server end to end (including a real agent tool call) before publish. |
+| 12 | `@mantlejs/openapi` — promote to stable at item 9's tier-list finalization? | **Yes — stable `0.1.0`** (2026-08-26). Unlike the Phase 4 "no adapter goes straight to stable in the phase it's introduced" default, `openapi`'s dedicated coverage review (item 9) found 100% statement / 93.5% branch coverage and zero defects — the cleanest result of any package in that review, ahead of several already-stable packages. `dynamodb`/`pinecone`/`qdrant`/`neo4j`/`mongodb` do not get the same exception: the same review surfaced real defects in three of them (fabricated API docs, a broken flagship example, low branch coverage), so they stay experimental pending a follow-up release. |
 
 ---
 

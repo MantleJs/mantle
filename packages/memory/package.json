@@ -29,6 +29,15 @@
   },
   "description": "In-memory Repository<T> implementation for testing and prototyping with Mantle JS",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MantleJs/mantle.git",
+    "directory": "packages/memory"
+  },
+  "homepage": "https://github.com/MantleJs/mantle/tree/main/packages/memory#readme",
+  "publishConfig": {
+    "access": "public"
+  },
   "keywords": [
     "mantle",
     "memory",

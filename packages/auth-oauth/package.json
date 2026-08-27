@@ -23,6 +23,15 @@
   },
   "description": "Shared OAuth 2.0 base for Mantle JS auth strategies",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MantleJs/mantle.git",
+    "directory": "packages/auth-oauth"
+  },
+  "homepage": "https://github.com/MantleJs/mantle/tree/main/packages/auth-oauth#readme",
+  "publishConfig": {
+    "access": "public"
+  },
   "keywords": [
     "mantle",
     "auth",

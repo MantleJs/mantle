@@ -29,6 +29,15 @@
   },
   "description": "Zero-dependency HTTP transport adapter for Mantle JS (Node.js handler + Fetch API handler)",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MantleJs/mantle.git",
+    "directory": "packages/http"
+  },
+  "homepage": "https://github.com/MantleJs/mantle/tree/main/packages/http#readme",
+  "publishConfig": {
+    "access": "public"
+  },
   "keywords": [
     "mantle",
     "http",

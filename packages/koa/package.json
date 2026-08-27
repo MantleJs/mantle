@@ -27,6 +27,15 @@
   },
   "description": "Koa HTTP transport adapter for Mantle JS",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MantleJs/mantle.git",
+    "directory": "packages/koa"
+  },
+  "homepage": "https://github.com/MantleJs/mantle/tree/main/packages/koa#readme",
+  "publishConfig": {
+    "access": "public"
+  },
   "keywords": [
     "mantle",
     "koa",

@@ -26,6 +26,15 @@
   },
   "description": "SQL database adapter for Mantle JS via Knex.js (PostgreSQL, MySQL, SQLite, MSSQL)",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MantleJs/mantle.git",
+    "directory": "packages/knex"
+  },
+  "homepage": "https://github.com/MantleJs/mantle/tree/main/packages/knex#readme",
+  "publishConfig": {
+    "access": "public"
+  },
   "keywords": [
     "mantle",
     "knex",

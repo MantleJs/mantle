@@ -26,6 +26,15 @@
   },
   "description": "AWS S3 storage adapter for @mantlejs/storage",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MantleJs/mantle.git",
+    "directory": "packages/storage-s3"
+  },
+  "homepage": "https://github.com/MantleJs/mantle/tree/main/packages/storage-s3#readme",
+  "publishConfig": {
+    "access": "public"
+  },
   "keywords": [
     "mantle",
     "storage",

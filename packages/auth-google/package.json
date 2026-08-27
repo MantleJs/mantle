@@ -23,6 +23,15 @@
   },
   "description": "Google OAuth 2.0 strategy for Mantle JS",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MantleJs/mantle.git",
+    "directory": "packages/auth-google"
+  },
+  "homepage": "https://github.com/MantleJs/mantle/tree/main/packages/auth-google#readme",
+  "publishConfig": {
+    "access": "public"
+  },
   "keywords": [
     "mantle",
     "auth",

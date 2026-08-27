@@ -31,7 +31,17 @@
           "cwd": "packages/create-mantle"
         },
         "dependsOn": [
-          { "projects": ["mantle", "express", "schema", "memory", "cli", "create-mantle"], "target": "build" }
+          {
+            "projects": [
+              "mantle",
+              "express",
+              "schema",
+              "memory",
+              "cli",
+              "create-mantle"
+            ],
+            "target": "build"
+          }
         ]
       }
     }
@@ -42,6 +52,15 @@
   },
   "description": "Project initializer for Mantle JS — scaffold a new Mantle application via npm create mantle",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MantleJs/mantle.git",
+    "directory": "packages/create-mantle"
+  },
+  "homepage": "https://github.com/MantleJs/mantle/tree/main/packages/create-mantle#readme",
+  "publishConfig": {
+    "access": "public"
+  },
   "keywords": [
     "mantle",
     "create",

@@ -26,6 +26,15 @@
   },
   "description": "Amazon DynamoDB adapter for Mantle JS — DynamoDbRepository with full QueryParams support",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MantleJs/mantle.git",
+    "directory": "packages/dynamodb"
+  },
+  "homepage": "https://github.com/MantleJs/mantle/tree/main/packages/dynamodb#readme",
+  "publishConfig": {
+    "access": "public"
+  },
   "keywords": [
     "mantle",
     "dynamodb",

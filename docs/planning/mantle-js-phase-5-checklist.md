@@ -102,10 +102,13 @@ strictly in order: develop packages (items 1–8) → release plan (item 9) → 
   - `tools/check-publish-fields` script + CI target: `publishConfig.access: "public"`, `files: ["dist"]`,
     `exports`/`main`/`module`/`types` into `dist`, license/repository fields, aligned peer ranges
   - README audit: every published package has installation, quick start, API reference
-  - **Finalize the publish-tier list** — dedicated review of the PRD's working split (stable `0.1.0` incl.
-    `auth-apple`/`auth-microsoft`/`auth-linkedin` **and `mcp`** vs `0.1.0-experimental`: `dynamodb`,
-    `pinecone`, `qdrant`, `neo4j`, `mongodb`, `openapi`) against actual coverage; not a rubber stamp.
-    `mcp` staying stable is conditional on item 1's full acceptance coverage having landed
+  - **Finalize the publish-tier list** — dedicated review of the PRD's working split against actual
+    coverage; not a rubber stamp. Confirmed (2026-08-26, PRD [Decisions](./mantle-js-phase-5-prd.md#architectural--design-decisions)
+    #11–12): stable `0.1.0` incl. `auth-apple`/`auth-microsoft`/`auth-linkedin`, `mcp`, **and `openapi`**
+    (promoted off the working split — 100%/93.5% stmt/branch coverage, zero defects found) vs
+    `0.1.0-experimental`: `dynamodb`, `pinecone`, `qdrant`, `neo4j`, `mongodb` (real defects found and fixed
+    in three of the five during the review — see the PRD decision log for detail). `mcp` staying stable is
+    conditional on item 1's full acceptance coverage having landed — confirmed done
   - Configure `nx release` (two lockstep groups: `stable` @ `0.1.0` tag `latest`; `experimental` @
     `0.1.0-experimental` tag `experimental`); Verdaccio rehearsal target
   - npm `@mantlejs` org: access confirmed, 2FA, granular automation token in CI, provenance enabled

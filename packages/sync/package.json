@@ -26,6 +26,15 @@
   },
   "description": "Cross-instance event sync for Mantle JS — broadcasts service events across multiple application instances via Redis or Supabase Realtime",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MantleJs/mantle.git",
+    "directory": "packages/sync"
+  },
+  "homepage": "https://github.com/MantleJs/mantle/tree/main/packages/sync#readme",
+  "publishConfig": {
+    "access": "public"
+  },
   "keywords": [
     "mantle",
     "sync",

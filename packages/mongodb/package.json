@@ -26,6 +26,15 @@
   },
   "description": "MongoDB adapter for Mantle JS — MongoRepository with full QueryParams support and Atlas Vector Search",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MantleJs/mantle.git",
+    "directory": "packages/mongodb"
+  },
+  "homepage": "https://github.com/MantleJs/mantle/tree/main/packages/mongodb#readme",
+  "publishConfig": {
+    "access": "public"
+  },
   "keywords": [
     "mantle",
     "mongodb",

@@ -2,7 +2,9 @@
   "name": "@mantle/source",
   "version": "0.0.0",
   "license": "MIT",
-  "scripts": {},
+  "scripts": {
+    "check-publish-fields": "node tools/check-publish-fields.mjs"
+  },
   "private": true,
   "devDependencies": {
     "@aws-sdk/client-s3": "^3.1075.0",

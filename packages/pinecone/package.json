@@ -26,6 +26,15 @@
   },
   "description": "Pinecone vector database adapter for Mantle JS — PineconeRepository with full QueryParams support",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MantleJs/mantle.git",
+    "directory": "packages/pinecone"
+  },
+  "homepage": "https://github.com/MantleJs/mantle/tree/main/packages/pinecone#readme",
+  "publishConfig": {
+    "access": "public"
+  },
   "keywords": [
     "mantle",
     "pinecone",

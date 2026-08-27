@@ -26,6 +26,15 @@
   },
   "description": "The Mantle JS framework kernel",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MantleJs/mantle.git",
+    "directory": "packages/mantle"
+  },
+  "homepage": "https://github.com/MantleJs/mantle/tree/main/packages/mantle#readme",
+  "publishConfig": {
+    "access": "public"
+  },
   "keywords": [
     "mantle",
     "api",

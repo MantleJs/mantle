@@ -27,6 +27,15 @@
   },
   "description": "Model Context Protocol (MCP) server adapter for Mantle JS — expose services as MCP tools",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MantleJs/mantle.git",
+    "directory": "packages/mcp"
+  },
+  "homepage": "https://github.com/MantleJs/mantle/tree/main/packages/mcp#readme",
+  "publishConfig": {
+    "access": "public"
+  },
   "keywords": [
     "mantle",
     "mcp",

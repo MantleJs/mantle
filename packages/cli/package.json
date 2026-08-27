@@ -36,6 +36,15 @@
   },
   "description": "Command-line interface for Mantle JS — scaffold projects, services, repositories, and hooks",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MantleJs/mantle.git",
+    "directory": "packages/cli"
+  },
+  "homepage": "https://github.com/MantleJs/mantle/tree/main/packages/cli#readme",
+  "publishConfig": {
+    "access": "public"
+  },
   "keywords": [
     "mantle",
     "cli",

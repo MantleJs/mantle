@@ -23,6 +23,15 @@
   },
   "description": "LinkedIn Sign-In strategy for Mantle JS",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MantleJs/mantle.git",
+    "directory": "packages/auth-linkedin"
+  },
+  "homepage": "https://github.com/MantleJs/mantle/tree/main/packages/auth-linkedin#readme",
+  "publishConfig": {
+    "access": "public"
+  },
   "keywords": [
     "mantle",
     "auth",

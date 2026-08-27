@@ -37,6 +37,15 @@
   },
   "description": "Type-safe client for Mantle JS APIs — call services from browsers and Node.js",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MantleJs/mantle.git",
+    "directory": "packages/client"
+  },
+  "homepage": "https://github.com/MantleJs/mantle/tree/main/packages/client#readme",
+  "publishConfig": {
+    "access": "public"
+  },
   "keywords": [
     "mantle",
     "client",

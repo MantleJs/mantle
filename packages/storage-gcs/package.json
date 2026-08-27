@@ -26,6 +26,15 @@
   },
   "description": "Google Cloud Storage adapter for @mantlejs/storage",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MantleJs/mantle.git",
+    "directory": "packages/storage-gcs"
+  },
+  "homepage": "https://github.com/MantleJs/mantle/tree/main/packages/storage-gcs#readme",
+  "publishConfig": {
+    "access": "public"
+  },
   "keywords": [
     "mantle",
     "storage",

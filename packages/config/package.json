@@ -27,6 +27,15 @@
   },
   "description": "Environment-aware configuration loading with optional schema validation for Mantle JS",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MantleJs/mantle.git",
+    "directory": "packages/config"
+  },
+  "homepage": "https://github.com/MantleJs/mantle/tree/main/packages/config#readme",
+  "publishConfig": {
+    "access": "public"
+  },
   "keywords": [
     "mantle",
     "config",

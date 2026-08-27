@@ -27,6 +27,15 @@
   },
   "description": "Express transport adapter for Mantle JS",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MantleJs/mantle.git",
+    "directory": "packages/express"
+  },
+  "homepage": "https://github.com/MantleJs/mantle/tree/main/packages/express#readme",
+  "publishConfig": {
+    "access": "public"
+  },
   "keywords": [
     "mantle",
     "express",
