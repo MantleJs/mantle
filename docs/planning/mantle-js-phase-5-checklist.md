@@ -110,7 +110,19 @@ strictly in order: develop packages (items 1–8) → release plan (item 9) → 
     in three of the five during the review — see the PRD decision log for detail). `mcp` staying stable is
     conditional on item 1's full acceptance coverage having landed — confirmed done
   - Configure `nx release` (two lockstep groups: `stable` @ `0.1.0` tag `latest`; `experimental` @
-    `0.1.0-experimental` tag `experimental`); Verdaccio rehearsal target
+    `0.1.0-experimental` tag `experimental`); Verdaccio rehearsal target. Done (2026-08-26): `nx.json`
+    `release.groups.stable`/`.experimental` (31 + 5 projects, `projectsRelationship: "fixed"`,
+    `currentVersionResolver: "disk"`, `updateDependents: "never"` — needed after a dry-run proved the
+    default cascades a dependency's OWN version across group boundaries, which would have silently
+    versioned `dynamodb`/`pinecone`/`qdrant`/`neo4j`/`mongodb` to `0.1.0` instead of
+    `0.1.0-experimental` the first time `mantle` released). Verified via
+    `nx release version <specifier> --groups=<name> --dry-run` and
+    `nx release publish --groups=<name> --tag=<latest|experimental> --dry-run` for both groups — correct
+    project counts, no cross-group leakage, dist-tags applied. Verdaccio target already existed at
+    `@mantle/source:local-registry`. Surfaced and fixed along the way: every internal `@mantlejs/*`
+    `peerDependency` was pinned to `^0.0.1`, which doesn't cover the incoming `0.1.0` — Nx's
+    `preserveMatchingDependencyRanges` guard caught this and blocked the dry-run until ranges were bumped
+    to `^0.1.0` workspace-wide
   - npm `@mantlejs` org: access confirmed, 2FA, granular automation token in CI, provenance enabled
 
 ## Stage 3 — Examples

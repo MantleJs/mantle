@@ -43,8 +43,59 @@
     }
   ],
   "release": {
+    "releaseTagPattern": "v{version}",
     "version": {
-      "preVersionCommand": "npx nx run-many -t build"
+      "preVersionCommand": "npx nx run-many -t build",
+      "updateDependents": "never",
+      "generatorOptions": {
+        "currentVersionResolver": "disk"
+      }
+    },
+    "changelog": {
+      "workspaceChangelog": true,
+      "projectChangelogs": true
+    },
+    "groups": {
+      "stable": {
+        "projectsRelationship": "fixed",
+        "projects": [
+          "mantle",
+          "express",
+          "koa",
+          "http",
+          "knex",
+          "auth",
+          "auth-local",
+          "auth-oauth",
+          "auth-google",
+          "auth-github",
+          "auth-facebook",
+          "auth-apple",
+          "auth-microsoft",
+          "auth-linkedin",
+          "auth-redis",
+          "storage",
+          "storage-s3",
+          "storage-gcs",
+          "logger",
+          "schema",
+          "memory",
+          "config",
+          "socketio",
+          "supabase",
+          "sync",
+          "mcp",
+          "openapi",
+          "client",
+          "react",
+          "cli",
+          "create-mantle"
+        ]
+      },
+      "experimental": {
+        "projectsRelationship": "fixed",
+        "projects": ["dynamodb", "pinecone", "qdrant", "neo4j", "mongodb"]
+      }
     }
   },
   "targetDefaults": {

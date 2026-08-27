@@ -43,8 +43,8 @@
     "google-cloud"
   ],
   "peerDependencies": {
-    "@mantlejs/mantle": "^0.0.1",
-    "@mantlejs/storage": "^0.0.1",
+    "@mantlejs/mantle": "^0.1.0",
+    "@mantlejs/storage": "^0.1.0",
     "@google-cloud/storage": "^7.0.0"
   },
   "devDependencies": {
