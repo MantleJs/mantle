@@ -1,0 +1,74 @@
+name: Release publish
+
+# Manual only — a real npm publish is too consequential to fire on every push.
+# Prerequisites (see docs/planning/mantle-js-phase-5-checklist.md item 9):
+#   - Version bump, changelog, git tag/commit/push happen locally via
+#     `nx release version <specifier> --groups=<stable|experimental>` before running this.
+#   - Repo secret NPM_TOKEN: an npm Granular Access Token scoped to the @mantlejs org,
+#     read+write, with an expiry.
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Dry run (no files touched, nothing published) — flip to false for a real publish"
+        type: boolean
+        default: true
+      first_release:
+        description: "First release for both groups (skips the registry existence check). Turn off after the first real publish."
+        type: boolean
+        default: true
+
+concurrency:
+  group: npm-release-publish
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      id-token: write # required for npm provenance (Sigstore/OIDC)
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: https://registry.npmjs.org/
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build, test, lint, typecheck
+        run: npx nx run-many -t build,test,lint,typecheck
+
+      - name: Pre-flight publish-field check
+        run: npm run check-publish-fields
+
+      - name: Publish stable group (dist-tag latest)
+        run: >
+          npx nx release publish
+          --groups=stable
+          --tag=latest
+          ${{ inputs.first_release && '--first-release' || '' }}
+          ${{ inputs.dry_run && '--dry-run' || '' }}
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_CONFIG_PROVENANCE: true
+
+      - name: Publish experimental group (dist-tag experimental)
+        run: >
+          npx nx release publish
+          --groups=experimental
+          --tag=experimental
+          ${{ inputs.first_release && '--first-release' || '' }}
+          ${{ inputs.dry_run && '--dry-run' || '' }}
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_CONFIG_PROVENANCE: true

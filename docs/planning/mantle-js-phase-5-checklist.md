@@ -97,7 +97,7 @@ strictly in order: develop packages (items 1–8) → release plan (item 9) → 
 
 ## Stage 2 — Release plan
 
-- [ ] **9. Finalize the release plan** *(PRD [Release Plan](./mantle-js-phase-5-prd.md#release-plan); TDD §10)*
+- [x] **9. Finalize the release plan** *(PRD [Release Plan](./mantle-js-phase-5-prd.md#release-plan); TDD §10)*
   - `npx nx run-many -t build,test,lint,typecheck` fully green (examples included once they exist)
   - `tools/check-publish-fields` script + CI target: `publishConfig.access: "public"`, `files: ["dist"]`,
     `exports`/`main`/`module`/`types` into `dist`, license/repository fields, aligned peer ranges
@@ -123,7 +123,14 @@ strictly in order: develop packages (items 1–8) → release plan (item 9) → 
     `peerDependency` was pinned to `^0.0.1`, which doesn't cover the incoming `0.1.0` — Nx's
     `preserveMatchingDependencyRanges` guard caught this and blocked the dry-run until ranges were bumped
     to `^0.1.0` workspace-wide
-  - npm `@mantlejs` org: access confirmed, 2FA, granular automation token in CI, provenance enabled
+  - npm `@mantlejs` org: access confirmed, 2FA, granular automation token in CI, provenance enabled.
+    Done (2026-08-27): org ownership and `auth-and-writes` 2FA confirmed via `npm org ls mantlejs` /
+    `npm profile get`; a Granular Access Token (read-write, scoped to `@mantlejs`) is stored as the
+    `NPM_TOKEN` GitHub secret; `.github/workflows/release-publish.yml` (manual `workflow_dispatch`
+    only) publishes both groups with `NPM_CONFIG_PROVENANCE: true` + `id-token: write`. Full runbook,
+    including token rotation, at [`docs/releasing.md`](../releasing.md). Outstanding: the initial
+    token was minted with a short (7-day) expiry for early testing — mint a longer-lived one before
+    the real publish in item 12
 
 ## Stage 3 — Examples
 
