@@ -43,7 +43,7 @@
     "api"
   ],
   "peerDependencies": {
-    "@mantlejs/mantle": "^0.1.0",
+    "@mantlejs/mantle": "^0.0.1",
     "koa": "^3.0.0",
     "@koa/router": "^15.0.0",
     "@koa/bodyparser": "^6.0.0"

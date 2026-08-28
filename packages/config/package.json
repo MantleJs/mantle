@@ -43,7 +43,7 @@
     "typescript"
   ],
   "peerDependencies": {
-    "@mantlejs/mantle": "^0.1.0",
+    "@mantlejs/mantle": "^0.0.1",
     "@sinclair/typebox": "^0.34.0"
   },
   "peerDependenciesMeta": {

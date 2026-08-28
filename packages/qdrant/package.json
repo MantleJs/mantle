@@ -43,7 +43,7 @@
     "repository"
   ],
   "peerDependencies": {
-    "@mantlejs/mantle": "^0.1.0",
+    "@mantlejs/mantle": "^0.0.1",
     "@qdrant/js-client-rest": "^1.0.0"
   }
 }

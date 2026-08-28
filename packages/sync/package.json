@@ -45,7 +45,7 @@
     "typescript"
   ],
   "peerDependencies": {
-    "@mantlejs/mantle": "^0.1.0",
+    "@mantlejs/mantle": "^0.0.1",
     "ioredis": "^5.0.0"
   },
   "peerDependenciesMeta": {

@@ -43,7 +43,7 @@
     "repository"
   ],
   "peerDependencies": {
-    "@mantlejs/mantle": "^0.1.0",
+    "@mantlejs/mantle": "^0.0.1",
     "@pinecone-database/pinecone": "^5.0.0 || ^8.0.0"
   }
 }

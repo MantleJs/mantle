@@ -95,18 +95,23 @@ git-ignored and safe to delete.
 ## Versioning (local, before every real release)
 
 Version bumps, changelog generation, and git tagging happen **locally**, not in CI — a human picks
-the version number and reviews the diff before anything is pushed:
+the version number and reviews the diff before anything is pushed. **Bump peer ranges first** —
+`nx release version` will refuse to run otherwise (see [Peer dependency ranges](#peer-dependency-ranges)):
 
 ```bash
-# Pick a specifier per group: an exact version ("0.1.0") or a semver keyword
-# (patch/minor/major/prerelease/etc.)
+# 1. Bump every internal @mantlejs/* peerDependency range that points at this group to the
+#    target version, workspace-wide (including packages in OTHER groups that depend on this one —
+#    e.g. experimental's dynamodb depends on stable's mantle).
+node tools/bump-peer-ranges.mjs stable <version>
+
+# 2. Pick a specifier: an exact version ("0.1.0") or a semver keyword (patch/minor/major/etc.)
 npx nx release version <specifier> --groups=stable
-npx nx release version <specifier> --groups=experimental
 ```
 
-This writes the new version into every project's `package.json` in the group, updates internal
-`@mantlejs/*` dependency references, commits, and tags (`v{version}`) by default. Review the diff,
-then:
+Repeat both steps for `experimental` with its own version. `nx release version` writes the new
+version into every project's `package.json` in the group, commits, and tags (`v{version}`) by
+default — it does **not** touch peerDependencies itself (see below), which is why step 1 has to
+happen first, in the same commit. Review the diff, then:
 
 ```bash
 git push && git push --tags
@@ -114,6 +119,12 @@ git push && git push --tags
 
 Add `--first-release` only for the very first release of a group (skips assuming a previous git
 tag / registry version exists).
+
+**Don't run `bump-peer-ranges.mjs` ahead of time, outside of this two-step flow.** Bumping a peer
+range before the package it points at is actually released breaks `npm install`/`npm ci`
+workspace-wide — nothing (not the local workspace link, not the registry, since the package hasn't
+published at that version yet) can satisfy the new range. This happened once already: see the
+[postmortem](#postmortem-premature-peer-range-bump) below.
 
 ---
 
@@ -147,15 +158,33 @@ uses.
 
 Every package that depends on another `@mantlejs/*` package as a `peerDependency` must declare a
 range that covers the version about to be released. Nx enforces this: `preserveMatchingDependencyRanges`
-blocks `nx release version` if a peer range doesn't already cover the new version, rather than
-silently rewriting a peer contract.
+blocks `nx release version` if a peer range doesn't already cover the new version — and critically,
+it **never auto-rewrites the range for you**, under any `updateDependents` setting. This is
+deliberate on Nx's part: a peerDependency range is a consumer-facing compatibility promise, not
+something a tool should silently widen. `tools/bump-peer-ranges.mjs` (see
+[Versioning](#versioning-local-before-every-real-release) above) exists to make satisfying this
+guard a single safe command instead of hand-editing 30+ `package.json` files.
 
 When bumping to a new minor/major (e.g. `0.1.0` → `0.2.0`), check whether existing `^0.1.0` ranges
 still cover it (they do, under normal caret semantics, since both share the same major and neither
 is `0.x` in a way that breaks caret behavior once past `0.1.0` — `0.0.x` is the special case that
 doesn't compose with caret ranges the way `0.1.x`+ does). If `nx release version` stops with a
-`preserveMatchingDependencyRanges` error, it's telling you a peer range needs a manual bump before
-the release can proceed — update the affected `package.json` files' `peerDependencies` and re-run.
+`preserveMatchingDependencyRanges` error, it's telling you a peer range needs a bump before the
+release can proceed — run `bump-peer-ranges.mjs` for the group in question and re-run.
+
+### Postmortem: premature peer-range bump
+
+While first setting this pipeline up, every internal peer range was bumped from `^0.0.1` to
+`^0.1.0` **before** actually running `nx release version` — done to unblock a `--dry-run` test of
+the guard above, then accidentally left committed. Since every package was still really `0.0.1` on
+disk (no real version bump had happened), nothing could satisfy the new `^0.1.0` ranges — not the
+local workspace link, not the registry (nothing has ever been published). Every `npm install`/`npm
+ci` in the repo broke, including in the CI workflow's dry run, with `ETARGET
+No matching version found for @mantlejs/mantle@^0.1.0`.
+
+Fixed by reverting every range back to `^0.0.1` (matching reality) and moving the bump into
+`bump-peer-ranges.mjs`, to be run as step 1 of the real versioning flow — atomically with the
+actual version bump it's paired with, never ahead of it.
 
 ---
 
