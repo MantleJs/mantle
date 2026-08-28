@@ -81,7 +81,7 @@ Dependencies always point inward. Nothing in Domain or Application layers knows 
 | `@mantlejs/mcp`            | MCP server — expose services as Model Context Protocol tools (stdio + HTTP), full hook pipeline, deny-by-default                          |
 | `@mantlejs/client`         | Official client SDK — REST + Socket.IO, auth with token rotation, from browsers/Node.js/React Native                                      |
 | `@mantlejs/react`          | React bindings — hooks and providers over the Mantle client SDK                                                                           |
-| `create-mantle`            | Project initializer — scaffold a new Mantle application via `npm create mantle`                                                           |
+| `create-mantlejs`            | Project initializer — scaffold a new Mantle application via `npm create mantlejs`                                                           |
 
 ## Quick Start
 

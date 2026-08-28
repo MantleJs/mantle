@@ -7,7 +7,7 @@ const projectName = args.find((arg) => !arg.startsWith("--"));
 
 if (!projectName) {
   console.error(
-    "Usage: npm create mantle <project-name> [-- --database <db> --auth <auth> --package-manager <pm> --cors --redis --skip-install]",
+    "Usage: npm create mantlejs <project-name> [-- --database <db> --auth <auth> --package-manager <pm> --cors --redis --skip-install]",
   );
   process.exit(1);
 }

@@ -55,7 +55,7 @@
       "path": "./packages/mantle"
     },
     {
-      "path": "./packages/create-mantle"
+      "path": "./packages/create-mantlejs"
     },
     {
       "path": "./packages/koa"

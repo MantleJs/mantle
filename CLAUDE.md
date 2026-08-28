@@ -81,7 +81,7 @@ mantle/
 │   ├── client/          @mantlejs/client       Browser/Node.js/React Native client SDK (REST + Socket.IO)
 │   ├── react/           @mantlejs/react        React hooks over the client SDK (TanStack Query v5)
 │   ├── cli/             @mantlejs/cli          Command-line interface — scaffold projects/services/hooks
-│   └── create-mantle/   create-mantle          `npm create mantle` project initializer
+│   └── create-mantlejs/ create-mantlejs        `npm create mantlejs` project initializer
 ├── docs/               scaffold.sh, PRD, TDD
 └── CLAUDE.md           This file
 ```
@@ -125,7 +125,7 @@ mantle/
 | @mantlejs/client         | nothing (optional peer: socket.io-client; dev-only: @mantlejs/mantle for conformance specs) |
 | @mantlejs/react          | @mantlejs/client (peers: react, @tanstack/react-query)                                      |
 | @mantlejs/cli            | nothing (standalone code generator)                                                         |
-| create-mantle            | @mantlejs/cli                                                                               |
+| create-mantlejs          | @mantlejs/cli                                                                               |
 
 ---
 

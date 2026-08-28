@@ -23,7 +23,7 @@ can do that a Mantle app can't?**
 | File uploads | `feathers-blob` / community | ✅ `@mantlejs/storage` (local, S3, GCS) — **write path only** | ➕ retrieve/delete/signed URLs |
 | Client SDK | `@feathersjs/client` (REST + Socket.io) | 🔶 Planned | ➕ `@mantlejs/client` |
 | Framework-specific hooks (React/Vue) | community (`feathers-vuex`, etc.) | 🔶 Planned | ➕ `@mantlejs/react` (TanStack Query) |
-| CLI generator | `@feathersjs/cli` | ✅ `@mantlejs/cli`, `create-mantle` — see [cli-comparison.md](./cli-comparison.md) | — |
+| CLI generator | `@feathersjs/cli` | ✅ `@mantlejs/cli`, `create-mantlejs` — see [cli-comparison.md](./cli-comparison.md) | — |
 | Batch requests | `feathers-batch` (community plugin) | ❌ none | ➕ server batch endpoint + client-side call coalescing |
 | OpenAPI/Swagger generation | `feathers-swagger` (community plugin) | ❌ none | ➕ `@mantlejs/openapi` |
 | CORS | Express `cors` middleware, user-wired | ❌ not wired into any transport | ➕ built into `express`/`koa`/`http` configure options |

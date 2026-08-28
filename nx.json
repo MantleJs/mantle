@@ -89,7 +89,7 @@
           "client",
           "react",
           "cli",
-          "create-mantle"
+          "create-mantlejs"
         ]
       },
       "experimental": {

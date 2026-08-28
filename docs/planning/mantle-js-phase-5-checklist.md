@@ -87,10 +87,10 @@ strictly in order: develop packages (items 1–8) → release plan (item 9) → 
   **Accept:** composition spec green; docs landed; canonical example's `articles` service (item 10) uses the
   pattern in real code.
 
-- [x] **8. CLI + `create-mantle` template refresh and smoke test** *(TDD §8)*
+- [x] **8. CLI + `create-mantlejs` template refresh and smoke test** *(TDD §8)*
   Templates offer the current surface (mongodb database choice, `cors`, all seven auth strategies — local,
   google, github, facebook, apple, microsoft, linkedin — plus the redis stores, versions from a single
-  `versions.ts` map). CI `e2e-scaffold` target: non-interactive `create-mantle` → install (workspace-linked /
+  `versions.ts` map). CI `e2e-scaffold` target: non-interactive `create-mantlejs` → install (workspace-linked /
   Verdaccio) → build + test → boot → CRUD round-trip → clean SIGTERM exit. Bug fixes only — no new CLI
   features.
   **Accept:** CI smoke job green against workspace packages.
@@ -158,7 +158,7 @@ strictly in order: develop packages (items 1–8) → release plan (item 9) → 
     `todo-minimal` against it
   - Publish for real via `nx release` (dependency-ordered; stable tier then experimental dist-tag)
   - Post-release verification: `npm install @mantlejs/<name>` from an empty project for every package;
-    `npm create mantle my-app` against the live registry produces a working app; re-point one example at
+    `npm create mantlejs my-app` against the live registry produces a working app; re-point one example at
     registry versions and boot it
   - Tag `v0.1.0`, publish GitHub release notes (`nx release changelog`)
   **Accept:** all published packages resolvable and importable; live-registry scaffold works; tag + notes out.

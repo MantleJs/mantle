@@ -1,4 +1,4 @@
-# create-mantle
+# create-mantlejs
 
 Project initializer for [Mantle JS](https://github.com/mantlejs/mantle) — scaffold a new Mantle application with a single `npm create` command.
 
@@ -9,9 +9,9 @@ Project initializer for [Mantle JS](https://github.com/mantlejs/mantle) — scaf
 No installation needed. Run directly with your package manager:
 
 ```bash
-npm create mantle@latest my-app
+npm create mantlejs@latest my-app
 # or
-npx create-mantle my-app
+npx create-mantlejs my-app
 ```
 
 ---
@@ -20,9 +20,9 @@ npx create-mantle my-app
 
 ### npm create convention
 
-`create-mantle` follows the npm initializer convention. Running `npm create mantle my-app` resolves to `create-mantle` on the npm registry and invokes the `create-mantle` bin. This means users never need to install the package globally.
+`create-mantlejs` follows the npm initializer convention. Running `npm create mantlejs my-app` resolves to `create-mantlejs` on the npm registry and invokes the `create-mantlejs` bin. This means users never need to install the package globally.
 
-`create-mantle` is a thin wrapper around `@mantlejs/cli`'s `newProject()` — see that package's
+`create-mantlejs` is a thin wrapper around `@mantlejs/cli`'s `newProject()` — see that package's
 README for the full scaffold surface (database/auth/CORS/Redis options, what gets generated).
 
 ---
@@ -31,10 +31,10 @@ README for the full scaffold surface (database/auth/CORS/Redis options, what get
 
 ```bash
 # Scaffold a new project (interactive prompts)
-npm create mantle@latest my-app
+npm create mantlejs@latest my-app
 
 # Scaffold non-interactively (flags go after `--`)
-npm create mantle@latest my-app -- --database pg --auth local --package-manager npm
+npm create mantlejs@latest my-app -- --database pg --auth local --package-manager npm
 
 # Move into the project
 cd my-app
@@ -56,7 +56,7 @@ Re-exported from `@mantlejs/cli`; the bin's programmatic entry point. Returns a 
 that resolves once the project has been scaffolded (and installed, unless `skipInstall` is set).
 
 ```typescript
-import { newProject } from "create-mantle";
+import { newProject } from "create-mantlejs";
 
 await newProject("my-app", {
   database: "pg",
@@ -81,7 +81,7 @@ await newProject("my-app", {
 ## Types
 
 ```typescript
-import type { NewProjectOptions, Database, Auth, PackageManager, Transport } from "create-mantle";
+import type { NewProjectOptions, Database, Auth, PackageManager, Transport } from "create-mantlejs";
 ```
 
 | Type | Description |
@@ -97,10 +97,10 @@ import type { NewProjectOptions, Database, Auth, PackageManager, Transport } fro
 ## Development
 
 ```bash
-npx nx build create-mantle   # compile
-npx nx test create-mantle    # run tests
-npx nx lint create-mantle    # lint
-npx nx run create-mantle:e2e-scaffold   # full scaffold → build → test → boot → CRUD → SIGTERM smoke test
+npx nx build create-mantlejs   # compile
+npx nx test create-mantlejs    # run tests
+npx nx lint create-mantlejs    # lint
+npx nx run create-mantlejs:e2e-scaffold   # full scaffold → build → test → boot → CRUD → SIGTERM smoke test
 ```
 
 ---
@@ -110,20 +110,20 @@ npx nx run create-mantle:e2e-scaffold   # full scaffold → build → test → b
 Build before publishing:
 
 ```bash
-npx nx build create-mantle
+npx nx build create-mantlejs
 ```
 
 First publish:
 
 ```bash
-cd packages/create-mantle
+cd packages/create-mantlejs
 npm publish --access public
 ```
 
-Subsequent releases — bump `version` in `packages/create-mantle/package.json`, then:
+Subsequent releases — bump `version` in `packages/create-mantlejs/package.json`, then:
 
 ```bash
-cd packages/create-mantle
+cd packages/create-mantlejs
 npm publish
 ```
 
@@ -134,9 +134,9 @@ npm publish
 npx nx run @mantle/source:local-registry
 
 # Terminal 2 — publish to it
-cd packages/create-mantle
+cd packages/create-mantlejs
 npm publish --registry http://localhost:4873
 
 # Test the initializer
-npm create mantle my-test-app --registry http://localhost:4873
+npm create mantlejs my-test-app --registry http://localhost:4873
 ```

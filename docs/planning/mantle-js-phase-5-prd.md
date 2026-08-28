@@ -39,7 +39,7 @@ Phase 5 delivers:
    deployment guidance) and add an optional LogLayer adapter alongside the pino adapter
 6. **Multi-repository services** — verify and document that services can compose more than one repository,
    including across different adapters; clarify transaction semantics
-7. **CLI + `create-mantle` verification** — prove the scaffolding path works end to end against the packages
+7. **CLI + `create-mantlejs` verification** — prove the scaffolding path works end to end against the packages
    actually being released, with templates updated through Phase 4/5 features
 8. **Canonical example + starter examples** — a full-featured team knowledge base showcasing (nearly) every
    package, plus two small focused examples
@@ -75,7 +75,7 @@ Phase 5 package summary:
   and a `loglayerAdapter` so LogLayer users get Mantle logging with any of LogLayer's transports
 - Verify multi-repository service composition with an executable spec and a documented pattern (including
   cross-adapter composition and `withTransaction` boundaries)
-- Verify `@mantlejs/cli` and `create-mantle` produce a working project against the released package set —
+- Verify `@mantlejs/cli` and `create-mantlejs` produce a working project against the released package set —
   scaffold → install → build → test → run, exercised in CI
 - Build the canonical example (team knowledge base with AI-powered semantic search) plus two minimal starters,
   and use them as the release's end-to-end smoke tests
@@ -107,10 +107,10 @@ Phase 5 runs in four stages, strictly ordered — the release is last:
    `@mantlejs/auth-linkedin`, logger hardening, `auth-oauth` `form_post` support, multi-repository
    verification spec
 2. **Release plan finalization** — confirm the publish-tier split against actual coverage, npm org readiness,
-   versioning/publish tooling, README audit, CLI/`create-mantle` template updates
+   versioning/publish tooling, README audit, CLI/`create-mantlejs` template updates
 3. **Examples** — canonical knowledge-base example + two starters, built against the workspace packages;
    these double as end-to-end verification of stage 1 and the CLI path
-4. **Release** — publish in dependency order, then re-verify the examples and `create-mantle` against the
+4. **Release** — publish in dependency order, then re-verify the examples and `create-mantlejs` against the
    *published* registry packages (not workspace links)
 
 ---
@@ -235,19 +235,19 @@ hook specs stay green.
 **Acceptance:** the composition spec passes; docs section lands in the root README (or `docs/`) and the
 `RepositoryService` API docs cross-reference it ("need two repositories? write a custom service — like this").
 
-### CLI + `create-mantle` verification
+### CLI + `create-mantlejs` verification
 
 `@mantlejs/cli` (`new`, `generate` service/hook/repository/migration/authentication, `add`) and
-`create-mantle` exist but predate Phase 4's packages and the release. Phase 5 makes "scaffolding works" a
+`create-mantlejs` exist but predate Phase 4's packages and the release. Phase 5 makes "scaffolding works" a
 verified claim:
 
 - Update templates/generators to the current package surface (e.g. offer `@mantlejs/mongodb` as a database
   choice, `cors` option on transports, current auth strategy list including Apple/Microsoft)
-- End-to-end smoke test in CI: `create-mantle` scaffold → install (workspace-linked pre-release, registry
+- End-to-end smoke test in CI: `create-mantlejs` scaffold → install (workspace-linked pre-release, registry
   post-release) → `nx build`/`test` inside the scaffold → boot the app → hit a CRUD endpoint → clean exit
 - Fix whatever that smoke test flushes out; no new CLI features beyond template updates
 
-**Acceptance:** the CI smoke job is green; a human-run `npm create mantle my-app` against the published
+**Acceptance:** the CI smoke job is green; a human-run `npm create mantlejs my-app` against the published
 registry produces a working app (post-release gate).
 
 ---
@@ -310,7 +310,7 @@ Per the [Phase 4 Publish Tiering decision](./mantle-js-phase-4-prd.md#publish-ti
 
 | Tier | Packages |
 | --- | --- |
-| **Stable `0.1.0`** | `@mantlejs/mantle`, `express`, `koa`, `http`, `knex`, `auth`, `auth-local`, `auth-oauth`, `auth-google`, `auth-github`, `auth-facebook`, **`auth-apple`**, **`auth-microsoft`**, **`auth-linkedin`**, `auth-redis`, `storage`, `storage-s3`, `storage-gcs`, `logger`, `schema`, `memory`, `config`, `socketio`, `supabase`, `sync`, **`mcp`**, **`openapi`**, `client`, `react`, `cli`, `create-mantle` |
+| **Stable `0.1.0`** | `@mantlejs/mantle`, `express`, `koa`, `http`, `knex`, `auth`, `auth-local`, `auth-oauth`, `auth-google`, `auth-github`, `auth-facebook`, **`auth-apple`**, **`auth-microsoft`**, **`auth-linkedin`**, `auth-redis`, `storage`, `storage-s3`, `storage-gcs`, `logger`, `schema`, `memory`, `config`, `socketio`, `supabase`, `sync`, **`mcp`**, **`openapi`**, `client`, `react`, `cli`, `create-mantlejs` |
 | **`0.1.0-experimental`** | `@mantlejs/dynamodb`, `pinecone`, `qdrant`, `neo4j`, `mongodb` |
 
 `auth-apple`/`auth-microsoft`/`auth-linkedin` join the stable tier despite being new this phase: they are thin
@@ -348,10 +348,10 @@ release.
    `@mantlejs/mantle` → `schema`/`memory`/`config`/`logger` → transports (`express`, `koa`, `http`,
    `socketio`) → database adapters (incl. `mongodb`) → `auth` → `auth-oauth` → auth strategies (incl.
    `apple`/`microsoft`/`linkedin`) → `auth-redis` → `storage*` → `sync` → `openapi` → `mcp` → `client` →
-   `react` → `cli` → `create-mantle`
+   `react` → `cli` → `create-mantlejs`
 4. **Post-release verification**
    - `npm install @mantlejs/<name>` resolves from an empty project for every published package
-   - `npm create mantle my-app` against the live registry produces a working app
+   - `npm create mantlejs my-app` against the live registry produces a working app
    - Re-point one example at registry versions and confirm it boots and passes its smoke flow
    - Tag the repo (`v0.1.0`), publish GitHub release notes
 
@@ -390,7 +390,7 @@ mantle/
 ## Success Metrics
 
 - All stable-tier packages installable from the public registry and importable in a fresh project
-- `npm create mantle my-app` → working app in under five minutes, against the live registry
+- `npm create mantlejs my-app` → working app in under five minutes, against the live registry
 - Canonical example runs locally with `docker compose up` (Postgres+pgvector, Redis) + `nx serve`, and every
   feature row in the table above is demonstrably exercised
 - An MCP-capable agent (e.g. Claude) can list and call knowledge-base tools through `@mantlejs/mcp`, and a

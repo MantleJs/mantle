@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * e2e-scaffold smoke test (TDD §8): non-interactive `create-mantle` → install with workspace
+ * e2e-scaffold smoke test (TDD §8): non-interactive `create-mantlejs` → install with workspace
  * packages linked → build + test inside the scaffold → boot on an ephemeral port → CRUD
  * round-trip against the generated (memory-backed) service → SIGTERM → assert clean exit.
  *
@@ -16,7 +16,7 @@ import { createServer } from "node:net";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = join(__dirname, "../../..");
-const CREATE_MANTLE_BIN = join(REPO_ROOT, "packages/create-mantle/dist/bin/create-mantle.js");
+const CREATE_MANTLE_BIN = join(REPO_ROOT, "packages/create-mantlejs/dist/bin/create-mantlejs.js");
 const MANTLE_BIN = join(REPO_ROOT, "packages/cli/dist/bin/mantle.js");
 
 const WORKSPACE_LINKS = {
@@ -98,7 +98,7 @@ async function main() {
   const appDir = join(tmpRoot, "smoke-app");
 
   try {
-    log("scaffolding via create-mantle (non-interactive, memory adapter)");
+    log("scaffolding via create-mantlejs (non-interactive, memory adapter)");
     run("node", [
       CREATE_MANTLE_BIN,
       "smoke-app",

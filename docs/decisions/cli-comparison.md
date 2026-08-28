@@ -384,7 +384,7 @@ export { addPackage } from "./lib/add.js";
 export type { GeneratorName, GenerateOptions, AddOptions, ... } from "...";
 ```
 
-`create-mantle` already consumes this API — it calls `newProject()` directly without running a subprocess. The same pattern would work for any IDE integration.
+`create-mantlejs` already consumes this API — it calls `newProject()` directly without running a subprocess. The same pattern would work for any IDE integration.
 
 **Verdict: not worth splitting at this stage.**
 
