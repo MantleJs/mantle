@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>realtime-chat — Mantle JS</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style>
+      body { font-family: system-ui, sans-serif; max-width: 32rem; margin: 2rem auto; padding: 0 1rem; }
+      #error { color: #c0392b; min-height: 1.25em; }
+      #messages { list-style: none; padding: 0; height: 20rem; overflow-y: auto; border: 1px solid #ccc; margin: 1rem 0; }
+      #messages li { padding: 0.25rem 0.5rem; }
+      #messages li:nth-child(odd) { background: #f6f6f6; }
+      form { display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 1rem; }
+      input, button { padding: 0.4rem; font-size: 1rem; }
+      #message-form { flex-direction: row; }
+      #message-form input { flex: 1; }
+      [hidden] { display: none; }
+    </style>
+  </head>
+  <body>
+    <h1>realtime-chat</h1>
+    <p id="error"></p>
+
+    <section id="auth-section">
+      <h2>Log in</h2>
+      <form id="login-form">
+        <input name="email" type="email" placeholder="Email" required />
+        <input name="password" type="password" placeholder="Password" required />
+        <button type="submit">Log in</button>
+      </form>
+
+      <h2>Register</h2>
+      <form id="register-form">
+        <input name="name" type="text" placeholder="Name" required />
+        <input name="email" type="email" placeholder="Email" required />
+        <input name="password" type="password" placeholder="Password" required />
+        <button type="submit">Register</button>
+      </form>
+    </section>
+
+    <section id="chat-section" hidden>
+      <ul id="messages"></ul>
+      <form id="message-form">
+        <input name="text" type="text" placeholder="Say something…" autocomplete="off" required />
+        <button type="submit">Send</button>
+      </form>
+      <button id="logout" type="button">Log out</button>
+    </section>
+
+    <script src="/app.js"></script>
+  </body>
+</html>

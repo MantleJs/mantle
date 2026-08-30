@@ -285,9 +285,17 @@ describe("authenticate(strategy)", () => {
 // ─── sanitizeUser() hook ──────────────────────────────────────────────────────
 
 describe("sanitizeUser()", () => {
-  function makeHookCtx(result: unknown): HookContext {
-    return { result } as unknown as HookContext;
+  function makeHookCtx(result: unknown, params: Partial<HookContext["params"]> = { provider: "rest" }): HookContext {
+    return { result, params } as unknown as HookContext;
   }
+
+  it("does not strip when the call has no provider (internal call)", () => {
+    // @mantlejs/auth-local's credential lookup reads the stored password hash off an
+    // internal `app.service("users").find(...)` call through this same `after` hook.
+    const ctx = makeHookCtx({ id: 1, name: "Alice", password: "hash" }, {});
+    const result = sanitizeUser()(ctx) as HookContext;
+    expect(result.result).toEqual({ id: 1, name: "Alice", password: "hash" });
+  });
 
   it("strips password from a single result object", () => {
     const ctx = makeHookCtx({ id: 1, name: "Alice", password: "hash" });

@@ -46,3 +46,9 @@ Thumbs.db
 
 vitest.config.*.timestamp*
 .nx/polygraph
+
+# examples — generated at build/run time
+examples/realtime-chat/public/app.js
+examples/realtime-chat/chat.db
+examples/knowledge-base/**/uploads
+vite.config.*.timestamp*

@@ -1,0 +1,57 @@
+{
+  "name": "knowledge-base-api",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Mantle JS canonical example — team knowledge base API (Express, Postgres/pgvector, Redis).",
+  "nx": {
+    "name": "knowledge-base-api",
+    "targets": {
+      "serve": {
+        "executor": "nx:run-commands",
+        "dependsOn": ["build"],
+        "options": {
+          "command": "node dist/index.js",
+          "cwd": "{projectRoot}"
+        }
+      },
+      "seed": {
+        "executor": "nx:run-commands",
+        "dependsOn": ["build"],
+        "options": {
+          "command": "node dist/seed.js",
+          "cwd": "{projectRoot}"
+        }
+      }
+    }
+  },
+  "dependencies": {
+    "@mantlejs/mantle": "0.0.1",
+    "@mantlejs/express": "0.0.1",
+    "@mantlejs/knex": "0.0.1",
+    "@mantlejs/auth": "0.0.1",
+    "@mantlejs/auth-local": "0.0.1",
+    "@mantlejs/auth-google": "0.0.1",
+    "@mantlejs/auth-github": "0.0.1",
+    "@mantlejs/auth-apple": "0.0.1",
+    "@mantlejs/auth-microsoft": "0.0.1",
+    "@mantlejs/auth-linkedin": "0.0.1",
+    "@mantlejs/auth-redis": "0.0.1",
+    "@mantlejs/socketio": "0.0.1",
+    "@mantlejs/sync": "0.0.1",
+    "@mantlejs/storage": "0.0.1",
+    "@mantlejs/storage-s3": "0.0.1",
+    "@mantlejs/storage-gcs": "0.0.1",
+    "@mantlejs/schema": "0.0.1",
+    "@mantlejs/logger": "0.0.1",
+    "@mantlejs/config": "0.0.1",
+    "@mantlejs/openapi": "0.0.1",
+    "@mantlejs/mcp": "0.0.1",
+    "knex": "^3.2.10",
+    "pg": "^8.21.0",
+    "ioredis": "^5.11.1",
+    "pino": "^9.0.0",
+    "pino-pretty": "^13.0.0",
+    "tslib": "^2.3.0"
+  }
+}

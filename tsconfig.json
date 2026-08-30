@@ -110,6 +110,18 @@
     },
     {
       "path": "./packages/auth-linkedin"
+    },
+    {
+      "path": "./examples/todo-minimal"
+    },
+    {
+      "path": "./examples/realtime-chat"
+    },
+    {
+      "path": "./examples/knowledge-base/api"
+    },
+    {
+      "path": "./examples/knowledge-base/web"
     }
   ]
 }

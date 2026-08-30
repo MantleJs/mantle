@@ -134,7 +134,7 @@ strictly in order: develop packages (items 1–8) → release plan (item 9) → 
 
 ## Stage 3 — Examples
 
-- [ ] **10. Build the canonical example — `examples/knowledge-base`** *(PRD [Canonical Example](./mantle-js-phase-5-prd.md#canonical-example); TDD §9)*
+- [x] **10. Build the canonical example — `examples/knowledge-base`** *(PRD [Canonical Example](./mantle-js-phase-5-prd.md#canonical-example); TDD §9)*
   Team knowledge base with AI-powered semantic search: `knowledge-base-api` (Express, knex/pgvector, redis)
   and `knowledge-base-web` (Vite + React + shadcn/ui over `@mantlejs/client`/`@mantlejs/react`). Services:
   `users` (local + google/github/apple/microsoft/linkedin, auth-redis), `articles` (multi-repo showcase:
@@ -145,11 +145,32 @@ strictly in order: develop packages (items 1–8) → release plan (item 9) → 
   zero-key local default.
   **Accept:** `docker compose up` + serve runs the full app; every capability row in the PRD table is
   demonstrably exercised; MCP tool call from an agent hits the hook pipeline; CI builds/lints/tests it.
+  Done (2026-08-30): all 6 services wired and exercised against a live ephemeral server in
+  `api/src/app.spec.ts` (OAuth-gate-by-env, 401 without auth, OpenAPI doc lists `articles`, Swagger UI at
+  `/docs`, MCP `tools/list` returns `articles_find`/`search_similar`/etc. and confirms `users_*` is absent —
+  proving the deny-by-default expose map). `articles-service.spec.ts` proves the multi-repo write (article +
+  activity-log + embedding) and non-atomicity contract with fake repositories. Along the way, found and fixed
+  a real bug in the already-shipped stable `@mantlejs/auth`: `sanitizeUser()` unconditionally stripped
+  `password`, which broke `auth-local`'s own internal credential lookup on the same service — fixed to gate
+  on `params.provider` (same "no provider = internal/trusted" convention `authenticate()` already uses),
+  regression test added. `npx nx run-many -t build,test,lint,typecheck` green across all 40 projects.
+  **Outstanding:** this sandbox has no Docker daemon, so the `docker compose up` + live-Postgres/pgvector
+  run, the seed script, and the web UI against a real backend were not exercised end-to-end here — recommend
+  a human run through `examples/knowledge-base/README.md`'s quick start before treating this as the release
+  gate. Attachment download (streaming the stored file back) isn't wired — `attachments` covers
+  upload + metadata only; noted as a known scope cut in the example's README.
 
-- [ ] **11. Build starter examples** *(TDD §9)*
+- [x] **11. Build starter examples** *(TDD §9)*
   `examples/todo-minimal` (`@mantlejs/http` + `@mantlejs/memory`, single file, < 100 lines) and
   `examples/realtime-chat` (Express + socketio + knex/sqlite + auth-local + `@mantlejs/client` static page).
   **Accept:** both boot and pass a scripted smoke flow in CI; todo-minimal doubles as the README quick start.
+  Done (2026-08-30): `todo-minimal` is 30 lines, passes a vitest CRUD round-trip against `@mantlejs/http`'s
+  `fetchHandler` (no port binding needed), and a manual `curl` boot check. `realtime-chat` passes a vitest
+  spec that registers a user, authenticates, and asserts a posted message arrives over a live
+  `socket.io-client` connection, plus a 401-without-auth case; manually verified end-to-end via `curl`
+  including that the login response no longer leaks the password hash (same `sanitizeUser()`-adjacent gap
+  as item 10, fixed locally in this app before the framework-level fix was even in scope — see item 10's
+  note). Both examples' `nx build`/`test`/`lint`/`typecheck` are green.
 
 ## Stage 4 — Release
 

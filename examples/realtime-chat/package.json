@@ -1,0 +1,44 @@
+{
+  "name": "realtime-chat",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Express + Socket.IO + Knex/SQLite + auth-local, with a static HTML client bundled via esbuild.",
+  "nx": {
+    "name": "realtime-chat",
+    "targets": {
+      "build-web": {
+        "executor": "nx:run-commands",
+        "options": {
+          "command": "node scripts/build-web.mjs",
+          "cwd": "{projectRoot}"
+        }
+      },
+      "serve": {
+        "executor": "nx:run-commands",
+        "dependsOn": ["build", "build-web"],
+        "options": {
+          "command": "node dist/index.js",
+          "cwd": "{projectRoot}"
+        }
+      }
+    }
+  },
+  "dependencies": {
+    "@mantlejs/mantle": "0.0.1",
+    "@mantlejs/express": "0.0.1",
+    "@mantlejs/knex": "0.0.1",
+    "@mantlejs/auth": "0.0.1",
+    "@mantlejs/auth-local": "0.0.1",
+    "@mantlejs/socketio": "0.0.1",
+    "@mantlejs/client": "0.0.1",
+    "express": "^5.2.1",
+    "knex": "^3.2.10",
+    "better-sqlite3": "^13.0.3",
+    "socket.io-client": "^4.8.1",
+    "tslib": "^2.3.0"
+  },
+  "devDependencies": {
+    "esbuild": "^0.17.19"
+  }
+}

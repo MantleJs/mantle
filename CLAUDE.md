@@ -82,6 +82,10 @@ mantle/
 │   ├── react/           @mantlejs/react        React hooks over the client SDK (TanStack Query v5)
 │   ├── cli/             @mantlejs/cli          Command-line interface — scaffold projects/services/hooks
 │   └── create-mantlejs/ create-mantlejs        `npm create mantlejs` project initializer
+├── examples/           Runnable apps, unpublished, npm-workspace-linked (not part of the release)
+│   ├── todo-minimal/    @mantlejs/http + @mantlejs/memory, single file, README quick-start source
+│   ├── realtime-chat/   Express + socketio + knex/sqlite + auth-local, static HTML client
+│   └── knowledge-base/  Canonical example — knowledge-base-api + knowledge-base-web
 ├── docs/               scaffold.sh, PRD, TDD
 └── CLAUDE.md           This file
 ```
@@ -126,6 +130,7 @@ mantle/
 | @mantlejs/react          | @mantlejs/client (peers: react, @tanstack/react-query)                                      |
 | @mantlejs/cli            | nothing (standalone code generator)                                                         |
 | create-mantlejs          | @mantlejs/cli                                                                               |
+| examples/*               | anything (apps, not libraries — exempt from the boundary rules above, never depended on)    |
 
 ---
 

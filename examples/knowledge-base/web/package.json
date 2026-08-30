@@ -1,0 +1,19 @@
+{
+  "name": "knowledge-base-web",
+  "version": "0.0.1",
+  "private": true,
+  "nx": {
+    "name": "knowledge-base-web"
+  },
+  "dependencies": {
+    "@mantlejs/client": "0.0.1",
+    "@mantlejs/react": "0.0.1",
+    "socket.io-client": "^4.8.1",
+    "clsx": "^2.1.1",
+    "tailwind-merge": "^3.6.0"
+  },
+  "devDependencies": {
+    "tailwindcss": "^4.3.3",
+    "@tailwindcss/vite": "^4.3.3"
+  }
+}

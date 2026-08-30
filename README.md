@@ -118,6 +118,11 @@ app.service("users").hooks({
 app.listen(3030);
 ```
 
+For the smallest possible runnable app — one file, `@mantlejs/http` + `@mantlejs/memory`, no
+external infra — see [`examples/todo-minimal`](./examples/todo-minimal). Two other runnable
+examples live under [`examples/`](./examples): `realtime-chat` (Socket.IO + local auth) and
+`knowledge-base` (the canonical example — nearly every package wired into one app).
+
 ## Services with multiple repositories
 
 `RepositoryService<T>` is the framework-owned bridge from HTTP query strings to a single
