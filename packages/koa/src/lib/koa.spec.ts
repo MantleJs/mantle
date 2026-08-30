@@ -1,12 +1,9 @@
 import type { AddressInfo } from "node:net";
-import type { Server } from "node:http";
 import KoaLib from "koa";
 import { mantle, getContext } from "@mantlejs/mantle";
 import { BadRequest, NotFound } from "@mantlejs/mantle";
 import type { HttpRouterLike, ServiceParams } from "@mantlejs/mantle";
 import { koa } from "./koa.js";
-
-type AppWithListen = ReturnType<typeof mantle> & { listen(port: number, callback?: () => void): Server };
 
 async function startApp(configure: (app: ReturnType<typeof mantle>) => void): Promise<{
   port: number;
@@ -14,7 +11,7 @@ async function startApp(configure: (app: ReturnType<typeof mantle>) => void): Pr
 }> {
   const app = mantle().configure(koa());
   configure(app);
-  const server = (app as AppWithListen).listen(0);
+  const server = app.listen(0);
   await new Promise<void>((resolve) => server.once("listening", resolve));
   const port = (server.address() as AddressInfo).port;
   return {
@@ -485,7 +482,7 @@ describe("koa adapter", () => {
     it("stores the http.Server after listen()", async () => {
       const innerApp = mantle().configure(koa());
       innerApp.use("users", new TestUserService());
-      const server = (innerApp as AppWithListen).listen(0);
+      const server = innerApp.listen(0);
       await new Promise<void>((resolve) => server.once("listening", resolve));
       expect(innerApp.get("server")).toBe(server);
       expect(innerApp.get("http:server")).toBe(server);
@@ -498,7 +495,7 @@ describe("introspection endpoint", () => {
   async function startWith(options?: Parameters<typeof koa>[0]): Promise<{ port: number; stop: () => Promise<void> }> {
     const app = mantle().configure(koa(options));
     app.use("users", new TestUserService(), { methods: ["find", "get", "create"] });
-    const server = (app as AppWithListen).listen(0);
+    const server = app.listen(0);
     await new Promise<void>((resolve) => server.once("listening", resolve));
     const port = (server.address() as AddressInfo).port;
     return {
@@ -556,7 +553,7 @@ describe("POST /batch", () => {
   }> {
     const app = mantle().configure(koa(options));
     app.use("users", new TestUserService());
-    const server = (app as AppWithListen).listen(0);
+    const server = app.listen(0);
     await new Promise<void>((resolve) => server.once("listening", resolve));
     const port = (server.address() as AddressInfo).port;
     return {
@@ -686,7 +683,7 @@ describe("CORS", () => {
   async function startWith(options?: Parameters<typeof koa>[0]): Promise<{ port: number; stop: () => Promise<void> }> {
     const app = mantle().configure(koa(options));
     app.use("users", new TestUserService());
-    const server = (app as AppWithListen).listen(0);
+    const server = app.listen(0);
     await new Promise<void>((resolve) => server.once("listening", resolve));
     const port = (server.address() as AddressInfo).port;
     return {

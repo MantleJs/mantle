@@ -19,6 +19,13 @@ import { parseBody } from "./body-parser.js";
 import { toErrorResponse } from "./error-handler.js";
 import { buildCorsHeaders } from "./cors.js";
 
+declare module "@mantlejs/mantle" {
+  interface MantleApplication {
+    /** Added by `@mantlejs/http` — starts the underlying `http.Server`. */
+    listen(port: number, callback?: () => void): Server;
+  }
+}
+
 export type NodeHttpHandler = (req: IncomingMessage, res: ServerResponse) => void;
 export type FetchHandler = (request: Request) => Promise<Response>;
 

@@ -1,4 +1,5 @@
 import { randomUUID } from "crypto";
+import type { Server } from "node:http";
 import KoaLib from "koa";
 import Router from "@koa/router";
 import bodyParser from "@koa/bodyparser";
@@ -17,6 +18,13 @@ import type {
 import { CORS_DEFAULT_METHODS, resolveCorsOrigin, withContext } from "@mantlejs/mantle";
 import { mountServiceRoutes } from "./routes.js";
 import { errorHandler } from "./error-handler.js";
+
+declare module "@mantlejs/mantle" {
+  interface MantleApplication {
+    /** Added by `@mantlejs/koa` — starts the underlying `http.Server`. */
+    listen(port: number, callback?: () => void): Server;
+  }
+}
 
 export interface KoaOptions {
   /** Existing Koa application instance. When omitted, a new one is created. */
