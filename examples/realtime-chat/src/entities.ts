@@ -3,8 +3,10 @@ export interface User extends Record<string, unknown> {
   email: string;
   password: string;
   name: string;
-  createdAt?: Date;
-  updatedAt?: Date;
+  // Column names on this table are snake_case (legacy convention) — see
+  // UserRepository's createdAtField/updatedAtField override in repositories.ts.
+  created_at?: Date;
+  updated_at?: Date;
 }
 
 export interface Message extends Record<string, unknown> {

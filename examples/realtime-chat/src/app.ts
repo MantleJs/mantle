@@ -103,16 +103,19 @@ export function createApp(config: AppConfig = {}): MantleApplication {
 export async function migrate(app: MantleApplication): Promise<void> {
   const db = app.get<Knex>("knex");
 
-  // Column names are camelCase — `KnexRepository`'s timestamp stamping writes
-  // `createdAt`/`updatedAt`, not knex's snake_case `timestamps()` default.
+  // `messages`' column names are camelCase — `KnexRepository`'s default timestamp
+  // stamping writes `createdAt`/`updatedAt`, not knex's snake_case `timestamps()`
+  // default. `users` overrides createdAtField/updatedAtField (see UserRepository
+  // in repositories.ts) to snake_case instead — the two tables intentionally use
+  // different conventions here to demonstrate the override.
   if (!(await db.schema.hasTable("users"))) {
     await db.schema.createTable("users", (t) => {
       t.increments("id");
       t.string("email").notNullable().unique();
       t.string("password").notNullable();
       t.string("name").notNullable();
-      t.timestamp("createdAt").notNullable();
-      t.timestamp("updatedAt").notNullable();
+      t.timestamp("created_at").notNullable();
+      t.timestamp("updated_at").notNullable();
     });
   }
 
