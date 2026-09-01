@@ -27,6 +27,10 @@ export abstract class MongoRepository<T extends Record<string, unknown>, D = Par
 
   /** When true, writes maintain `createdAt`/`updatedAt` as BSON `Date` fields. @default true */
   readonly timestamps: boolean = true;
+  /** Field written for auto-managed creation timestamps. @default "createdAt" */
+  readonly createdAtField: string = "createdAt";
+  /** Field written for auto-managed update timestamps. @default "updatedAt" */
+  readonly updatedAtField: string = "updatedAt";
 
   /** Session bound by `withTransaction()` — every driver call passes it when set. */
   protected _session?: ClientSession;
@@ -120,7 +124,7 @@ export abstract class MongoRepository<T extends Record<string, unknown>, D = Par
       );
       const changes: Record<string, unknown> = {
         ...filtered,
-        ...(this.timestamps ? { updatedAt: new Date() } : {}),
+        ...(this.timestamps ? { [this.updatedAtField]: new Date() } : {}),
       };
 
       if (Object.keys(changes).length === 0) {
@@ -224,7 +228,11 @@ export abstract class MongoRepository<T extends Record<string, unknown>, D = Par
     return {
       ...rest,
       ...(id !== undefined ? { _id: this.toObjectId(id as Id) } : {}),
-      ...(this.timestamps ? (op === "create" ? { createdAt: now, updatedAt: now } : { updatedAt: now }) : {}),
+      ...(this.timestamps
+        ? op === "create"
+          ? { [this.createdAtField]: now, [this.updatedAtField]: now }
+          : { [this.updatedAtField]: now }
+        : {}),
     };
   }
 

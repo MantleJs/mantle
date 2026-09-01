@@ -55,6 +55,14 @@ class TestRepoWithTimestamps extends PineconeRepository<Article> {
   readonly vectorDimension = 3;
 }
 
+class TestRepoCustomTimestampFields extends PineconeRepository<Article> {
+  readonly indexName = "articles-index";
+  readonly namespace = "test-ns";
+  readonly vectorDimension = 3;
+  override readonly createdAtField = "created_at";
+  override readonly updatedAtField = "updated_at";
+}
+
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
 describe("PineconeRepository", () => {
@@ -267,6 +275,18 @@ describe("PineconeRepository", () => {
         { records: Array<{ metadata: Record<string, unknown> }> },
       ];
       expect(records[0].metadata).not.toHaveProperty("createdAt");
+    });
+
+    it("uses createdAtField/updatedAtField when overridden", async () => {
+      const { idx, app } = makeSetup();
+      await new TestRepoCustomTimestampFields(app).save({ id: "1", title: "Doc", category: "tech" } as Partial<Article>);
+      const [{ records }] = (idx.upsert as ReturnType<typeof vi.fn>).mock.calls[0] as [
+        { records: Array<{ metadata: Record<string, unknown> }> },
+      ];
+      expect(records[0].metadata).toHaveProperty("created_at");
+      expect(records[0].metadata).toHaveProperty("updated_at");
+      expect(records[0].metadata).not.toHaveProperty("createdAt");
+      expect(records[0].metadata).not.toHaveProperty("updatedAt");
     });
   });
 

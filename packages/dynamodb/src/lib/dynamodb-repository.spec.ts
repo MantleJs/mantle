@@ -38,6 +38,12 @@ class UserRepoWithTimestamps extends DynamoDbRepository<User> {
   readonly tableName = "users";
 }
 
+class UserRepoCustomTimestampFields extends DynamoDbRepository<User> {
+  readonly tableName = "users";
+  override readonly createdAtField = "created_at";
+  override readonly updatedAtField = "updated_at";
+}
+
 function makeApp(): MantleApplication {
   const client = { send: mockSend };
   return {
@@ -203,6 +209,15 @@ describe("DynamoDbRepository", () => {
       mockSend.mockResolvedValue({});
       const result = await new UserRepo(app).save({ id: "1", name: "Alice", email: "a@a.com" });
       expect(result).not.toHaveProperty("createdAt");
+    });
+
+    it("uses createdAtField/updatedAtField when overridden", async () => {
+      mockSend.mockResolvedValue({});
+      const result = await new UserRepoCustomTimestampFields(app).save({ id: "1", name: "Alice", email: "a@a.com" });
+      expect(result).toHaveProperty("created_at");
+      expect(result).toHaveProperty("updated_at");
+      expect(result).not.toHaveProperty("createdAt");
+      expect(result).not.toHaveProperty("updatedAt");
     });
   });
 

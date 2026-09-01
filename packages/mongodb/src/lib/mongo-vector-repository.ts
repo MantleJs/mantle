@@ -74,8 +74,8 @@ export abstract class MongoVectorRepository<T extends Record<string, unknown>, D
       const doc = await this.collection.findOneAndUpdate(
         { _id: this.toObjectId(id) },
         {
-          $set: { ...rest, [this.vectorField]: vector, ...(this.timestamps ? { updatedAt: now } : {}) },
-          ...(this.timestamps ? { $setOnInsert: { createdAt: now } } : {}),
+          $set: { ...rest, [this.vectorField]: vector, ...(this.timestamps ? { [this.updatedAtField]: now } : {}) },
+          ...(this.timestamps ? { $setOnInsert: { [this.createdAtField]: now } } : {}),
         },
         { upsert: true, returnDocument: "after", ...this.sessionOptions() },
       );

@@ -69,6 +69,15 @@ describe("MemoryRepository", () => {
       expect(user.updatedAt).toBeUndefined();
     });
 
+    it("uses createdAtField/updatedAtField when configured", async () => {
+      const r = new MemoryRepository<User>({ createdAtField: "created_at", updatedAtField: "updated_at" });
+      const user = (await r.save({ name: "Alice", email: "alice@example.com", age: 30 })) as Record<string, unknown>;
+      expect(user["created_at"]).toBeDefined();
+      expect(user["updated_at"]).toBeDefined();
+      expect(user.createdAt).toBeUndefined();
+      expect(user.updatedAt).toBeUndefined();
+    });
+
     it("throws Conflict when the id already exists", async () => {
       await repo.save({ id: "fixed-id", name: "Bob", email: "bob@example.com", age: 25 });
       await expect(repo.save({ id: "fixed-id", name: "Bob2", email: "bob2@example.com", age: 26 })).rejects.toThrow(
@@ -251,6 +260,22 @@ describe("MemoryRepository", () => {
       const updated = await repo.updateById("1", { name: "Alicia", email: "alicia@example.com", age: 31 });
       expect(updated.createdAt).toBe(original?.createdAt);
       expect(updated.updatedAt).not.toBe(original?.updatedAt);
+    });
+
+    it("preserves the original value under createdAtField when overridden", async () => {
+      const r = new MemoryRepository<User>({ createdAtField: "created_at", updatedAtField: "updated_at" });
+      const created = (await r.save({ id: "1", name: "Alice", email: "alice@example.com", age: 30 })) as Record<
+        string,
+        unknown
+      >;
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      const updated = (await r.updateById("1", {
+        name: "Alicia",
+        email: "alicia@example.com",
+        age: 31,
+      })) as Record<string, unknown>;
+      expect(updated["created_at"]).toBe(created["created_at"]);
+      expect(updated["updated_at"]).not.toBe(created["updated_at"]);
     });
   });
 

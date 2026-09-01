@@ -132,6 +132,24 @@ describe("MongoVectorRepository", () => {
       expect(update["$set"]?.["updatedAt"]).toBeInstanceOf(Date);
       expect(update["$setOnInsert"]?.["createdAt"]).toBeInstanceOf(Date);
     });
+
+    it("uses createdAtField/updatedAtField when overridden", async () => {
+      class CustomTimestampFields extends MongoVectorRepository<Doc> {
+        readonly collectionName = "docs";
+        override readonly createdAtField = "created_at";
+        override readonly updatedAtField = "updated_at";
+      }
+      const { app, collection } = makeSetup();
+      collection.findOneAndUpdate.mockResolvedValue({ _id: new ObjectId(HEX_A), text: "x" });
+
+      await new CustomTimestampFields(app).upsertVector(HEX_A, [0.1], { text: "x" });
+
+      const update = collection.findOneAndUpdate.mock.calls[0]?.[1] as Record<string, Record<string, unknown>>;
+      expect(update["$set"]?.["updated_at"]).toBeInstanceOf(Date);
+      expect(update["$setOnInsert"]?.["created_at"]).toBeInstanceOf(Date);
+      expect(update["$set"]).not.toHaveProperty("updatedAt");
+      expect(update["$setOnInsert"]).not.toHaveProperty("createdAt");
+    });
   });
 
   describe("deleteVector", () => {

@@ -70,6 +70,12 @@ class TestRepoWithTimestamps extends KnexRepository<User> {
   readonly tableName = "users";
 }
 
+class TestRepoCustomTimestampFields extends KnexRepository<User> {
+  readonly tableName = "users";
+  override readonly createdAtField = "created_at";
+  override readonly updatedAtField = "updated_at";
+}
+
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
 describe("KnexRepository", () => {
@@ -178,6 +184,16 @@ describe("KnexRepository", () => {
       await new TestRepo(app).save({ name: "Alice", email: "alice@example.com" });
       const [inserted] = qb["insert"].mock.calls[0] as [Record<string, unknown>];
       expect(inserted).not.toHaveProperty("createdAt");
+    });
+
+    it("uses createdAtField/updatedAtField when overridden", async () => {
+      const { qb, app } = makeSetup([{ id: 1 }]);
+      await new TestRepoCustomTimestampFields(app).save({ name: "Alice", email: "alice@example.com" });
+      const [inserted] = qb["insert"].mock.calls[0] as [Record<string, unknown>];
+      expect(inserted).toHaveProperty("created_at");
+      expect(inserted).toHaveProperty("updated_at");
+      expect(inserted).not.toHaveProperty("createdAt");
+      expect(inserted).not.toHaveProperty("updatedAt");
     });
   });
 

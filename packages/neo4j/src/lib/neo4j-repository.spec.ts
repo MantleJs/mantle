@@ -44,6 +44,12 @@ class PersonRepository extends Neo4jRepository<Person> {
   readonly label = "Person";
 }
 
+class PersonRepositoryCustomTimestampFields extends Neo4jRepository<Person> {
+  readonly label = "Person";
+  override readonly createdAtField = "created_at";
+  override readonly updatedAtField = "updated_at";
+}
+
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
 describe("Neo4jRepository", () => {
@@ -88,6 +94,22 @@ describe("Neo4jRepository", () => {
       session.run.mockResolvedValueOnce({ records: [makeRecord(props)] });
       const result = await repo.createNode({ name: "Bob", age: 25 });
       expect(result).toMatchObject({ name: "Bob", age: 25 });
+    });
+
+    it("uses createdAtField/updatedAtField when overridden", async () => {
+      const customRepo = new PersonRepositoryCustomTimestampFields(makeApp(session) as never);
+      vi.spyOn(customRepo as unknown as { openSession(): unknown }, "openSession").mockReturnValue(session);
+      session.run.mockResolvedValueOnce({ records: [makeRecord({ id: "abc-123", name: "Bob", age: 25 })] });
+      await customRepo.createNode({ name: "Bob", age: 25 });
+      expect(session.run).toHaveBeenCalledWith(
+        expect.stringContaining("CREATE (n:Person $props) RETURN n"),
+        expect.objectContaining({
+          props: expect.objectContaining({ created_at: expect.any(String), updated_at: expect.any(String) }),
+        }),
+      );
+      const [, { props }] = session.run.mock.calls[0] as [string, { props: Record<string, unknown> }];
+      expect(props).not.toHaveProperty("createdAt");
+      expect(props).not.toHaveProperty("updatedAt");
     });
 
     it("uses a provided id", async () => {

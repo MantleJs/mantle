@@ -52,6 +52,13 @@ class TestRepoWithTimestamps extends QdrantRepository<Article> {
   readonly vectorSize = 3;
 }
 
+class TestRepoCustomTimestampFields extends QdrantRepository<Article> {
+  readonly collectionName = "articles";
+  readonly vectorSize = 3;
+  override readonly createdAtField = "created_at";
+  override readonly updatedAtField = "updated_at";
+}
+
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
 describe("QdrantRepository", () => {
@@ -277,6 +284,19 @@ describe("QdrantRepository", () => {
         { points: Array<{ payload: Record<string, unknown> }> },
       ];
       expect(points[0].payload).not.toHaveProperty("createdAt");
+    });
+
+    it("uses createdAtField/updatedAtField when overridden", async () => {
+      const { client, app } = makeSetup();
+      await new TestRepoCustomTimestampFields(app).save({ id: "1", title: "Doc", category: "tech" } as Partial<Article>);
+      const [, { points }] = (client.upsert as ReturnType<typeof vi.fn>).mock.calls[0] as [
+        string,
+        { points: Array<{ payload: Record<string, unknown> }> },
+      ];
+      expect(points[0].payload).toHaveProperty("created_at");
+      expect(points[0].payload).toHaveProperty("updated_at");
+      expect(points[0].payload).not.toHaveProperty("createdAt");
+      expect(points[0].payload).not.toHaveProperty("updatedAt");
     });
   });
 

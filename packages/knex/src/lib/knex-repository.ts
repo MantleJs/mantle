@@ -20,6 +20,10 @@ export abstract class KnexRepository<T extends Record<string, unknown>, D = Part
   abstract readonly tableName: string;
   readonly idField: string = "id";
   readonly timestamps: boolean = true;
+  /** Column written for auto-managed creation timestamps. @default "createdAt" */
+  readonly createdAtField: string = "createdAt";
+  /** Column written for auto-managed update timestamps. @default "updatedAt" */
+  readonly updatedAtField: string = "updatedAt";
 
   constructor(app: MantleApplication) {
     this.knex = app.get<Knex>("knex");
@@ -87,7 +91,9 @@ export abstract class KnexRepository<T extends Record<string, unknown>, D = Part
     now = new Date(),
   ): Record<string, unknown> {
     if (!this.timestamps) return data;
-    return op === "create" ? { ...data, createdAt: now, updatedAt: now } : { ...data, updatedAt: now };
+    return op === "create"
+      ? { ...data, [this.createdAtField]: now, [this.updatedAtField]: now }
+      : { ...data, [this.updatedAtField]: now };
   }
 
   // ─── Repository implementation ────────────────────────────────────────────

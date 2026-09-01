@@ -25,6 +25,10 @@ export interface MemoryRepositoryOptions {
   autoId?: boolean;
   /** Auto-manage createdAt / updatedAt timestamps. Default: true */
   timestamps?: boolean;
+  /** Field written for auto-managed creation timestamps. Default: 'createdAt' */
+  createdAtField?: string;
+  /** Field written for auto-managed update timestamps. Default: 'updatedAt' */
+  updatedAtField?: string;
 }
 
 type Primitive = string | number | boolean | null;
@@ -35,11 +39,15 @@ export class MemoryRepository<T extends Record<string, unknown>> implements Repo
   private readonly idField: string;
   private readonly autoId: boolean;
   private readonly timestamps: boolean;
+  private readonly createdAtField: string;
+  private readonly updatedAtField: string;
 
   constructor(options: MemoryRepositoryOptions = {}) {
     this.idField = options.idField ?? "id";
     this.autoId = options.autoId ?? true;
     this.timestamps = options.timestamps ?? true;
+    this.createdAtField = options.createdAtField ?? "createdAt";
+    this.updatedAtField = options.updatedAtField ?? "updatedAt";
   }
 
   get store(): ReadonlyMap<Id, T> {
@@ -106,7 +114,7 @@ export class MemoryRepository<T extends Record<string, unknown>> implements Repo
     const record = {
       ...data,
       [this.idField]: id,
-      ...(this.timestamps ? { createdAt: now, updatedAt: now } : {}),
+      ...(this.timestamps ? { [this.createdAtField]: now, [this.updatedAtField]: now } : {}),
     } as T;
 
     this._store.set(id, record);
@@ -126,7 +134,12 @@ export class MemoryRepository<T extends Record<string, unknown>> implements Repo
     const record = {
       ...data,
       [this.idField]: id,
-      ...(this.timestamps ? { createdAt: (existing as Record<string, unknown>).createdAt, updatedAt: now } : {}),
+      ...(this.timestamps
+        ? {
+            [this.createdAtField]: (existing as Record<string, unknown>)[this.createdAtField],
+            [this.updatedAtField]: now,
+          }
+        : {}),
     } as T;
 
     this._store.set(id, record);
@@ -143,7 +156,7 @@ export class MemoryRepository<T extends Record<string, unknown>> implements Repo
       ...existing,
       ...data,
       [this.idField]: id,
-      ...(this.timestamps ? { updatedAt: now } : {}),
+      ...(this.timestamps ? { [this.updatedAtField]: now } : {}),
     } as T;
 
     this._store.set(id, record);

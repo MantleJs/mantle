@@ -72,12 +72,12 @@ export abstract class KnexVectorRepository<T extends Record<string, unknown>, D 
         [this.idField]: id,
         ...data,
         [this.vectorColumn]: vectorRaw,
-        ...(this.timestamps ? { createdAt: now, updatedAt: now } : {}),
+        ...(this.timestamps ? { [this.createdAtField]: now, [this.updatedAtField]: now } : {}),
       };
       const mergePayload: Record<string, unknown> = {
         ...data,
         [this.vectorColumn]: vectorRaw,
-        ...(this.timestamps ? { updatedAt: now } : {}),
+        ...(this.timestamps ? { [this.updatedAtField]: now } : {}),
       };
       const [row] = await this.qb(this.tableName)
         .insert(insertPayload)

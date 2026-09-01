@@ -55,6 +55,11 @@ export abstract class DynamoDbRepository<T extends Record<string, unknown>, D = 
    */
   readonly timestamps: boolean = true;
 
+  /** Attribute written for auto-managed creation timestamps. @default "createdAt" */
+  readonly createdAtField: string = "createdAt";
+  /** Attribute written for auto-managed update timestamps. @default "updatedAt" */
+  readonly updatedAtField: string = "updatedAt";
+
   /**
    * The `LastEvaluatedKey` from the most recent paginated `findAll()` call. Use as `_startKey` on the next call.
    * @deprecated Use `findPage()` instead — its cursor travels in the returned page, so concurrent
@@ -78,8 +83,8 @@ export abstract class DynamoDbRepository<T extends Record<string, unknown>, D = 
   ): Record<string, unknown> {
     if (!this.timestamps) return data;
     return op === "create"
-      ? { ...data, createdAt: now.toISOString(), updatedAt: now.toISOString() }
-      : { ...data, updatedAt: now.toISOString() };
+      ? { ...data, [this.createdAtField]: now.toISOString(), [this.updatedAtField]: now.toISOString() }
+      : { ...data, [this.updatedAtField]: now.toISOString() };
   }
 
   /** Marshall a plain object to DynamoDB attribute values, omitting undefined/null keys. */

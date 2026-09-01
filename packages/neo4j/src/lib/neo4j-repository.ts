@@ -26,6 +26,11 @@ export abstract class Neo4jRepository<T extends Record<string, unknown>> impleme
   /** When true, auto-write `createdAt` / `updatedAt` ISO-8601 timestamps. @default true */
   readonly timestamps: boolean = true;
 
+  /** Property written for auto-managed creation timestamps. @default "createdAt" */
+  readonly createdAtField: string = "createdAt";
+  /** Property written for auto-managed update timestamps. @default "updatedAt" */
+  readonly updatedAtField: string = "updatedAt";
+
   constructor(app: MantleApplication) {
     this.driver = app.get<Driver>("neo4j");
     this.database = app.get<string>("neo4j:database") ?? "neo4j";
@@ -79,7 +84,7 @@ export abstract class Neo4jRepository<T extends Record<string, unknown>> impleme
       const props: Record<string, unknown> = {
         ...this.buildProps(data),
         [this.idField]: id,
-        ...(this.timestamps ? { createdAt: now, updatedAt: now } : {}),
+        ...(this.timestamps ? { [this.createdAtField]: now, [this.updatedAtField]: now } : {}),
       };
       return await this.run(async (session) => {
         const result = await session.run(`CREATE (n:${this.label} $props) RETURN n`, { props });

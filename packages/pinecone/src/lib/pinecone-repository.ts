@@ -35,6 +35,10 @@ export abstract class PineconeRepository<T extends Record<string, unknown>, D = 
   readonly idField: string = "id";
   /** When true, `save` / `saveAll` / `updateById` / `patchById` write ISO-8601 timestamps. @default true */
   readonly timestamps: boolean = true;
+  /** Metadata key written for auto-managed creation timestamps. @default "createdAt" */
+  readonly createdAtField: string = "createdAt";
+  /** Metadata key written for auto-managed update timestamps. @default "updatedAt" */
+  readonly updatedAtField: string = "updatedAt";
 
   private _index?: Index;
 
@@ -204,7 +208,7 @@ export abstract class PineconeRepository<T extends Record<string, unknown>, D = 
       const augmented: Record<string, unknown> = {
         ...raw,
         [this.idField]: id,
-        ...(this.timestamps ? { createdAt: now, updatedAt: now } : {}),
+        ...(this.timestamps ? { [this.createdAtField]: now, [this.updatedAtField]: now } : {}),
       };
       const metadata = this.toMetadata(augmented);
       const zeroVector = Array(this.vectorDimension).fill(0) as number[];
@@ -227,7 +231,7 @@ export abstract class PineconeRepository<T extends Record<string, unknown>, D = 
       const updated: Record<string, unknown> = {
         ...data as Record<string, unknown>,
         [this.idField]: String(id),
-        ...(this.timestamps ? { updatedAt: now } : {}),
+        ...(this.timestamps ? { [this.updatedAtField]: now } : {}),
       };
       const current = await this.index.fetch({ ids: [String(id)] });
       const values = current.records[String(id)]?.values ?? (Array(this.vectorDimension).fill(0) as number[]);
@@ -251,7 +255,7 @@ export abstract class PineconeRepository<T extends Record<string, unknown>, D = 
         ...existing,
         ...filtered,
         [this.idField]: String(id),
-        ...(this.timestamps ? { updatedAt: now } : {}),
+        ...(this.timestamps ? { [this.updatedAtField]: now } : {}),
       };
       const current = await this.index.fetch({ ids: [String(id)] });
       const values = current.records[String(id)]?.values ?? (Array(this.vectorDimension).fill(0) as number[]);

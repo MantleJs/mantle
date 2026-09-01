@@ -76,6 +76,12 @@ class TestVectorRepoWithTimestamps extends KnexVectorRepository<Article> {
   readonly tableName = "articles";
 }
 
+class TestVectorRepoCustomTimestampFields extends KnexVectorRepository<Article> {
+  readonly tableName = "articles";
+  override readonly createdAtField = "created_at";
+  override readonly updatedAtField = "updated_at";
+}
+
 class TestVectorRepoL2 extends KnexVectorRepository<Article> {
   readonly tableName = "articles";
   override readonly timestamps = false;
@@ -219,6 +225,20 @@ describe("KnexVectorRepository", () => {
       const [mergePayload] = qb["merge"].mock.calls[0] as [Record<string, unknown>];
       expect(insertPayload).not.toHaveProperty("createdAt");
       expect(insertPayload).not.toHaveProperty("updatedAt");
+      expect(mergePayload).not.toHaveProperty("updatedAt");
+    });
+
+    it("uses createdAtField/updatedAtField when overridden", async () => {
+      const { qb, app } = makeSetup([{ id: "1" }]);
+      await new TestVectorRepoCustomTimestampFields(app).upsertVector("1", [0.1], {});
+      const [insertPayload] = qb["insert"].mock.calls[0] as [Record<string, unknown>];
+      const [mergePayload] = qb["merge"].mock.calls[0] as [Record<string, unknown>];
+      expect(insertPayload).toHaveProperty("created_at");
+      expect(insertPayload).toHaveProperty("updated_at");
+      expect(mergePayload).toHaveProperty("updated_at");
+      expect(insertPayload).not.toHaveProperty("createdAt");
+      expect(insertPayload).not.toHaveProperty("updatedAt");
+      expect(mergePayload).not.toHaveProperty("createdAt");
       expect(mergePayload).not.toHaveProperty("updatedAt");
     });
 

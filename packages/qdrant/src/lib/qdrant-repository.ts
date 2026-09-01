@@ -33,6 +33,10 @@ export abstract class QdrantRepository<T extends Record<string, unknown>, D = Pa
   readonly idField: string = "id";
   /** When true, `save` / `saveAll` / `updateById` / `patchById` write ISO-8601 timestamps. @default true */
   readonly timestamps: boolean = true;
+  /** Payload key written for auto-managed creation timestamps. @default "createdAt" */
+  readonly createdAtField: string = "createdAt";
+  /** Payload key written for auto-managed update timestamps. @default "updatedAt" */
+  readonly updatedAtField: string = "updatedAt";
 
   private _collectionEnsured = false;
 
@@ -233,7 +237,7 @@ export abstract class QdrantRepository<T extends Record<string, unknown>, D = Pa
       const augmented: Record<string, unknown> = {
         ...raw,
         [this.idField]: id,
-        ...(this.timestamps ? { createdAt: now, updatedAt: now } : {}),
+        ...(this.timestamps ? { [this.createdAtField]: now, [this.updatedAtField]: now } : {}),
       };
       const payload = this.toPayload(augmented);
       const zeroVector = Array(this.vectorSize).fill(0) as number[];
@@ -260,7 +264,7 @@ export abstract class QdrantRepository<T extends Record<string, unknown>, D = Pa
         const augmented: Record<string, unknown> = {
           ...raw,
           [this.idField]: id,
-          ...(this.timestamps ? { createdAt: now, updatedAt: now } : {}),
+          ...(this.timestamps ? { [this.createdAtField]: now, [this.updatedAtField]: now } : {}),
         };
         entities.push(augmented as T);
         points.push({ id, vector: zeroVector, payload: this.toPayload(augmented) });
@@ -281,7 +285,7 @@ export abstract class QdrantRepository<T extends Record<string, unknown>, D = Pa
       const updated: Record<string, unknown> = {
         ...(data as Record<string, unknown>),
         [this.idField]: String(id),
-        ...(this.timestamps ? { updatedAt: now } : {}),
+        ...(this.timestamps ? { [this.updatedAtField]: now } : {}),
       };
       const current = await this.client.retrieve(this.collectionName, {
         ids: [String(id)],
@@ -312,7 +316,7 @@ export abstract class QdrantRepository<T extends Record<string, unknown>, D = Pa
         ...existing,
         ...filtered,
         [this.idField]: String(id),
-        ...(this.timestamps ? { updatedAt: now } : {}),
+        ...(this.timestamps ? { [this.updatedAtField]: now } : {}),
       };
       const current = await this.client.retrieve(this.collectionName, {
         ids: [String(id)],

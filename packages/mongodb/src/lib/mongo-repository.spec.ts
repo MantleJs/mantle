@@ -67,6 +67,12 @@ class TimestampedRepo extends MongoRepository<Article> {
   readonly collectionName = "articles";
 }
 
+class CustomTimestampFieldsRepo extends MongoRepository<Article> {
+  readonly collectionName = "articles";
+  override readonly createdAtField = "created_at";
+  override readonly updatedAtField = "updated_at";
+}
+
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
 describe("MongoRepository", () => {
@@ -164,6 +170,16 @@ describe("MongoRepository", () => {
       const doc = collection.insertOne.mock.calls[0]?.[0] as Record<string, unknown>;
       expect(doc["createdAt"]).toBeInstanceOf(Date);
       expect(doc["updatedAt"]).toBeInstanceOf(Date);
+    });
+
+    it("uses createdAtField/updatedAtField when overridden", async () => {
+      const { app, collection } = makeSetup();
+      await new CustomTimestampFieldsRepo(app).save({ title: "New", views: 0 });
+      const doc = collection.insertOne.mock.calls[0]?.[0] as Record<string, unknown>;
+      expect(doc["created_at"]).toBeInstanceOf(Date);
+      expect(doc["updated_at"]).toBeInstanceOf(Date);
+      expect(doc).not.toHaveProperty("createdAt");
+      expect(doc).not.toHaveProperty("updatedAt");
     });
 
     it("honours a caller-provided id by writing it as _id", async () => {
