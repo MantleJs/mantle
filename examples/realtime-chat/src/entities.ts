@@ -3,10 +3,11 @@ export interface User extends Record<string, unknown> {
   email: string;
   password: string;
   name: string;
-  // Column names on this table are snake_case (legacy convention) — see
-  // UserRepository's createdAtField/updatedAtField override in repositories.ts.
-  created_at?: Date;
-  updated_at?: Date;
+  // The `users` table's columns are snake_case (legacy convention) — see
+  // UserRepository's columnCase override in repositories.ts. The entity stays
+  // camelCase like every other entity; KnexRepository translates both ways.
+  createdAt?: Date;
+  updatedAt?: Date;
 }
 
 export interface Message extends Record<string, unknown> {

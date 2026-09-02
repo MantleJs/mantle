@@ -105,9 +105,10 @@ export async function migrate(app: MantleApplication): Promise<void> {
 
   // `messages`' column names are camelCase — `KnexRepository`'s default timestamp
   // stamping writes `createdAt`/`updatedAt`, not knex's snake_case `timestamps()`
-  // default. `users` overrides createdAtField/updatedAtField (see UserRepository
-  // in repositories.ts) to snake_case instead — the two tables intentionally use
-  // different conventions here to demonstrate the override.
+  // default. `users` overrides columnCase to "snake_case" instead (see
+  // UserRepository in repositories.ts) — the two tables intentionally use
+  // different conventions here to demonstrate the override. Note the `User`
+  // entity's own fields stay camelCase in both cases; only the columns differ.
   if (!(await db.schema.hasTable("users"))) {
     await db.schema.createTable("users", (t) => {
       t.increments("id");
