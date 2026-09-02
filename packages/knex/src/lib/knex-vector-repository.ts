@@ -1,7 +1,7 @@
 import type { Id, QueryParams, VectorRepository } from "@mantlejs/mantle";
 import { GeneralError } from "@mantlejs/mantle";
 import { KnexRepository } from "./knex-repository.js";
-import { knexify } from "./knexify.js";
+import { knexify, mapWhereFields } from "./knexify.js";
 import type { WhereClause } from "./knexify.js";
 
 export type DistanceOperator = "<=>" | "<#>" | "<->";
@@ -39,19 +39,29 @@ export abstract class KnexVectorRepository<T extends Record<string, unknown>, D 
     try {
       const vectorLiteral = this.toVectorLiteral(vector);
       const op = this.distanceOperator;
+      const vectorColumn = this.toColumn(this.vectorColumn);
       let query = this.qb(this.tableName);
       if (params?.where) {
-        query = knexify(query, params.where as WhereClause);
+        query = knexify(
+          query,
+          mapWhereFields(params.where as WhereClause, (field) => this.toColumn(field)),
+        );
       }
       if (params?.skip != null) {
         query = query.offset(params.skip);
       }
-      query = query.orderByRaw(`?? ${op} ?::vector`, [this.vectorColumn, vectorLiteral]).limit(topK);
+      query = query.orderByRaw(`?? ${op} ?::vector`, [vectorColumn, vectorLiteral]).limit(topK);
       const rows = (await query.select(
-        this.knex.raw(`*, ?? ${op} ?::vector AS _score`, [this.vectorColumn, vectorLiteral]),
-      )) as Array<T & { _score: number }>;
-      /** @deprecated `_distance` mirrors `_score` for one release — read `_score` instead. */
-      return rows.map((row) => ({ ...row, _distance: row._score }));
+        this.knex.raw(`*, ?? ${op} ?::vector AS _score`, [vectorColumn, vectorLiteral]),
+      )) as Array<Record<string, unknown>>;
+      return rows.map((row) => {
+        const { _score, ...columns } = row;
+        const entity = this.mapRowToEntity(columns) as T & { _score: number; _distance: number };
+        entity._score = _score as number;
+        /** @deprecated `_distance` mirrors `_score` for one release — read `_score` instead. */
+        entity._distance = _score as number;
+        return entity;
+      });
     } catch (err) {
       if (err instanceof GeneralError) throw err;
       throw this.wrapError(err);
@@ -68,23 +78,27 @@ export abstract class KnexVectorRepository<T extends Record<string, unknown>, D 
       const vectorLiteral = this.toVectorLiteral(vector);
       const vectorRaw = this.knex.raw("?::vector", [vectorLiteral]);
       const now = new Date();
+      const idColumn = this.toColumn(this.idField);
+      const vectorColumn = this.toColumn(this.vectorColumn);
       const insertPayload: Record<string, unknown> = {
-        [this.idField]: id,
-        ...data,
-        [this.vectorColumn]: vectorRaw,
-        ...(this.timestamps ? { [this.createdAtField]: now, [this.updatedAtField]: now } : {}),
+        [idColumn]: id,
+        ...this.mapDataToColumns(data as Record<string, unknown>),
+        [vectorColumn]: vectorRaw,
+        ...(this.timestamps
+          ? { [this.toColumn(this.createdAtField)]: now, [this.toColumn(this.updatedAtField)]: now }
+          : {}),
       };
       const mergePayload: Record<string, unknown> = {
-        ...data,
-        [this.vectorColumn]: vectorRaw,
-        ...(this.timestamps ? { [this.updatedAtField]: now } : {}),
+        ...this.mapDataToColumns(data as Record<string, unknown>),
+        [vectorColumn]: vectorRaw,
+        ...(this.timestamps ? { [this.toColumn(this.updatedAtField)]: now } : {}),
       };
       const [row] = await this.qb(this.tableName)
         .insert(insertPayload)
-        .onConflict(this.idField)
+        .onConflict(idColumn)
         .merge(mergePayload)
         .returning("*");
-      return row as T;
+      return this.mapRowToEntity(row as Record<string, unknown>);
     } catch (err) {
       if (err instanceof GeneralError) throw err;
       throw this.wrapError(err);

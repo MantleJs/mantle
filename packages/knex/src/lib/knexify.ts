@@ -61,6 +61,22 @@ export function knexify(builder: Knex.QueryBuilder, where: WhereClause): Knex.Qu
   return builder;
 }
 
+/**
+ * Renames the field keys of a where clause via `toColumn`, recursing into `$or`/`$and`
+ * branches and leaving operator keys ($lt, $ne, …) and values untouched.
+ */
+export function mapWhereFields(where: WhereClause, toColumn: (field: string) => string): WhereClause {
+  const mapped: WhereClause = {};
+  for (const [key, value] of Object.entries(where)) {
+    if (key === "$or" || key === "$and") {
+      mapped[key] = (value as WhereClause[]).map((condition) => mapWhereFields(condition, toColumn));
+    } else {
+      mapped[toColumn(key)] = value as WhereValue;
+    }
+  }
+  return mapped;
+}
+
 function applyOr(builder: Knex.QueryBuilder, conditions: WhereClause[]): Knex.QueryBuilder {
   return builder.where(function (this: Knex.QueryBuilder) {
     for (const condition of conditions) {

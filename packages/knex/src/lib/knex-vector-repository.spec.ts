@@ -88,6 +88,18 @@ class TestVectorRepoL2 extends KnexVectorRepository<Article> {
   override readonly distanceOperator: DistanceOperator = "<->";
 }
 
+interface Chunk extends Record<string, unknown> {
+  id: string;
+  docId: string;
+  embedding: string;
+}
+
+class TestVectorRepoSnakeCase extends KnexVectorRepository<Chunk> {
+  readonly tableName = "chunks";
+  override readonly vectorColumn = "embeddingVector";
+  override readonly columnCase = "snake_case" as const;
+}
+
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
 describe("KnexVectorRepository", () => {
@@ -245,6 +257,38 @@ describe("KnexVectorRepository", () => {
     it("throws GeneralError for non-pg clients", async () => {
       const { app } = makeSetup([], "mysql");
       await expect(new TestVectorRepo(app).upsertVector("1", [0.1], {})).rejects.toBeInstanceOf(GeneralError);
+    });
+  });
+
+  describe("columnCase: snake_case", () => {
+    it("converts the vectorColumn to snake_case in findSimilar's raw expressions", async () => {
+      const { knexFn, app } = makeSetup([]);
+      await new TestVectorRepoSnakeCase(app).findSimilar([0.1], 5);
+      expect((knexFn as unknown as Record<string, unknown>)["raw"]).toHaveBeenCalledWith(
+        "*, ?? <=> ?::vector AS _score",
+        ["embedding_vector", "[0.1]"],
+      );
+    });
+
+    it("converts where clause fields in findSimilar", async () => {
+      const { qb, app } = makeSetup([]);
+      await new TestVectorRepoSnakeCase(app).findSimilar([0.1], 5, { where: { docId: "d1" } });
+      expect(qb["where"]).toHaveBeenCalledWith("doc_id", "=", "d1");
+    });
+
+    it("maps returned rows back to camelCase, preserving _score/_distance", async () => {
+      const rows = [{ id: "1", doc_id: "d1", embedding_vector: "[0.1]", _score: 0.05 }];
+      const { app } = makeSetup(rows);
+      const result = await new TestVectorRepoSnakeCase(app).findSimilar([0.1], 5);
+      expect(result).toEqual([{ id: "1", docId: "d1", embeddingVector: "[0.1]", _score: 0.05, _distance: 0.05 }]);
+    });
+
+    it("converts data payload keys to snake_case in upsertVector", async () => {
+      const { qb, app } = makeSetup([{ id: "1" }]);
+      await new TestVectorRepoSnakeCase(app).upsertVector("1", [0.1], { docId: "d1" });
+      const [insertPayload] = qb["insert"].mock.calls[0] as [Record<string, unknown>];
+      expect(insertPayload).toHaveProperty("doc_id", "d1");
+      expect(insertPayload).not.toHaveProperty("docId");
     });
   });
 

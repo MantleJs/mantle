@@ -76,6 +76,25 @@ class TestRepoCustomTimestampFields extends KnexRepository<User> {
   override readonly updatedAtField = "updated_at";
 }
 
+interface Account extends Record<string, unknown> {
+  id: number;
+  userId: number;
+  isActive: boolean;
+  createdAt?: Date;
+  updatedAt?: Date;
+}
+
+class TestRepoSnakeCase extends KnexRepository<Account> {
+  readonly tableName = "accounts";
+  override readonly columnCase = "snake_case" as const;
+}
+
+class TestRepoFieldMap extends KnexRepository<Account> {
+  readonly tableName = "accounts";
+  override readonly columnCase = "snake_case" as const;
+  override readonly fieldMap = { userId: "legacy_user_id" };
+}
+
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
 describe("KnexRepository", () => {
@@ -355,6 +374,82 @@ describe("KnexRepository", () => {
       const { qb, app } = makeSetup([]);
       qb["select"].mockRejectedValue("string error");
       await expect(new TestRepo(app).findAll()).rejects.toBeInstanceOf(GeneralError);
+    });
+  });
+
+  describe("columnCase: snake_case", () => {
+    it("converts where clause field names to snake_case columns", async () => {
+      const { qb, app } = makeSetup([]);
+      await new TestRepoSnakeCase(app).findAll({ where: { userId: 1, isActive: true } });
+      expect(qb["where"]).toHaveBeenCalledWith("user_id", "=", 1);
+      expect(qb["where"]).toHaveBeenCalledWith("is_active", "=", true);
+    });
+
+    it("converts sort field names to snake_case columns", async () => {
+      const { qb, app } = makeSetup([]);
+      await new TestRepoSnakeCase(app).findAll({ sort: { userId: "asc" } });
+      expect(qb["orderBy"]).toHaveBeenCalledWith("user_id", "asc");
+    });
+
+    it("converts select field names to snake_case columns", async () => {
+      const { qb, app } = makeSetup([]);
+      await new TestRepoSnakeCase(app).findAll({ select: ["id", "userId"] });
+      expect(qb["select"]).toHaveBeenCalledWith(["id", "user_id"]);
+    });
+
+    it("maps returned snake_case columns back to camelCase entity fields", async () => {
+      const row = { id: 1, user_id: 5, is_active: true };
+      const { app } = makeSetup([row]);
+      const [account] = await new TestRepoSnakeCase(app).findAll();
+      expect(account).toEqual({ id: 1, userId: 5, isActive: true });
+    });
+
+    it("converts data payload keys to snake_case columns on save", async () => {
+      const { qb, app } = makeSetup([{ id: 1 }]);
+      await new TestRepoSnakeCase(app).save({ userId: 5, isActive: true });
+      const [inserted] = qb["insert"].mock.calls[0] as [Record<string, unknown>];
+      expect(inserted).toHaveProperty("user_id", 5);
+      expect(inserted).toHaveProperty("is_active", true);
+      expect(inserted).not.toHaveProperty("userId");
+    });
+
+    it("auto-converts default createdAtField/updatedAtField to snake_case, with no explicit override needed", async () => {
+      const { qb, app } = makeSetup([{ id: 1 }]);
+      await new TestRepoSnakeCase(app).save({ userId: 5, isActive: true });
+      const [inserted] = qb["insert"].mock.calls[0] as [Record<string, unknown>];
+      expect(inserted).toHaveProperty("created_at");
+      expect(inserted).toHaveProperty("updated_at");
+      expect(inserted).not.toHaveProperty("createdAt");
+    });
+
+    it("converts idField in where clauses used for lookups", async () => {
+      const { qb, app } = makeSetup([{ id: 1 }]);
+      await new TestRepoSnakeCase(app).updateById(1, { userId: 5 });
+      expect(qb["where"]).toHaveBeenCalledWith({ id: 1 });
+    });
+  });
+
+  describe("fieldMap", () => {
+    it("takes precedence over columnCase conversion for mapped fields", async () => {
+      const { qb, app } = makeSetup([{ id: 1 }]);
+      await new TestRepoFieldMap(app).save({ userId: 5, isActive: true });
+      const [inserted] = qb["insert"].mock.calls[0] as [Record<string, unknown>];
+      expect(inserted).toHaveProperty("legacy_user_id", 5);
+      expect(inserted).toHaveProperty("is_active", true);
+      expect(inserted).not.toHaveProperty("user_id");
+    });
+
+    it("maps the overridden column back to its entity field name on read", async () => {
+      const row = { id: 1, legacy_user_id: 5, is_active: true };
+      const { app } = makeSetup([row]);
+      const [account] = await new TestRepoFieldMap(app).findAll();
+      expect(account).toEqual({ id: 1, userId: 5, isActive: true });
+    });
+
+    it("applies the mapped column name in where clauses", async () => {
+      const { qb, app } = makeSetup([]);
+      await new TestRepoFieldMap(app).findAll({ where: { userId: 5 } });
+      expect(qb["where"]).toHaveBeenCalledWith("legacy_user_id", "=", 5);
     });
   });
 

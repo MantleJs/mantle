@@ -1,7 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 import type { Knex } from "knex";
 import { BadRequest } from "@mantlejs/mantle";
-import { knexify } from "./knexify.js";
+import { knexify, mapWhereFields } from "./knexify.js";
+import type { WhereClause } from "./knexify.js";
 
 function makeBuilder(client = "pg") {
   const qb: Record<string, ReturnType<typeof vi.fn>> = {
@@ -39,25 +40,24 @@ describe("knexify", () => {
     it("applies number equality", () => {
       const qb = makeBuilder();
       knexify(qb, { age: 30 });
-      expect((qb as unknown as Record<string, ReturnType<typeof vi.fn>>)["where"]).toHaveBeenCalledWith(
-        "age",
-        "=",
-        30,
-      );
+      expect((qb as unknown as Record<string, ReturnType<typeof vi.fn>>)["where"]).toHaveBeenCalledWith("age", "=", 30);
     });
 
     it("applies whereNull for null values", () => {
       const qb = makeBuilder();
       knexify(qb, { deletedAt: null });
-      expect((qb as unknown as Record<string, ReturnType<typeof vi.fn>>)["whereNull"]).toHaveBeenCalledWith("deletedAt");
+      expect((qb as unknown as Record<string, ReturnType<typeof vi.fn>>)["whereNull"]).toHaveBeenCalledWith(
+        "deletedAt",
+      );
     });
 
     it("applies whereIn for array values", () => {
       const qb = makeBuilder();
       knexify(qb, { id: [1, 2, 3] });
-      expect((qb as unknown as Record<string, ReturnType<typeof vi.fn>>)["whereIn"]).toHaveBeenCalledWith("id", [
-        1, 2, 3,
-      ]);
+      expect((qb as unknown as Record<string, ReturnType<typeof vi.fn>>)["whereIn"]).toHaveBeenCalledWith(
+        "id",
+        [1, 2, 3],
+      );
     });
   });
 
@@ -253,5 +253,26 @@ describe("knexify", () => {
       expect(whereFn).toHaveBeenCalledWith("age", ">=", 18);
       expect(whereNullFn).toHaveBeenCalledWith("deletedAt");
     });
+  });
+});
+
+describe("mapWhereFields", () => {
+  const shout = (field: string) => field.toUpperCase();
+
+  it("renames top-level field keys, leaving values untouched", () => {
+    expect(mapWhereFields({ userId: 1, name: { $ne: "Bob" } }, shout)).toEqual({
+      USERID: 1,
+      NAME: { $ne: "Bob" },
+    });
+  });
+
+  it("recurses into $or branches without renaming the $or key itself", () => {
+    const where: WhereClause = { $or: [{ userId: 1 }, { name: "Bob" }] };
+    expect(mapWhereFields(where, shout)).toEqual({ $or: [{ USERID: 1 }, { NAME: "Bob" }] });
+  });
+
+  it("recurses into $and branches without renaming the $and key itself", () => {
+    const where: WhereClause = { $and: [{ userId: 1 }, { name: "Bob" }] };
+    expect(mapWhereFields(where, shout)).toEqual({ $and: [{ USERID: 1 }, { NAME: "Bob" }] });
   });
 });
