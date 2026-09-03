@@ -31,6 +31,12 @@ export abstract class MongoRepository<T extends Record<string, unknown>, D = Par
   readonly createdAtField: string = "createdAt";
   /** Field written for auto-managed update timestamps. @default "updatedAt" */
   readonly updatedAtField: string = "updatedAt";
+  /**
+   * Entity-field-to-document-field overrides, for a collection whose field names don't
+   * match the entity (e.g. a brownfield collection using snake_case). Does not apply to
+   * `id` — Mongo's id is always the driver's `_id`. @default {}
+   */
+  readonly fieldMap: Record<string, string> = {};
 
   /** Session bound by `withTransaction()` — every driver call passes it when set. */
   protected _session?: ClientSession;
@@ -58,12 +64,14 @@ export abstract class MongoRepository<T extends Record<string, unknown>, D = Par
 
   async findAll(params?: QueryParams): Promise<T[]> {
     try {
-      const filter = params?.where ? toMongoFilter(params.where as WhereClause) : {};
+      const toField = (field: string): string => this.toField(field);
+      const filter = params?.where ? toMongoFilter(params.where as WhereClause, toField) : {};
       let cursor = this.collection.find(filter, this.sessionOptions());
-      if (params?.sort) cursor = cursor.sort(toMongoSort(params.sort));
+      if (params?.sort) cursor = cursor.sort(toMongoSort(params.sort, toField));
       if (params?.skip) cursor = cursor.skip(params.skip);
       if (params?.limit != null) cursor = cursor.limit(params.limit);
-      if (params?.select && params.select.length > 0) cursor = cursor.project(toMongoProjection(params.select));
+      if (params?.select && params.select.length > 0)
+        cursor = cursor.project(toMongoProjection(params.select, toField));
       const docs = await cursor.toArray();
       return docs.map((doc) => this.fromDocument(doc));
     } catch (err) {
@@ -120,11 +128,13 @@ export abstract class MongoRepository<T extends Record<string, unknown>, D = Par
   async patchById(id: Id, data: D): Promise<T> {
     try {
       const filtered = Object.fromEntries(
-        Object.entries(data as Record<string, unknown>).filter(([key, value]) => key !== "id" && value !== undefined),
+        Object.entries(data as Record<string, unknown>)
+          .filter(([key, value]) => key !== "id" && value !== undefined)
+          .map(([key, value]) => [this.toField(key), value]),
       );
       const changes: Record<string, unknown> = {
         ...filtered,
-        ...(this.timestamps ? { [this.updatedAtField]: new Date() } : {}),
+        ...(this.timestamps ? { [this.toField(this.updatedAtField)]: new Date() } : {}),
       };
 
       if (Object.keys(changes).length === 0) {
@@ -160,7 +170,7 @@ export abstract class MongoRepository<T extends Record<string, unknown>, D = Par
 
   async count(params?: QueryParams): Promise<number> {
     try {
-      const filter = params?.where ? toMongoFilter(params.where as WhereClause) : {};
+      const filter = params?.where ? toMongoFilter(params.where as WhereClause, (field) => this.toField(field)) : {};
       return await this.collection.countDocuments(filter, this.sessionOptions());
     } catch (err) {
       throw this.wrapError(err);
@@ -212,10 +222,22 @@ export abstract class MongoRepository<T extends Record<string, unknown>, D = Par
     return new ObjectId(String(id));
   }
 
+  /** Translates an entity field name to its document field name (fieldMap override, else identity). */
+  protected toField(field: string): string {
+    return this.fieldMap[field] ?? field;
+  }
+
+  /** Translates a document field name back to its entity field name — the inverse of `toField`. */
+  protected toEntityField(field: string): string {
+    const mapped = Object.entries(this.fieldMap).find(([, docField]) => docField === field);
+    return mapped ? mapped[0] : field;
+  }
+
   /** Map a driver document to the entity shape: `_id: ObjectId` becomes `id: string`. */
   protected fromDocument(doc: Record<string, unknown>): T {
     const { _id, ...rest } = doc;
-    return { ...rest, id: _id instanceof ObjectId ? _id.toHexString() : String(_id) } as unknown as T;
+    const mapped = Object.fromEntries(Object.entries(rest).map(([key, value]) => [this.toEntityField(key), value]));
+    return { ...mapped, id: _id instanceof ObjectId ? _id.toHexString() : String(_id) } as unknown as T;
   }
 
   /** Map boundary data to a driver document: `id` becomes `_id`, timestamps applied. */
@@ -225,13 +247,14 @@ export abstract class MongoRepository<T extends Record<string, unknown>, D = Par
     now = new Date(),
   ): Record<string, unknown> {
     const { id, ...rest } = data;
+    const mappedRest = Object.fromEntries(Object.entries(rest).map(([key, value]) => [this.toField(key), value]));
     return {
-      ...rest,
+      ...mappedRest,
       ...(id !== undefined ? { _id: this.toObjectId(id as Id) } : {}),
       ...(this.timestamps
         ? op === "create"
-          ? { [this.createdAtField]: now, [this.updatedAtField]: now }
-          : { [this.updatedAtField]: now }
+          ? { [this.toField(this.createdAtField)]: now, [this.toField(this.updatedAtField)]: now }
+          : { [this.toField(this.updatedAtField)]: now }
         : {}),
     };
   }

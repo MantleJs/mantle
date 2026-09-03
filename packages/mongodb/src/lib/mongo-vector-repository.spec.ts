@@ -43,6 +43,18 @@ class CustomRepo extends MongoVectorRepository<Doc> {
   override readonly timestamps = false;
 }
 
+interface Chunk extends Record<string, unknown> {
+  id: string;
+  docTitle: string;
+}
+
+class FieldMapRepo extends MongoVectorRepository<Chunk> {
+  readonly collectionName = "chunks";
+  override readonly timestamps = false;
+  override readonly vectorField = "embeddingVector";
+  override readonly fieldMap = { docTitle: "doc_title", embeddingVector: "embedding_vector" };
+}
+
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
 describe("MongoVectorRepository", () => {
@@ -149,6 +161,31 @@ describe("MongoVectorRepository", () => {
       expect(update["$setOnInsert"]?.["created_at"]).toBeInstanceOf(Date);
       expect(update["$set"]).not.toHaveProperty("updatedAt");
       expect(update["$setOnInsert"]).not.toHaveProperty("createdAt");
+    });
+  });
+
+  describe("fieldMap", () => {
+    it("translates vectorField in the $vectorSearch pipeline", async () => {
+      const { app, collection } = makeSetup();
+      await new FieldMapRepo(app).findSimilar([0.1], 3);
+      const pipeline = collection.aggregate.mock.calls[0]?.[0] as Array<Record<string, Record<string, unknown>>>;
+      expect(pipeline[0]?.["$vectorSearch"]?.["path"]).toBe("embedding_vector");
+      expect(pipeline[2]).toEqual({ $unset: "embedding_vector" });
+    });
+
+    it("translates where clause fields in findSimilar", async () => {
+      const { app, collection } = makeSetup();
+      await new FieldMapRepo(app).findSimilar([0.1], 3, { where: { docTitle: "Intro" } });
+      const pipeline = collection.aggregate.mock.calls[0]?.[0] as Array<Record<string, Record<string, unknown>>>;
+      expect(pipeline[0]?.["$vectorSearch"]?.["filter"]).toEqual({ doc_title: "Intro" });
+    });
+
+    it("translates data payload keys in upsertVector", async () => {
+      const { app, collection } = makeSetup();
+      collection.findOneAndUpdate.mockResolvedValue({ _id: new ObjectId(HEX_A), doc_title: "Intro" });
+      await new FieldMapRepo(app).upsertVector(HEX_A, [0.1], { docTitle: "Intro" });
+      const update = collection.findOneAndUpdate.mock.calls[0]?.[1] as Record<string, Record<string, unknown>>;
+      expect(update["$set"]).toMatchObject({ doc_title: "Intro", embedding_vector: [0.1] });
     });
   });
 

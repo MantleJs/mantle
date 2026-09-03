@@ -73,6 +73,17 @@ class CustomTimestampFieldsRepo extends MongoRepository<Article> {
   override readonly updatedAtField = "updated_at";
 }
 
+interface Account extends Record<string, unknown> {
+  id: string;
+  userName: string;
+}
+
+class FieldMapRepo extends MongoRepository<Account> {
+  readonly collectionName = "accounts";
+  override readonly timestamps = false;
+  override readonly fieldMap = { userName: "user_name" };
+}
+
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
 describe("MongoRepository", () => {
@@ -341,6 +352,52 @@ describe("MongoRepository", () => {
       session.withTransaction.mockRejectedValue(new Error("aborted"));
       await expect(new TestRepo(app).withTransaction(async () => undefined)).rejects.toThrow(GeneralError);
       expect(session.endSession).toHaveBeenCalled();
+    });
+  });
+
+  describe("fieldMap", () => {
+    it("translates a where clause field name to its document field", async () => {
+      const { app, collection } = makeSetup();
+      await new FieldMapRepo(app).findAll({ where: { userName: "alice" } });
+      expect(collection.find).toHaveBeenCalledWith({ user_name: "alice" }, {});
+    });
+
+    it("translates sort and select field names", async () => {
+      const { app, collection } = makeSetup();
+      await new FieldMapRepo(app).findAll({ sort: { userName: "asc" }, select: ["userName"] });
+      expect(collection.cursor.sort).toHaveBeenCalledWith({ user_name: 1 });
+      expect(collection.cursor.project).toHaveBeenCalledWith({ user_name: 1 });
+    });
+
+    it("translates a save payload's keys to document field names", async () => {
+      const { app, collection } = makeSetup();
+      await new FieldMapRepo(app).save({ userName: "alice" });
+      expect(collection.insertOne).toHaveBeenCalledWith({ user_name: "alice" }, {});
+    });
+
+    it("translates the returned document's field names back to entity field names", async () => {
+      const { app, collection } = makeSetup();
+      collection.cursor.toArray.mockResolvedValue([{ _id: new ObjectId(HEX_A), user_name: "alice" }]);
+      const result = await new FieldMapRepo(app).findAll();
+      expect(result).toEqual([{ id: HEX_A, userName: "alice" }]);
+    });
+
+    it("translates a patch payload's keys to document field names", async () => {
+      const { app, collection } = makeSetup();
+      collection.findOneAndUpdate.mockResolvedValue({ _id: new ObjectId(HEX_A), user_name: "bob" });
+      await new FieldMapRepo(app).patchById(HEX_A, { userName: "bob" });
+      expect(collection.findOneAndUpdate).toHaveBeenCalledWith(
+        { _id: new ObjectId(HEX_A) },
+        { $set: { user_name: "bob" } },
+        { returnDocument: "after" },
+      );
+    });
+
+    it("does not remap id", async () => {
+      const { app, collection } = makeSetup();
+      await new FieldMapRepo(app).findAll({ where: { id: HEX_A } });
+      const filter = collection.find.mock.calls[0]?.[0] as Record<string, unknown>;
+      expect(filter["_id"]).toBeInstanceOf(ObjectId);
     });
   });
 

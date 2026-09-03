@@ -202,4 +202,22 @@ describe("toNeo4jWhere", () => {
       );
     });
   });
+
+  describe("toField", () => {
+    const shout = (field: string) => field.toUpperCase();
+
+    it("translates a top-level field name before interpolating it", () => {
+      const { clause } = toNeo4jWhere({ userId: 1 }, "n", shout);
+      expect(clause).toBe("n.USERID = $_w_0");
+    });
+
+    it("translates field names inside $or branches", () => {
+      const { clause } = toNeo4jWhere({ $or: [{ userId: 1 }, { name: "Bob" }] }, "n", shout);
+      expect(clause).toBe("((n.USERID = $_w_0) OR (n.NAME = $_w_1))");
+    });
+
+    it("validates the translated field name, not the original", () => {
+      expect(() => toNeo4jWhere({ userId: 1 }, "n", () => "bad key")).toThrow(BadRequest);
+    });
+  });
 });

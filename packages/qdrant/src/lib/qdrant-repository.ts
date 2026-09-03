@@ -37,6 +37,12 @@ export abstract class QdrantRepository<T extends Record<string, unknown>, D = Pa
   readonly createdAtField: string = "createdAt";
   /** Payload key written for auto-managed update timestamps. @default "updatedAt" */
   readonly updatedAtField: string = "updatedAt";
+  /**
+   * Entity-field-to-payload-key overrides, for a collection whose payload keys don't
+   * match the entity (e.g. a brownfield collection using snake_case). Does not apply to
+   * `idField` — the point id is never stored in the payload. @default {}
+   */
+  readonly fieldMap: Record<string, string> = {};
 
   private _collectionEnsured = false;
 
@@ -71,7 +77,9 @@ export abstract class QdrantRepository<T extends Record<string, unknown>, D = Pa
   /** Every result carries the Qdrant match score as `_score` — HIGHER is more similar for Cosine/Dot collections. */
   async findSimilar(vector: number[], topK: number, params?: QueryParams): Promise<Array<T & { _score: number }>> {
     try {
-      const filter = params?.where ? toQdrantFilter(params.where as WhereClause) : undefined;
+      const filter = params?.where
+        ? toQdrantFilter(params.where as WhereClause, (field) => this.toField(field))
+        : undefined;
       const results = await this.client.search(this.collectionName, {
         vector,
         limit: topK,
@@ -108,14 +116,16 @@ export abstract class QdrantRepository<T extends Record<string, unknown>, D = Pa
 
   async findAll(params?: QueryParams): Promise<T[]> {
     try {
-      const filter = params?.where ? toQdrantFilter(params.where as WhereClause) : undefined;
+      const filter = params?.where
+        ? toQdrantFilter(params.where as WhereClause, (field) => this.toField(field))
+        : undefined;
       const skip = params?.skip ?? 0;
       const limit = params?.limit;
 
       let orderBy: { key: string; direction: string } | undefined;
       if (params?.sort) {
         const firstSort = Object.entries(params.sort)[0];
-        if (firstSort) orderBy = { key: firstSort[0], direction: firstSort[1] };
+        if (firstSort) orderBy = { key: this.toField(firstSort[0]), direction: firstSort[1] };
       }
 
       if (limit != null) {
@@ -125,9 +135,7 @@ export abstract class QdrantRepository<T extends Record<string, unknown>, D = Pa
           with_payload: true,
           ...(orderBy ? { order_by: orderBy as never } : {}),
         });
-        return result.points.slice(skip).map((p) =>
-          this.fromPoint(p.id, (p.payload ?? {}) as Record<string, unknown>),
-        );
+        return result.points.slice(skip).map((p) => this.fromPoint(p.id, (p.payload ?? {}) as Record<string, unknown>));
       }
 
       // Full scan via cursor-based pagination
@@ -180,7 +188,9 @@ export abstract class QdrantRepository<T extends Record<string, unknown>, D = Pa
     const offset = params?.cursor !== undefined ? this.decodeCursor(params.cursor) : undefined;
 
     try {
-      const filter = params?.where ? toQdrantFilter(params.where as WhereClause) : undefined;
+      const filter = params?.where
+        ? toQdrantFilter(params.where as WhereClause, (field) => this.toField(field))
+        : undefined;
       const result = await this.client.scroll(this.collectionName, {
         ...(filter ? { filter: filter as never } : {}),
         limit: params?.limit ?? SCROLL_PAGE_SIZE,
@@ -292,8 +302,7 @@ export abstract class QdrantRepository<T extends Record<string, unknown>, D = Pa
         with_payload: false,
         with_vector: true,
       });
-      const vector =
-        (current[0]?.vector as number[] | undefined) ?? (Array(this.vectorSize).fill(0) as number[]);
+      const vector = (current[0]?.vector as number[] | undefined) ?? (Array(this.vectorSize).fill(0) as number[]);
       await this.client.upsert(this.collectionName, {
         points: [{ id: String(id), vector, payload: this.toPayload(updated) }],
       });
@@ -323,8 +332,7 @@ export abstract class QdrantRepository<T extends Record<string, unknown>, D = Pa
         with_payload: false,
         with_vector: true,
       });
-      const vector =
-        (current[0]?.vector as number[] | undefined) ?? (Array(this.vectorSize).fill(0) as number[]);
+      const vector = (current[0]?.vector as number[] | undefined) ?? (Array(this.vectorSize).fill(0) as number[]);
       await this.client.upsert(this.collectionName, {
         points: [{ id: String(id), vector, payload: this.toPayload(patched) }],
       });
@@ -349,7 +357,9 @@ export abstract class QdrantRepository<T extends Record<string, unknown>, D = Pa
 
   async count(params?: QueryParams): Promise<number> {
     try {
-      const filter = params?.where ? toQdrantFilter(params.where as WhereClause) : undefined;
+      const filter = params?.where
+        ? toQdrantFilter(params.where as WhereClause, (field) => this.toField(field))
+        : undefined;
       const result = await this.client.count(this.collectionName, {
         ...(filter ? { filter: filter as never } : {}),
         exact: true,
@@ -362,12 +372,28 @@ export abstract class QdrantRepository<T extends Record<string, unknown>, D = Pa
 
   // ─── Helpers ──────────────────────────────────────────────────────────────
 
+  /** Translates an entity field name to its payload key (fieldMap override, else identity). */
+  protected toField(field: string): string {
+    return this.fieldMap[field] ?? field;
+  }
+
+  /** Translates a payload key back to its entity field name — the inverse of `toField`. */
+  protected toEntityField(field: string): string {
+    const mapped = Object.entries(this.fieldMap).find(([, key]) => key === field);
+    return mapped ? mapped[0] : field;
+  }
+
   protected fromPoint(id: string | number, payload: Record<string, unknown>): T {
-    return { [this.idField]: String(id), ...payload } as T;
+    const mapped = Object.fromEntries(Object.entries(payload).map(([key, value]) => [this.toEntityField(key), value]));
+    return { [this.idField]: String(id), ...mapped } as T;
   }
 
   protected toPayload(data: Record<string, unknown>): Record<string, unknown> {
-    return Object.fromEntries(Object.entries(data).filter(([k]) => k !== this.idField));
+    return Object.fromEntries(
+      Object.entries(data)
+        .filter(([k]) => k !== this.idField)
+        .map(([k, v]) => [this.toField(k), v]),
+    );
   }
 
   protected wrapError(err: unknown): Error {

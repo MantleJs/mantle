@@ -45,12 +45,15 @@ export abstract class MongoVectorRepository<T extends Record<string, unknown>, D
   /** Top-K nearest neighbours via `$vectorSearch`. HIGHER `_score` is more similar. */
   async findSimilar(vector: number[], topK: number, params?: QueryParams): Promise<Array<T & { _score: number }>> {
     try {
-      const filter = params?.where ? toMongoFilter(params.where as WhereClause) : undefined;
+      const filter = params?.where
+        ? toMongoFilter(params.where as WhereClause, (field) => this.toField(field))
+        : undefined;
+      const vectorField = this.toField(this.vectorField);
       const pipeline = [
         {
           $vectorSearch: {
             index: this.vectorIndexName,
-            path: this.vectorField,
+            path: vectorField,
             queryVector: vector,
             numCandidates: Math.min(topK * this.candidateMultiplier, MAX_NUM_CANDIDATES),
             limit: topK,
@@ -58,7 +61,7 @@ export abstract class MongoVectorRepository<T extends Record<string, unknown>, D
           },
         },
         { $set: { _score: { $meta: "vectorSearchScore" } } },
-        { $unset: this.vectorField },
+        { $unset: vectorField },
       ];
       const docs = await this.collection.aggregate(pipeline, this.sessionOptions()).toArray();
       return docs.map((doc) => this.fromDocument(doc) as T & { _score: number });
@@ -70,12 +73,21 @@ export abstract class MongoVectorRepository<T extends Record<string, unknown>, D
   async upsertVector(id: Id, vector: number[], data: Partial<T>): Promise<T> {
     try {
       const now = new Date();
-      const rest = Object.fromEntries(Object.entries(data as Record<string, unknown>).filter(([key]) => key !== "id"));
+      const rest = Object.fromEntries(
+        Object.entries(data as Record<string, unknown>)
+          .filter(([key]) => key !== "id")
+          .map(([key, value]) => [this.toField(key), value]),
+      );
+      const vectorField = this.toField(this.vectorField);
       const doc = await this.collection.findOneAndUpdate(
         { _id: this.toObjectId(id) },
         {
-          $set: { ...rest, [this.vectorField]: vector, ...(this.timestamps ? { [this.updatedAtField]: now } : {}) },
-          ...(this.timestamps ? { $setOnInsert: { [this.createdAtField]: now } } : {}),
+          $set: {
+            ...rest,
+            [vectorField]: vector,
+            ...(this.timestamps ? { [this.toField(this.updatedAtField)]: now } : {}),
+          },
+          ...(this.timestamps ? { $setOnInsert: { [this.toField(this.createdAtField)]: now } } : {}),
         },
         { upsert: true, returnDocument: "after", ...this.sessionOptions() },
       );

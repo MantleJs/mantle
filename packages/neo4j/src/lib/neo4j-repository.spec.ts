@@ -18,7 +18,10 @@ function makeRecord(props: Record<string, unknown>): import("neo4j-driver").Reco
   } as unknown as import("neo4j-driver").Record;
 }
 
-function makeSession(records: import("neo4j-driver").Record[] = [], runFn?: (q: string, p: unknown) => { records: import("neo4j-driver").Record[] }) {
+function makeSession(
+  records: import("neo4j-driver").Record[] = [],
+  runFn?: (q: string, p: unknown) => { records: import("neo4j-driver").Record[] },
+) {
   const _run = runFn ?? (() => ({ records }));
   return {
     run: vi.fn().mockImplementation((q: string, p: unknown) => Promise.resolve(_run(q, p))),
@@ -31,12 +34,14 @@ function makeSession(records: import("neo4j-driver").Record[] = [], runFn?: (q: 
 
 function makeApp(session: ReturnType<typeof makeSession>) {
   const store: Record<string, unknown> = {
-    "neo4j": { session: () => session },
+    neo4j: { session: () => session },
     "neo4j:database": "neo4j",
   };
   return {
     get: (key: string) => store[key],
-    set: (key: string, value: unknown) => { store[key] = value; },
+    set: (key: string, value: unknown) => {
+      store[key] = value;
+    },
   };
 }
 
@@ -48,6 +53,16 @@ class PersonRepositoryCustomTimestampFields extends Neo4jRepository<Person> {
   readonly label = "Person";
   override readonly createdAtField = "created_at";
   override readonly updatedAtField = "updated_at";
+}
+
+interface Account extends Record<string, unknown> {
+  id: string;
+  userName: string;
+}
+
+class AccountRepositoryFieldMap extends Neo4jRepository<Account> {
+  readonly label = "Account";
+  override readonly fieldMap = { userName: "user_name" };
 }
 
 // ─── Tests ────────────────────────────────────────────────────────────────────
@@ -81,16 +96,19 @@ describe("Neo4jRepository", () => {
     it("queries by the idField", async () => {
       session.run.mockResolvedValueOnce({ records: [] });
       await repo.findNodeById("1");
-      expect(session.run).toHaveBeenCalledWith(
-        expect.stringContaining("MATCH (n:Person {id: $id})"),
-        { id: "1" },
-      );
+      expect(session.run).toHaveBeenCalledWith(expect.stringContaining("MATCH (n:Person {id: $id})"), { id: "1" });
     });
   });
 
   describe("createNode", () => {
     it("creates a node and returns the entity", async () => {
-      const props = { id: "abc-123", name: "Bob", age: 25, createdAt: expect.any(String), updatedAt: expect.any(String) };
+      const props = {
+        id: "abc-123",
+        name: "Bob",
+        age: 25,
+        createdAt: expect.any(String),
+        updatedAt: expect.any(String),
+      };
       session.run.mockResolvedValueOnce({ records: [makeRecord(props)] });
       const result = await repo.createNode({ name: "Bob", age: 25 });
       expect(result).toMatchObject({ name: "Bob", age: 25 });
@@ -134,10 +152,7 @@ describe("Neo4jRepository", () => {
     it("adds WHERE clause from params.where", async () => {
       session.run.mockResolvedValueOnce({ records: [] });
       await repo.findNodes({ where: { name: "Alice" } });
-      expect(session.run).toHaveBeenCalledWith(
-        expect.stringContaining("WHERE"),
-        expect.any(Object),
-      );
+      expect(session.run).toHaveBeenCalledWith(expect.stringContaining("WHERE"), expect.any(Object));
     });
 
     it("adds SKIP and LIMIT from params", async () => {
@@ -161,16 +176,12 @@ describe("Neo4jRepository", () => {
     });
 
     it("rejects an invalid sort direction before reaching session.run", async () => {
-      await expect(
-        repo.findNodes({ sort: { name: "asc} RETURN n //" as "asc" } }),
-      ).rejects.toBeInstanceOf(BadRequest);
+      await expect(repo.findNodes({ sort: { name: "asc} RETURN n //" as "asc" } })).rejects.toBeInstanceOf(BadRequest);
       expect(session.run).not.toHaveBeenCalled();
     });
 
     it("rejects Cypher injection via where field names before reaching session.run", async () => {
-      await expect(
-        repo.findNodes({ where: { "name = 'x' RETURN n //": "Alice" } }),
-      ).rejects.toBeInstanceOf(BadRequest);
+      await expect(repo.findNodes({ where: { "name = 'x' RETURN n //": "Alice" } })).rejects.toBeInstanceOf(BadRequest);
       expect(session.run).not.toHaveBeenCalled();
     });
   });
@@ -188,10 +199,7 @@ describe("Neo4jRepository", () => {
         .mockResolvedValueOnce({ records: [] }); // DETACH DELETE
       const result = await repo.deleteNode("1");
       expect(result).toEqual(props);
-      expect(session.run).toHaveBeenCalledWith(
-        expect.stringContaining("DETACH DELETE"),
-        expect.any(Object),
-      );
+      expect(session.run).toHaveBeenCalledWith(expect.stringContaining("DETACH DELETE"), expect.any(Object));
     });
   });
 
@@ -199,10 +207,11 @@ describe("Neo4jRepository", () => {
     it("runs the relationship CREATE query", async () => {
       session.run.mockResolvedValueOnce({ records: [] });
       await repo.createRelationship("1", "2", "KNOWS", { since: "2024" });
-      expect(session.run).toHaveBeenCalledWith(
-        expect.stringContaining("CREATE (a)-[r:KNOWS $props]->(b)"),
-        { from: "1", to: "2", props: { since: "2024" } },
-      );
+      expect(session.run).toHaveBeenCalledWith(expect.stringContaining("CREATE (a)-[r:KNOWS $props]->(b)"), {
+        from: "1",
+        to: "2",
+        props: { since: "2024" },
+      });
     });
   });
 
@@ -210,19 +219,13 @@ describe("Neo4jRepository", () => {
     it("runs the path traversal query with default depth 1", async () => {
       session.run.mockResolvedValueOnce({ records: [] });
       await repo.traverse("1", "KNOWS");
-      expect(session.run).toHaveBeenCalledWith(
-        expect.stringContaining("[r:KNOWS*1..1]"),
-        { id: "1" },
-      );
+      expect(session.run).toHaveBeenCalledWith(expect.stringContaining("[r:KNOWS*1..1]"), { id: "1" });
     });
 
     it("uses the provided depth", async () => {
       session.run.mockResolvedValueOnce({ records: [] });
       await repo.traverse("1", "KNOWS", 3);
-      expect(session.run).toHaveBeenCalledWith(
-        expect.stringContaining("[r:KNOWS*1..3]"),
-        { id: "1" },
-      );
+      expect(session.run).toHaveBeenCalledWith(expect.stringContaining("[r:KNOWS*1..3]"), { id: "1" });
     });
 
     it("returns nodes from the traversal result", async () => {
@@ -241,6 +244,44 @@ describe("Neo4jRepository", () => {
       });
       const result = await repo.raw<Person>("MATCH (n:Person) RETURN n");
       expect(result[0]).toEqual(node.properties);
+    });
+  });
+
+  describe("fieldMap", () => {
+    let mappedRepo: AccountRepositoryFieldMap;
+
+    beforeEach(() => {
+      mappedRepo = new AccountRepositoryFieldMap(makeApp(session) as never);
+      vi.spyOn(mappedRepo as unknown as { openSession(): unknown }, "openSession").mockReturnValue(session);
+    });
+
+    it("translates data payload keys to node property names on createNode", async () => {
+      session.run.mockResolvedValueOnce({ records: [makeRecord({ id: "1", user_name: "alice" })] });
+      await mappedRepo.createNode({ userName: "alice" });
+      const [, { props }] = session.run.mock.calls[0] as [string, { props: Record<string, unknown> }];
+      expect(props).toHaveProperty("user_name", "alice");
+      expect(props).not.toHaveProperty("userName");
+    });
+
+    it("translates node properties back to entity field names", async () => {
+      session.run.mockResolvedValueOnce({ records: [makeRecord({ id: "1", user_name: "alice" })] });
+      const result = await mappedRepo.findNodeById("1");
+      expect(result).toEqual({ id: "1", userName: "alice" });
+    });
+
+    it("translates where clause field names in findNodes", async () => {
+      session.run.mockResolvedValueOnce({ records: [] });
+      await mappedRepo.findNodes({ where: { userName: "alice" } });
+      const query = session.run.mock.calls[0][0] as string;
+      expect(query).toContain("n.user_name");
+      expect(query).not.toContain("n.userName");
+    });
+
+    it("translates sort field names in findNodes", async () => {
+      session.run.mockResolvedValueOnce({ records: [] });
+      await mappedRepo.findNodes({ sort: { userName: "asc" } });
+      const query = session.run.mock.calls[0][0] as string;
+      expect(query).toContain("ORDER BY n.user_name ASC");
     });
   });
 

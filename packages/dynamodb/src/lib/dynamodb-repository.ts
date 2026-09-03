@@ -59,6 +59,13 @@ export abstract class DynamoDbRepository<T extends Record<string, unknown>, D = 
   readonly createdAtField: string = "createdAt";
   /** Attribute written for auto-managed update timestamps. @default "updatedAt" */
   readonly updatedAtField: string = "updatedAt";
+  /**
+   * Entity-field-to-attribute overrides, for a table whose attribute names don't match
+   * the entity (e.g. a brownfield table using snake_case). Applies to every field,
+   * including `partitionKey`/`sortKey` — they are ordinary attributes in DynamoDB.
+   * @default {}
+   */
+  readonly fieldMap: Record<string, string> = {};
 
   /**
    * The `LastEvaluatedKey` from the most recent paginated `findAll()` call. Use as `_startKey` on the next call.
@@ -87,15 +94,31 @@ export abstract class DynamoDbRepository<T extends Record<string, unknown>, D = 
       : { ...data, [this.updatedAtField]: now.toISOString() };
   }
 
+  /** Translates an entity field name to its attribute name (fieldMap override, else identity). */
+  protected toField(field: string): string {
+    return this.fieldMap[field] ?? field;
+  }
+
+  /** Translates an attribute name back to its entity field name — the inverse of `toField`. */
+  protected toEntityField(field: string): string {
+    const mapped = Object.entries(this.fieldMap).find(([, attr]) => attr === field);
+    return mapped ? mapped[0] : field;
+  }
+
   /** Marshall a plain object to DynamoDB attribute values, omitting undefined/null keys. */
   protected toItem(data: Record<string, unknown>): Record<string, AttributeValue> {
-    const cleaned = Object.fromEntries(Object.entries(data).filter(([, v]) => v !== undefined && v !== null));
+    const cleaned = Object.fromEntries(
+      Object.entries(data)
+        .filter(([, v]) => v !== undefined && v !== null)
+        .map(([k, v]) => [this.toField(k), v]),
+    );
     return marshall(cleaned, { removeUndefinedValues: true, convertEmptyValues: false });
   }
 
   /** Unmarshall a DynamoDB attribute map to a plain object. */
   protected fromItem(item: Record<string, AttributeValue>): T {
-    return unmarshall(item) as T;
+    const unmarshalled = unmarshall(item);
+    return Object.fromEntries(Object.entries(unmarshalled).map(([k, v]) => [this.toEntityField(k), v])) as T;
   }
 
   /** Build a consistent key map for GetItem / DeleteItem / UpdateItem. */
@@ -104,13 +127,13 @@ export abstract class DynamoDbRepository<T extends Record<string, unknown>, D = 
       const composite = id as Record<string, unknown>;
       return marshall(
         {
-          [this.partitionKey]: composite["pk"],
-          [this.sortKey]: composite["sk"],
+          [this.toField(this.partitionKey)]: composite["pk"],
+          [this.toField(this.sortKey)]: composite["sk"],
         },
         { removeUndefinedValues: true },
       );
     }
-    return marshall({ [this.partitionKey]: id }, { removeUndefinedValues: true });
+    return marshall({ [this.toField(this.partitionKey)]: id }, { removeUndefinedValues: true });
   }
 
   describe(): RepositoryCapabilities {
@@ -185,13 +208,15 @@ export abstract class DynamoDbRepository<T extends Record<string, unknown>, D = 
 
       const useQuery = Boolean(where && this.sortKey && where[this.partitionKey] !== undefined);
       if (useQuery) {
-        const built = buildKeyCondition(this.partitionKey, this.sortKey, where as WhereClause);
+        const built = buildKeyCondition(this.partitionKey, this.sortKey, where as WhereClause, (field) =>
+          this.toField(field),
+        );
         keyConditionExpression = built.keyCondition || undefined;
         filterExpression = built.filterCondition;
         expressionNames = Object.keys(built.names).length > 0 ? built.names : undefined;
         expressionValues = Object.keys(built.values).length > 0 ? built.values : undefined;
       } else if (where) {
-        const built = dynamodbify(where);
+        const built = dynamodbify(where, (field) => this.toField(field));
         filterExpression = built.expression || undefined;
         if (filterExpression) {
           expressionNames = Object.keys(built.names).length > 0 ? built.names : undefined;
@@ -204,7 +229,7 @@ export abstract class DynamoDbRepository<T extends Record<string, unknown>, D = 
         expressionNames = expressionNames ?? {};
         for (const field of params.select) {
           const alias = `#sel_${field}`;
-          expressionNames[alias] = field;
+          expressionNames[alias] = this.toField(field);
           aliases.push(alias);
         }
         projectionExpression = aliases.join(", ");
@@ -260,7 +285,7 @@ export abstract class DynamoDbRepository<T extends Record<string, unknown>, D = 
     let expressionValues: Record<string, AttributeValue> | undefined;
 
     if (where) {
-      const built = dynamodbify(where);
+      const built = dynamodbify(where, (field) => this.toField(field));
       filterExpression = built.expression || undefined;
       if (filterExpression) {
         expressionNames = Object.keys(built.names).length > 0 ? built.names : undefined;
@@ -274,7 +299,7 @@ export abstract class DynamoDbRepository<T extends Record<string, unknown>, D = 
       expressionNames = expressionNames ?? {};
       for (const field of params.select) {
         const alias = `#sel_${field}`;
-        expressionNames[alias] = field;
+        expressionNames[alias] = this.toField(field);
         aliases.push(alias);
       }
       projectionExpression = aliases.join(", ");
@@ -334,7 +359,12 @@ export abstract class DynamoDbRepository<T extends Record<string, unknown>, D = 
 
   private async queryItems(params?: DynamoQueryParams): Promise<T[]> {
     const where = params?.where as WhereClause;
-    const { keyCondition, filterCondition, names, values } = buildKeyCondition(this.partitionKey, this.sortKey, where);
+    const { keyCondition, filterCondition, names, values } = buildKeyCondition(
+      this.partitionKey,
+      this.sortKey,
+      where,
+      (field) => this.toField(field),
+    );
 
     const command = new QueryCommand({
       TableName: this.tableName,
@@ -457,7 +487,9 @@ export abstract class DynamoDbRepository<T extends Record<string, unknown>, D = 
       // Full replace — re-write all attributes except the key
       const key = this.buildKey(id);
       const withoutKey = Object.fromEntries(
-        Object.entries(item).filter(([k]) => k !== this.partitionKey && k !== this.sortKey),
+        Object.entries(item).filter(
+          ([k]) => k !== this.toField(this.partitionKey) && (!this.sortKey || k !== this.toField(this.sortKey)),
+        ),
       );
 
       if (Object.keys(withoutKey).length === 0) {
@@ -489,7 +521,7 @@ export abstract class DynamoDbRepository<T extends Record<string, unknown>, D = 
             UpdateExpression: `SET ${setExpressions.join(", ")}`,
             ExpressionAttributeNames: names,
             ExpressionAttributeValues: values,
-            ConditionExpression: `attribute_exists(${this.partitionKey})`,
+            ConditionExpression: `attribute_exists(${this.toField(this.partitionKey)})`,
           },
         });
         return payload as unknown as T;
@@ -502,7 +534,7 @@ export abstract class DynamoDbRepository<T extends Record<string, unknown>, D = 
           UpdateExpression: `SET ${setExpressions.join(", ")}`,
           ExpressionAttributeNames: names,
           ExpressionAttributeValues: values,
-          ConditionExpression: `attribute_exists(${this.partitionKey})`,
+          ConditionExpression: `attribute_exists(${this.toField(this.partitionKey)})`,
           ReturnValues: "ALL_NEW",
         }),
       );
@@ -527,7 +559,9 @@ export abstract class DynamoDbRepository<T extends Record<string, unknown>, D = 
 
       const key = this.buildKey(id);
       const withoutKey = Object.fromEntries(
-        Object.entries(item).filter(([k]) => k !== this.partitionKey && k !== this.sortKey),
+        Object.entries(item).filter(
+          ([k]) => k !== this.toField(this.partitionKey) && (!this.sortKey || k !== this.toField(this.sortKey)),
+        ),
       );
 
       if (Object.keys(withoutKey).length === 0) {
@@ -558,7 +592,7 @@ export abstract class DynamoDbRepository<T extends Record<string, unknown>, D = 
             UpdateExpression: `SET ${setExpressions.join(", ")}`,
             ExpressionAttributeNames: names,
             ExpressionAttributeValues: values,
-            ConditionExpression: `attribute_exists(${this.partitionKey})`,
+            ConditionExpression: `attribute_exists(${this.toField(this.partitionKey)})`,
           },
         });
         return payload as unknown as T;
@@ -571,7 +605,7 @@ export abstract class DynamoDbRepository<T extends Record<string, unknown>, D = 
           UpdateExpression: `SET ${setExpressions.join(", ")}`,
           ExpressionAttributeNames: names,
           ExpressionAttributeValues: values,
-          ConditionExpression: `attribute_exists(${this.partitionKey})`,
+          ConditionExpression: `attribute_exists(${this.toField(this.partitionKey)})`,
           ReturnValues: "ALL_NEW",
         }),
       );
@@ -596,7 +630,7 @@ export abstract class DynamoDbRepository<T extends Record<string, unknown>, D = 
           Delete: {
             TableName: this.tableName,
             Key: this.buildKey(id),
-            ConditionExpression: `attribute_exists(${this.partitionKey})`,
+            ConditionExpression: `attribute_exists(${this.toField(this.partitionKey)})`,
           },
         });
         return existing;
@@ -606,7 +640,7 @@ export abstract class DynamoDbRepository<T extends Record<string, unknown>, D = 
         new DeleteItemCommand({
           TableName: this.tableName,
           Key: this.buildKey(id),
-          ConditionExpression: `attribute_exists(${this.partitionKey})`,
+          ConditionExpression: `attribute_exists(${this.toField(this.partitionKey)})`,
           ReturnValues: "ALL_OLD",
         }),
       );
@@ -633,7 +667,7 @@ export abstract class DynamoDbRepository<T extends Record<string, unknown>, D = 
       let expressionValues: Record<string, AttributeValue> | undefined;
 
       if (where) {
-        const built = dynamodbify(where);
+        const built = dynamodbify(where, (field) => this.toField(field));
         filterExpression = built.expression || undefined;
         if (filterExpression) {
           expressionNames = Object.keys(built.names).length > 0 ? built.names : undefined;

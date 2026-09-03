@@ -37,20 +37,25 @@ export type WhereClause = Record<string, unknown>;
  *   equality matches array elements natively), array operand → `$all`, object operand →
  *   recursively expanded dot-path conditions.
  */
-export function toMongoFilter(where: WhereClause): Record<string, unknown> {
+export function toMongoFilter(
+  where: WhereClause,
+  toField: (field: string) => string = (field) => field,
+): Record<string, unknown> {
   assertOperators(where, SUPPORTED, "@mantlejs/mongodb");
 
   const filter: Record<string, unknown> = {};
 
   for (const [key, value] of Object.entries(where)) {
     if (key === "$or" || key === "$and") {
-      filter[key] = (value as WhereClause[]).map((clause) => toMongoFilter(clause));
+      filter[key] = (value as WhereClause[]).map((clause) => toMongoFilter(clause, toField));
     } else if (isOperatorObject(value)) {
-      for (const [field, condition] of translateField(mapIdKey(key), value as Record<string, unknown>)) {
+      const mappedKey = key === "id" ? key : toField(key);
+      for (const [field, condition] of translateField(mapIdKey(mappedKey), value as Record<string, unknown>)) {
         mergeCondition(filter, field, key === "id" ? mapIdOperands(condition) : condition);
       }
     } else {
-      mergeCondition(filter, mapIdKey(key), key === "id" ? toMongoIdValue(value) : value);
+      const mappedKey = key === "id" ? key : toField(key);
+      mergeCondition(filter, mapIdKey(mappedKey), key === "id" ? toMongoIdValue(value) : value);
     }
   }
 
@@ -137,11 +142,22 @@ function toMongoIdValue(value: unknown): unknown {
 }
 
 /** Translate a Mantle `QueryParams.sort` map to a MongoDB sort document (`id` → `_id`). */
-export function toMongoSort(sort: Record<string, "asc" | "desc">): Record<string, 1 | -1> {
-  return Object.fromEntries(Object.entries(sort).map(([field, dir]) => [mapIdKey(field), dir === "asc" ? 1 : -1]));
+export function toMongoSort(
+  sort: Record<string, "asc" | "desc">,
+  toField: (field: string) => string = (field) => field,
+): Record<string, 1 | -1> {
+  return Object.fromEntries(
+    Object.entries(sort).map(([field, dir]) => [
+      mapIdKey(field === "id" ? field : toField(field)),
+      dir === "asc" ? 1 : -1,
+    ]),
+  );
 }
 
 /** Translate a Mantle `QueryParams.select` list to a MongoDB projection (`_id` is always included). */
-export function toMongoProjection(select: string[]): Record<string, 1> {
-  return Object.fromEntries(select.filter((field) => field !== "id").map((field) => [field, 1 as const]));
+export function toMongoProjection(
+  select: string[],
+  toField: (field: string) => string = (field) => field,
+): Record<string, 1> {
+  return Object.fromEntries(select.filter((field) => field !== "id").map((field) => [toField(field), 1 as const]));
 }

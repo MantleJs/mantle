@@ -40,22 +40,31 @@ export const QDRANT_OPERATORS: ReadonlySet<string> = new Set([
  *
  * Unsupported operators (including $like/$ilike/$notlike) throw `BadRequest`.
  */
-export function toQdrantFilter(where: WhereClause): Record<string, unknown> {
+export function toQdrantFilter(
+  where: WhereClause,
+  toField: (field: string) => string = (field) => field,
+): Record<string, unknown> {
   assertOperators(where, QDRANT_OPERATORS, "@mantlejs/qdrant");
   const must: Condition[] = [];
   const must_not: Condition[] = [];
   const should: Condition[] = [];
 
-  for (const [key, value] of Object.entries(where)) {
-    if (key === "$or") {
+  for (const [rawKey, value] of Object.entries(where)) {
+    if (rawKey === "$or") {
       for (const clause of value as unknown as WhereClause[]) {
-        should.push(toQdrantFilter(clause));
+        should.push(toQdrantFilter(clause, toField));
       }
-    } else if (key === "$and") {
+      continue;
+    }
+    if (rawKey === "$and") {
       for (const clause of value as unknown as WhereClause[]) {
-        must.push(toQdrantFilter(clause));
+        must.push(toQdrantFilter(clause, toField));
       }
-    } else if (value === null) {
+      continue;
+    }
+
+    const key = toField(rawKey);
+    if (value === null) {
       must.push({ is_null: { key } });
     } else if (Array.isArray(value)) {
       must.push({ key, match: { any: value } });

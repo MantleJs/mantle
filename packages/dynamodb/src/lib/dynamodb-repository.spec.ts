@@ -44,6 +44,17 @@ class UserRepoCustomTimestampFields extends DynamoDbRepository<User> {
   override readonly updatedAtField = "updated_at";
 }
 
+interface Account extends Record<string, unknown> {
+  id: string;
+  userName: string;
+}
+
+class AccountRepoFieldMap extends DynamoDbRepository<Account> {
+  readonly tableName = "accounts";
+  override readonly timestamps = false;
+  override readonly fieldMap = { userName: "user_name" };
+}
+
 function makeApp(): MantleApplication {
   const client = { send: mockSend };
   return {
@@ -440,7 +451,10 @@ describe("DynamoDbRepository", () => {
 
     it("traverses pages via the returned cursor without overlap and without touching instance state", async () => {
       const repo = new UserRepo(app);
-      mockSend.mockResolvedValueOnce({ Items: [item("1", "Alice"), item("2", "Bob")], LastEvaluatedKey: { id: { S: "2" } } });
+      mockSend.mockResolvedValueOnce({
+        Items: [item("1", "Alice"), item("2", "Bob")],
+        LastEvaluatedKey: { id: { S: "2" } },
+      });
 
       const page1 = await repo.findPage({ limit: 2 });
       expect(page1.data.map((u) => u.id)).toEqual(["1", "2"]);
@@ -543,6 +557,41 @@ describe("DynamoDbRepository", () => {
     it("scanning() is true without a sort key (Query is never used)", () => {
       const caps = new UserRepo(app).describe();
       expect(caps.scanning?.({ id: "1" })).toBe(true);
+    });
+  });
+
+  describe("fieldMap", () => {
+    it("translates data payload keys to attribute names on save", async () => {
+      mockSend.mockResolvedValue({});
+      await new AccountRepoFieldMap(app).save({ id: "1", userName: "alice" });
+      const input = mockSend.mock.calls[0][0].input as { Item: Record<string, unknown> };
+      expect(input.Item).toHaveProperty("user_name");
+      expect(input.Item).not.toHaveProperty("userName");
+    });
+
+    it("translates attribute names back to entity field names on findById", async () => {
+      mockSend.mockResolvedValue({ Item: { id: { S: "1" }, user_name: { S: "alice" } } });
+      const result = await new AccountRepoFieldMap(app).findById("1");
+      expect(result).toEqual({ id: "1", userName: "alice" });
+    });
+
+    it("translates a where clause field name for findAll's FilterExpression", async () => {
+      mockSend.mockResolvedValue({ Items: [] });
+      await new AccountRepoFieldMap(app).findAll({ where: { userName: "alice" } });
+      const input = mockSend.mock.calls[0][0].input as {
+        ExpressionAttributeNames: Record<string, string>;
+      };
+      expect(Object.values(input.ExpressionAttributeNames)).toContain("user_name");
+      expect(Object.values(input.ExpressionAttributeNames)).not.toContain("userName");
+    });
+
+    it("translates data payload keys in updateById's UpdateExpression", async () => {
+      mockSend.mockResolvedValue({ Attributes: { id: { S: "1" }, user_name: { S: "bob" } } });
+      await new AccountRepoFieldMap(app).updateById("1", { userName: "bob" });
+      const input = mockSend.mock.calls[0][0].input as {
+        ExpressionAttributeNames: Record<string, string>;
+      };
+      expect(Object.values(input.ExpressionAttributeNames)).toContain("user_name");
     });
   });
 });

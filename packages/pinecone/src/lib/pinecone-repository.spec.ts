@@ -63,6 +63,19 @@ class TestRepoCustomTimestampFields extends PineconeRepository<Article> {
   override readonly updatedAtField = "updated_at";
 }
 
+interface Account extends Record<string, unknown> {
+  id: string;
+  userName: string;
+}
+
+class TestRepoFieldMap extends PineconeRepository<Account> {
+  readonly indexName = "accounts-index";
+  readonly namespace = "test-ns";
+  readonly vectorDimension = 3;
+  override readonly timestamps = false;
+  override readonly fieldMap = { userName: "user_name" };
+}
+
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
 describe("PineconeRepository", () => {
@@ -99,9 +112,7 @@ describe("PineconeRepository", () => {
       const { idx, app } = makeSetup();
       idx.query.mockResolvedValue({ matches: [] });
       await new TestRepo(app).findSimilar([0.1, 0.2, 0.3], 5, { where: { category: "tech" } });
-      expect(idx.query).toHaveBeenCalledWith(
-        expect.objectContaining({ filter: { category: { $eq: "tech" } } }),
-      );
+      expect(idx.query).toHaveBeenCalledWith(expect.objectContaining({ filter: { category: { $eq: "tech" } } }));
     });
 
     it("maps matched records to domain entities with the match score as _score", async () => {
@@ -279,7 +290,11 @@ describe("PineconeRepository", () => {
 
     it("uses createdAtField/updatedAtField when overridden", async () => {
       const { idx, app } = makeSetup();
-      await new TestRepoCustomTimestampFields(app).save({ id: "1", title: "Doc", category: "tech" } as Partial<Article>);
+      await new TestRepoCustomTimestampFields(app).save({
+        id: "1",
+        title: "Doc",
+        category: "tech",
+      } as Partial<Article>);
       const [{ records }] = (idx.upsert as ReturnType<typeof vi.fn>).mock.calls[0] as [
         { records: Array<{ metadata: Record<string, unknown> }> },
       ];
@@ -294,7 +309,9 @@ describe("PineconeRepository", () => {
     it("replaces the record and preserves existing vector values", async () => {
       const { idx, app } = makeSetup();
       idx.fetch
-        .mockResolvedValueOnce({ records: { "1": { id: "1", values: [0.5, 0.6, 0.7], metadata: { title: "Old", category: "x" } } } })
+        .mockResolvedValueOnce({
+          records: { "1": { id: "1", values: [0.5, 0.6, 0.7], metadata: { title: "Old", category: "x" } } },
+        })
         .mockResolvedValueOnce({ records: { "1": { id: "1", values: [0.5, 0.6, 0.7], metadata: {} } } });
       await new TestRepo(app).updateById("1", { title: "New", category: "y" } as Partial<Article>);
       const [{ records }] = (idx.upsert as ReturnType<typeof vi.fn>).mock.calls[0] as [
@@ -305,9 +322,9 @@ describe("PineconeRepository", () => {
 
     it("throws NotFound when the record does not exist", async () => {
       const { app } = makeSetup();
-      await expect(new TestRepo(app).updateById("missing", { title: "X", category: "y" } as Partial<Article>)).rejects.toBeInstanceOf(
-        NotFound,
-      );
+      await expect(
+        new TestRepo(app).updateById("missing", { title: "X", category: "y" } as Partial<Article>),
+      ).rejects.toBeInstanceOf(NotFound);
     });
   });
 
@@ -315,7 +332,9 @@ describe("PineconeRepository", () => {
     it("merges the patch into the existing record", async () => {
       const { idx, app } = makeSetup();
       idx.fetch
-        .mockResolvedValueOnce({ records: { "1": { id: "1", values: [0.1], metadata: { title: "Old", category: "x" } } } })
+        .mockResolvedValueOnce({
+          records: { "1": { id: "1", values: [0.1], metadata: { title: "Old", category: "x" } } },
+        })
         .mockResolvedValueOnce({ records: { "1": { id: "1", values: [0.1], metadata: {} } } });
       await new TestRepo(app).patchById("1", { title: "Patched" } as Partial<Article>);
       const [{ records }] = (idx.upsert as ReturnType<typeof vi.fn>).mock.calls[0] as [
@@ -447,6 +466,36 @@ describe("PineconeRepository", () => {
       expect(new Set(caps.operators)).toEqual(PINECONE_OPERATORS);
       expect(caps.pagination).toBe("both");
       expect(caps.fullTextSearch).toBe(false);
+    });
+  });
+
+  describe("fieldMap", () => {
+    it("translates data payload keys to metadata keys on save", async () => {
+      const { idx, app } = makeSetup();
+      await new TestRepoFieldMap(app).save({ id: "1", userName: "alice" });
+      const [{ records }] = idx.upsert.mock.calls[0] as [{ records: Array<{ metadata: Record<string, unknown> }> }];
+      expect(records[0]?.metadata).toHaveProperty("user_name", "alice");
+      expect(records[0]?.metadata).not.toHaveProperty("userName");
+    });
+
+    it("translates metadata keys back to entity field names on findById", async () => {
+      const { idx, app } = makeSetup();
+      idx.fetch.mockResolvedValue({ records: { "1": { id: "1", metadata: { user_name: "alice" } } } });
+      const result = await new TestRepoFieldMap(app).findById("1");
+      expect(result).toEqual({ id: "1", userName: "alice" });
+    });
+
+    it("translates a where clause field name for findSimilar", async () => {
+      const { idx, app } = makeSetup();
+      await new TestRepoFieldMap(app).findSimilar([0.1], 5, { where: { userName: "alice" } });
+      expect(idx.query).toHaveBeenCalledWith(expect.objectContaining({ filter: { user_name: { $eq: "alice" } } }));
+    });
+
+    it("does not remap idField into metadata", async () => {
+      const { idx, app } = makeSetup();
+      await new TestRepoFieldMap(app).save({ id: "1", userName: "alice" });
+      const [{ records }] = idx.upsert.mock.calls[0] as [{ records: Array<{ metadata: Record<string, unknown> }> }];
+      expect(records[0]?.metadata).not.toHaveProperty("id");
     });
   });
 });

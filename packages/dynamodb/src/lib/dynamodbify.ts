@@ -63,29 +63,37 @@ interface BuildContext {
  *
  * Unsupported operators (including `$like`) throw `BadRequest`.
  */
-export function dynamodbify(where: WhereClause): FilterExpression {
+export function dynamodbify(
+  where: WhereClause,
+  toField: (field: string) => string = (field) => field,
+): FilterExpression {
   assertOperators(where, DYNAMODB_OPERATORS, "@mantlejs/dynamodb");
   const ctx: BuildContext = { names: {}, values: {}, nameIdx: 0, valIdx: 0 };
-  const expression = buildExpression(where, ctx);
+  const expression = buildExpression(where, ctx, toField);
   return { expression, names: ctx.names, values: ctx.values };
 }
 
-function buildExpression(where: WhereClause, ctx: BuildContext): string {
+function buildExpression(where: WhereClause, ctx: BuildContext, toField: (field: string) => string): string {
   const parts: string[] = [];
   for (const [key, value] of Object.entries(where)) {
     if (key === "$or") {
-      parts.push(buildLogical(value as unknown as WhereClause[], "OR", ctx));
+      parts.push(buildLogical(value as unknown as WhereClause[], "OR", ctx, toField));
     } else if (key === "$and") {
-      parts.push(buildLogical(value as unknown as WhereClause[], "AND", ctx));
+      parts.push(buildLogical(value as unknown as WhereClause[], "AND", ctx, toField));
     } else {
-      parts.push(buildFieldCondition(key, value, ctx));
+      parts.push(buildFieldCondition(toField(key), value, ctx));
     }
   }
   return parts.join(" AND ");
 }
 
-function buildLogical(conditions: WhereClause[], op: "AND" | "OR", ctx: BuildContext): string {
-  const parts = conditions.map((c) => `(${buildExpression(c, ctx)})`);
+function buildLogical(
+  conditions: WhereClause[],
+  op: "AND" | "OR",
+  ctx: BuildContext,
+  toField: (field: string) => string,
+): string {
+  const parts = conditions.map((c) => `(${buildExpression(c, ctx, toField)})`);
   return `(${parts.join(` ${op} `)})`;
 }
 
@@ -182,6 +190,7 @@ export function buildKeyCondition(
   partitionKey: string,
   sortKey: string | undefined,
   where: WhereClause,
+  toField: (field: string) => string = (field) => field,
 ): {
   keyCondition: string;
   filterCondition?: string;
@@ -195,22 +204,23 @@ export function buildKeyCondition(
 
   for (const [key, value] of Object.entries(where)) {
     if (key === partitionKey || key === sortKey) {
-      const n = nameAlias(key, ctx);
+      const mappedKey = toField(key);
+      const n = nameAlias(mappedKey, ctx);
       if (value === null || Array.isArray(value)) {
         // null / array not valid in key condition — treat as filter
-        filterParts.push(buildFieldCondition(key, value, ctx));
+        filterParts.push(buildFieldCondition(mappedKey, value, ctx));
       } else if (typeof value === "object") {
         // Operators — supported for sort key in key condition
-        keyParts.push(buildOperators(n, key, value as Record<string, unknown>, ctx));
+        keyParts.push(buildOperators(n, mappedKey, value as Record<string, unknown>, ctx));
       } else {
         const v = valueAlias(value, ctx);
         keyParts.push(`${n} = ${v}`);
       }
     } else if (key === "$or" || key === "$and") {
       const logicalOp = key === "$or" ? "OR" : "AND";
-      filterParts.push(buildLogical(value as unknown as WhereClause[], logicalOp as "OR" | "AND", ctx));
+      filterParts.push(buildLogical(value as unknown as WhereClause[], logicalOp as "OR" | "AND", ctx, toField));
     } else {
-      filterParts.push(buildFieldCondition(key, value, ctx));
+      filterParts.push(buildFieldCondition(toField(key), value, ctx));
     }
   }
 

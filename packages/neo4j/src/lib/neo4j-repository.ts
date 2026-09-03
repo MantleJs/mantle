@@ -30,6 +30,11 @@ export abstract class Neo4jRepository<T extends Record<string, unknown>> impleme
   readonly createdAtField: string = "createdAt";
   /** Property written for auto-managed update timestamps. @default "updatedAt" */
   readonly updatedAtField: string = "updatedAt";
+  /**
+   * Entity-field-to-node-property overrides, for a label whose property names don't
+   * match the entity (e.g. a brownfield graph using snake_case). @default {}
+   */
+  readonly fieldMap: Record<string, string> = {};
 
   constructor(app: MantleApplication) {
     this.driver = app.get<Driver>("neo4j");
@@ -67,12 +72,25 @@ export abstract class Neo4jRepository<T extends Record<string, unknown>> impleme
     return this.toEntity(node.properties);
   }
 
+  /** Translates an entity field name to its node property name (fieldMap override, else identity). */
+  protected toField(field: string): string {
+    return this.fieldMap[field] ?? field;
+  }
+
+  /** Translates a node property name back to its entity field name — the inverse of `toField`. */
+  protected toEntityField(field: string): string {
+    const mapped = Object.entries(this.fieldMap).find(([, prop]) => prop === field);
+    return mapped ? mapped[0] : field;
+  }
+
   protected toEntity(props: Record<string, unknown>): T {
-    return props as T;
+    return Object.fromEntries(Object.entries(props).map(([key, value]) => [this.toEntityField(key), value])) as T;
   }
 
   protected buildProps(data: Partial<T>): Record<string, unknown> {
-    return data as Record<string, unknown>;
+    return Object.fromEntries(
+      Object.entries(data as Record<string, unknown>).map(([field, value]) => [this.toField(field), value]),
+    );
   }
 
   // ─── GraphRepository methods ──────────────────────────────────────────────
@@ -83,8 +101,10 @@ export abstract class Neo4jRepository<T extends Record<string, unknown>> impleme
       const id = (data as Record<string, unknown>)[this.idField] ?? crypto.randomUUID();
       const props: Record<string, unknown> = {
         ...this.buildProps(data),
-        [this.idField]: id,
-        ...(this.timestamps ? { [this.createdAtField]: now, [this.updatedAtField]: now } : {}),
+        [this.toField(this.idField)]: id,
+        ...(this.timestamps
+          ? { [this.toField(this.createdAtField)]: now, [this.toField(this.updatedAtField)]: now }
+          : {}),
       };
       return await this.run(async (session) => {
         const result = await session.run(`CREATE (n:${this.label} $props) RETURN n`, { props });
@@ -100,10 +120,9 @@ export abstract class Neo4jRepository<T extends Record<string, unknown>> impleme
   async findNodeById(id: Id): Promise<T | null> {
     try {
       return await this.run(async (session) => {
-        const result = await session.run(
-          `MATCH (n:${this.label} {${this.idField}: $id}) RETURN n`,
-          { id: String(id) },
-        );
+        const result = await session.run(`MATCH (n:${this.label} {${this.toField(this.idField)}: $id}) RETURN n`, {
+          id: String(id),
+        });
         const first = result.records[0];
         if (!first) return null;
         return this.recordToNode(first);
@@ -120,7 +139,7 @@ export abstract class Neo4jRepository<T extends Record<string, unknown>> impleme
         let whereParams: Record<string, unknown> = {};
 
         if (params?.where) {
-          const { clause, params: wp } = toNeo4jWhere(params.where as WhereClause, "n");
+          const { clause, params: wp } = toNeo4jWhere(params.where as WhereClause, "n", (field) => this.toField(field));
           if (clause && clause !== "true") {
             query += ` WHERE ${clause}`;
           }
@@ -131,11 +150,12 @@ export abstract class Neo4jRepository<T extends Record<string, unknown>> impleme
 
         if (params?.sort) {
           const sortParts = Object.entries(params.sort).map(([field, dir]) => {
-            assertValidFieldName(field);
+            const prop = this.toField(field);
+            assertValidFieldName(prop);
             if (dir !== "asc" && dir !== "desc") {
               throw new BadRequest(`Invalid sort direction: ${String(dir)}`);
             }
-            return `n.${field} ${dir.toUpperCase()}`;
+            return `n.${prop} ${dir.toUpperCase()}`;
           });
           query += ` ORDER BY ${sortParts.join(", ")}`;
         }
@@ -155,17 +175,13 @@ export abstract class Neo4jRepository<T extends Record<string, unknown>> impleme
     }
   }
 
-  async createRelationship(
-    fromId: Id,
-    toId: Id,
-    type: string,
-    properties?: Record<string, unknown>,
-  ): Promise<void> {
+  async createRelationship(fromId: Id, toId: Id, type: string, properties?: Record<string, unknown>): Promise<void> {
     try {
       await this.run(async (session) => {
         const props = properties ?? {};
+        const idProp = this.toField(this.idField);
         await session.run(
-          `MATCH (a:${this.label} {${this.idField}: $from}), (b:${this.label} {${this.idField}: $to}) ` +
+          `MATCH (a:${this.label} {${idProp}: $from}), (b:${this.label} {${idProp}: $to}) ` +
             `CREATE (a)-[r:${type} $props]->(b)`,
           { from: String(fromId), to: String(toId), props },
         );
@@ -179,7 +195,7 @@ export abstract class Neo4jRepository<T extends Record<string, unknown>> impleme
     try {
       return await this.run(async (session) => {
         const result = await session.run(
-          `MATCH (start:${this.label} {${this.idField}: $id})-[r:${relation}*1..${depth}]->(n) RETURN n`,
+          `MATCH (start:${this.label} {${this.toField(this.idField)}: $id})-[r:${relation}*1..${depth}]->(n) RETURN n`,
           { id: String(startId) },
         );
         return result.records.map((r) => this.recordToNode(r));
@@ -194,10 +210,9 @@ export abstract class Neo4jRepository<T extends Record<string, unknown>> impleme
       return await this.run(async (session) => {
         const existing = await this.findNodeById(id);
         if (!existing) throw new NotFound(`No node found with ${this.idField} = ${id}`);
-        await session.run(
-          `MATCH (n:${this.label} {${this.idField}: $id}) DETACH DELETE n`,
-          { id: String(id) },
-        );
+        await session.run(`MATCH (n:${this.label} {${this.toField(this.idField)}: $id}) DETACH DELETE n`, {
+          id: String(id),
+        });
         return existing;
       });
     } catch (err) {

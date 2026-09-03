@@ -389,4 +389,44 @@ describe("MemoryRepository", () => {
       expect(results).toEqual([]);
     });
   });
+
+  describe("fieldMap", () => {
+    let mapped: MemoryRepository<User>;
+
+    beforeEach(() => {
+      mapped = new MemoryRepository<User>({ fieldMap: { name: "legacy_name" } });
+    });
+
+    it("stores data under the mapped storage key", async () => {
+      await mapped.save({ id: "1", name: "Alice", email: "a@a.com", age: 30 });
+      expect(mapped.store.get("1")).toHaveProperty("legacy_name", "Alice");
+      expect(mapped.store.get("1")).not.toHaveProperty("name");
+    });
+
+    it("returns records translated back to the entity field name", async () => {
+      const saved = await mapped.save({ id: "1", name: "Alice", email: "a@a.com", age: 30 });
+      expect(saved).toMatchObject({ name: "Alice" });
+      const found = await mapped.findById("1");
+      expect(found).toMatchObject({ name: "Alice" });
+    });
+
+    it("translates where clause field names to storage keys", async () => {
+      await mapped.save({ id: "1", name: "Alice", email: "a@a.com", age: 30 });
+      const results = await mapped.findAll({ where: { name: "Alice" } });
+      expect(results).toHaveLength(1);
+      expect(results[0]).toMatchObject({ name: "Alice" });
+    });
+
+    it("translates updateById/patchById payloads and merges against storage keys", async () => {
+      await mapped.save({ id: "1", name: "Alice", email: "a@a.com", age: 30 });
+      const patched = await mapped.patchById("1", { name: "Alicia" });
+      expect(patched).toMatchObject({ name: "Alicia", email: "a@a.com" });
+      expect(mapped.store.get("1")).toHaveProperty("legacy_name", "Alicia");
+    });
+
+    it("leaves unmapped fields (like idField) unchanged", async () => {
+      await mapped.save({ id: "1", name: "Alice", email: "a@a.com", age: 30 });
+      expect(mapped.store.get("1")).toHaveProperty("id", "1");
+    });
+  });
 });

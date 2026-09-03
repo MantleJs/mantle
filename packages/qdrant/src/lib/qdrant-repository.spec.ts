@@ -59,6 +59,18 @@ class TestRepoCustomTimestampFields extends QdrantRepository<Article> {
   override readonly updatedAtField = "updated_at";
 }
 
+interface Account extends Record<string, unknown> {
+  id: string;
+  userName: string;
+}
+
+class TestRepoFieldMap extends QdrantRepository<Account> {
+  readonly collectionName = "accounts";
+  readonly vectorSize = 3;
+  override readonly timestamps = false;
+  override readonly fieldMap = { userName: "user_name" };
+}
+
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
 describe("QdrantRepository", () => {
@@ -112,9 +124,7 @@ describe("QdrantRepository", () => {
 
     it("maps scored points to domain entities with the match score as _score", async () => {
       const { client, app } = makeSetup();
-      client.search.mockResolvedValue([
-        { id: "1", score: 0.9, payload: { title: "Doc", category: "tech" } },
-      ]);
+      client.search.mockResolvedValue([{ id: "1", score: 0.9, payload: { title: "Doc", category: "tech" } }]);
       const result = await new TestRepo(app).findSimilar([0.1, 0.2, 0.3], 5);
       expect(result).toEqual([{ id: "1", title: "Doc", category: "tech", _score: 0.9 }]);
     });
@@ -170,17 +180,20 @@ describe("QdrantRepository", () => {
       const { client, app } = makeSetup();
       client.scroll.mockResolvedValue({ points: [], next_page_offset: null });
       await new TestRepo(app).findAll({ skip: 5, limit: 10 });
-      expect(client.scroll).toHaveBeenCalledWith(
-        "articles",
-        expect.objectContaining({ limit: 15 }),
-      );
+      expect(client.scroll).toHaveBeenCalledWith("articles", expect.objectContaining({ limit: 15 }));
     });
 
     it("paginates through all records when no limit is provided", async () => {
       const { client, app } = makeSetup();
       client.scroll
-        .mockResolvedValueOnce({ points: [{ id: "1", payload: { title: "A", category: "x" } }], next_page_offset: "tok" })
-        .mockResolvedValueOnce({ points: [{ id: "2", payload: { title: "B", category: "y" } }], next_page_offset: null });
+        .mockResolvedValueOnce({
+          points: [{ id: "1", payload: { title: "A", category: "x" } }],
+          next_page_offset: "tok",
+        })
+        .mockResolvedValueOnce({
+          points: [{ id: "2", payload: { title: "B", category: "y" } }],
+          next_page_offset: null,
+        });
       const result = await new TestRepo(app).findAll();
       expect(client.scroll).toHaveBeenCalledTimes(2);
       expect(result).toHaveLength(2);
@@ -288,7 +301,11 @@ describe("QdrantRepository", () => {
 
     it("uses createdAtField/updatedAtField when overridden", async () => {
       const { client, app } = makeSetup();
-      await new TestRepoCustomTimestampFields(app).save({ id: "1", title: "Doc", category: "tech" } as Partial<Article>);
+      await new TestRepoCustomTimestampFields(app).save({
+        id: "1",
+        title: "Doc",
+        category: "tech",
+      } as Partial<Article>);
       const [, { points }] = (client.upsert as ReturnType<typeof vi.fn>).mock.calls[0] as [
         string,
         { points: Array<{ payload: Record<string, unknown> }> },
@@ -354,9 +371,9 @@ describe("QdrantRepository", () => {
 
     it("throws NotFound when the record does not exist", async () => {
       const { app } = makeSetup();
-      await expect(
-        new TestRepo(app).patchById("missing", { title: "X" } as Partial<Article>),
-      ).rejects.toBeInstanceOf(NotFound);
+      await expect(new TestRepo(app).patchById("missing", { title: "X" } as Partial<Article>)).rejects.toBeInstanceOf(
+        NotFound,
+      );
     });
   });
 
@@ -473,6 +490,56 @@ describe("QdrantRepository", () => {
       expect(new Set(caps.operators)).toEqual(QDRANT_OPERATORS);
       expect(caps.pagination).toBe("both");
       expect(caps.fullTextSearch).toBe(false);
+    });
+  });
+
+  describe("fieldMap", () => {
+    it("translates data payload keys to payload keys on save", async () => {
+      const { client, app } = makeSetup();
+      await new TestRepoFieldMap(app).save({ id: "1", userName: "alice" });
+      const [, { points }] = client.upsert.mock.calls[0] as [
+        string,
+        { points: Array<{ payload: Record<string, unknown> }> },
+      ];
+      expect(points[0]?.payload).toHaveProperty("user_name", "alice");
+      expect(points[0]?.payload).not.toHaveProperty("userName");
+    });
+
+    it("translates payload keys back to entity field names on findById", async () => {
+      const { client, app } = makeSetup();
+      client.retrieve.mockResolvedValue([{ id: "1", payload: { user_name: "alice" } }]);
+      const result = await new TestRepoFieldMap(app).findById("1");
+      expect(result).toEqual({ id: "1", userName: "alice" });
+    });
+
+    it("translates a where clause field name for findSimilar", async () => {
+      const { client, app } = makeSetup();
+      await new TestRepoFieldMap(app).findSimilar([0.1], 5, { where: { userName: "alice" } });
+      expect(client.search).toHaveBeenCalledWith(
+        "accounts",
+        expect.objectContaining({
+          filter: { must: [{ key: "user_name", match: { value: "alice" } }] },
+        }),
+      );
+    });
+
+    it("translates the sort key used for order_by in findAll", async () => {
+      const { client, app } = makeSetup();
+      await new TestRepoFieldMap(app).findAll({ sort: { userName: "asc" }, limit: 10 });
+      expect(client.scroll).toHaveBeenCalledWith(
+        "accounts",
+        expect.objectContaining({ order_by: { key: "user_name", direction: "asc" } }),
+      );
+    });
+
+    it("does not remap idField into the payload", async () => {
+      const { client, app } = makeSetup();
+      await new TestRepoFieldMap(app).save({ id: "1", userName: "alice" });
+      const [, { points }] = client.upsert.mock.calls[0] as [
+        string,
+        { points: Array<{ payload: Record<string, unknown> }> },
+      ];
+      expect(points[0]?.payload).not.toHaveProperty("id");
     });
   });
 });

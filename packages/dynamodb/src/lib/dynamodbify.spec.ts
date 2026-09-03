@@ -133,3 +133,27 @@ describe("buildKeyCondition", () => {
     expect(result.filterCondition).toMatch(/= :v\d+/);
   });
 });
+
+describe("toField", () => {
+  const shout = (field: string) => field.toUpperCase();
+
+  it("dynamodbify maps a top-level field name to its ExpressionAttributeNames value", () => {
+    const result = dynamodbify({ userId: 1 }, shout);
+    expect(Object.values(result.names)).toEqual(["USERID"]);
+  });
+
+  it("dynamodbify maps field names inside $or branches", () => {
+    const result = dynamodbify({ $or: [{ userId: 1 }, { name: "Bob" }] }, shout);
+    expect(Object.values(result.names).sort()).toEqual(["NAME", "USERID"]);
+  });
+
+  it("buildKeyCondition maps the mapped partition key name into ExpressionAttributeNames", () => {
+    const result = buildKeyCondition("pk", "sk", { pk: "USER#1" }, shout);
+    expect(Object.values(result.names)).toEqual(["PK"]);
+  });
+
+  it("buildKeyCondition maps non-key filter field names too", () => {
+    const result = buildKeyCondition("pk", "sk", { pk: "USER#1", status: "active" }, shout);
+    expect(Object.values(result.names).sort()).toEqual(["PK", "STATUS"]);
+  });
+});

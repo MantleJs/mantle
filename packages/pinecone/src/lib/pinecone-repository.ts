@@ -39,6 +39,12 @@ export abstract class PineconeRepository<T extends Record<string, unknown>, D = 
   readonly createdAtField: string = "createdAt";
   /** Metadata key written for auto-managed update timestamps. @default "updatedAt" */
   readonly updatedAtField: string = "updatedAt";
+  /**
+   * Entity-field-to-metadata-key overrides, for an index whose metadata keys don't
+   * match the entity (e.g. a brownfield index using snake_case). Does not apply to
+   * `idField` — the record id is never stored in metadata. @default {}
+   */
+  readonly fieldMap: Record<string, string> = {};
 
   private _index?: Index;
 
@@ -72,7 +78,9 @@ export abstract class PineconeRepository<T extends Record<string, unknown>, D = 
         vector,
         topK,
         includeMetadata: true,
-        ...(params?.where ? { filter: toPineconeFilter(params.where as WhereClause) } : {}),
+        ...(params?.where
+          ? { filter: toPineconeFilter(params.where as WhereClause, (field) => this.toField(field)) }
+          : {}),
       });
       return (response.matches ?? []).map((m) => ({
         ...this.fromRecord(m.id, (m.metadata ?? {}) as Record<string, unknown>),
@@ -108,13 +116,11 @@ export abstract class PineconeRepository<T extends Record<string, unknown>, D = 
           vector: Array(this.vectorDimension).fill(0) as number[],
           topK,
           includeMetadata: true,
-          filter: toPineconeFilter(params.where as WhereClause),
+          filter: toPineconeFilter(params.where as WhereClause, (field) => this.toField(field)),
         });
         const matches = response.matches ?? [];
         const startIdx = params.skip ?? 0;
-        return matches.slice(startIdx).map((m) =>
-          this.fromRecord(m.id, (m.metadata ?? {}) as Record<string, unknown>),
-        );
+        return matches.slice(startIdx).map((m) => this.fromRecord(m.id, (m.metadata ?? {}) as Record<string, unknown>));
       }
 
       // Full scan: paginate IDs then batch-fetch records
@@ -229,7 +235,7 @@ export abstract class PineconeRepository<T extends Record<string, unknown>, D = 
       if (!existing) throw new NotFound(`No record found with ${this.idField} = ${id}`);
       const now = new Date().toISOString();
       const updated: Record<string, unknown> = {
-        ...data as Record<string, unknown>,
+        ...(data as Record<string, unknown>),
         [this.idField]: String(id),
         ...(this.timestamps ? { [this.updatedAtField]: now } : {}),
       };
@@ -294,12 +300,28 @@ export abstract class PineconeRepository<T extends Record<string, unknown>, D = 
 
   // ─── Helpers ──────────────────────────────────────────────────────────────
 
+  /** Translates an entity field name to its metadata key (fieldMap override, else identity). */
+  protected toField(field: string): string {
+    return this.fieldMap[field] ?? field;
+  }
+
+  /** Translates a metadata key back to its entity field name — the inverse of `toField`. */
+  protected toEntityField(field: string): string {
+    const mapped = Object.entries(this.fieldMap).find(([, key]) => key === field);
+    return mapped ? mapped[0] : field;
+  }
+
   protected fromRecord(id: string, metadata: Record<string, unknown>): T {
-    return { [this.idField]: id, ...metadata } as T;
+    const mapped = Object.fromEntries(Object.entries(metadata).map(([key, value]) => [this.toEntityField(key), value]));
+    return { [this.idField]: id, ...mapped } as T;
   }
 
   protected toMetadata(data: Record<string, unknown>): RecordMetadata {
-    return Object.fromEntries(Object.entries(data).filter(([k]) => k !== this.idField)) as RecordMetadata;
+    return Object.fromEntries(
+      Object.entries(data)
+        .filter(([k]) => k !== this.idField)
+        .map(([k, v]) => [this.toField(k), v]),
+    ) as RecordMetadata;
   }
 
   private async fetchByIds(ids: string[]): Promise<T[]> {

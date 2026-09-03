@@ -24,17 +24,23 @@ export const PINECONE_OPERATORS: ReadonlySet<string> = new Set([...PASSTHROUGH_O
  * Unsupported operators ($like and friends) throw `BadRequest` — Pinecone metadata
  * filters have no pattern matching.
  */
-export function toPineconeFilter(where: WhereClause): Record<string, unknown> {
+export function toPineconeFilter(
+  where: WhereClause,
+  toField: (field: string) => string = (field) => field,
+): Record<string, unknown> {
   assertOperators(where, PINECONE_OPERATORS, "@mantlejs/pinecone");
   const filter: Record<string, unknown> = {};
 
   for (const [key, value] of Object.entries(where)) {
     if (key === "$or" || key === "$and") {
-      filter[key] = (value as unknown as WhereClause[]).map(toPineconeFilter);
-    } else if (value === null) {
-      filter[key] = { $eq: null };
+      filter[key] = (value as unknown as WhereClause[]).map((clause) => toPineconeFilter(clause, toField));
+      continue;
+    }
+    const field = toField(key);
+    if (value === null) {
+      filter[field] = { $eq: null };
     } else if (Array.isArray(value)) {
-      filter[key] = { $in: value };
+      filter[field] = { $in: value };
     } else if (typeof value === "object") {
       const ops: Record<string, unknown> = {};
       for (const [op, operand] of Object.entries(value as Record<string, unknown>)) {
@@ -45,9 +51,9 @@ export function toPineconeFilter(where: WhereClause): Record<string, unknown> {
         }
         ops[op] = operand;
       }
-      filter[key] = ops;
+      filter[field] = ops;
     } else {
-      filter[key] = { $eq: value };
+      filter[field] = { $eq: value };
     }
   }
 

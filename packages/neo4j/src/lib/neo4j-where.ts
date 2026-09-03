@@ -63,7 +63,11 @@ export interface WhereResult {
  *   { $or: [...] }            → (a OR b OR ...)
  *   { $and: [...] }           → (a AND b AND ...)
  */
-export function toNeo4jWhere(where: WhereClause, alias = "n"): WhereResult {
+export function toNeo4jWhere(
+  where: WhereClause,
+  alias = "n",
+  toField: (field: string) => string = (field) => field,
+): WhereResult {
   assertOperators(where, NEO4J_OPERATORS, "@mantlejs/neo4j");
   const params: Record<string, unknown> = {};
   let counter = 0;
@@ -75,14 +79,20 @@ export function toNeo4jWhere(where: WhereClause, alias = "n"): WhereResult {
   function buildExpr(clause: WhereClause): string {
     const parts: string[] = [];
 
-    for (const [key, value] of Object.entries(clause)) {
-      if (key === "$or") {
+    for (const [rawKey, value] of Object.entries(clause)) {
+      if (rawKey === "$or") {
         const subExprs = (value as unknown as WhereClause[]).map((c) => `(${buildExpr(c)})`);
         parts.push(`(${subExprs.join(" OR ")})`);
-      } else if (key === "$and") {
+        continue;
+      }
+      if (rawKey === "$and") {
         const subExprs = (value as unknown as WhereClause[]).map((c) => `(${buildExpr(c)})`);
         parts.push(`(${subExprs.join(" AND ")})`);
-      } else if (value === null) {
+        continue;
+      }
+
+      const key = toField(rawKey);
+      if (value === null) {
         assertValidFieldName(key);
         parts.push(`${alias}.${key} IS NULL`);
       } else if (Array.isArray(value)) {

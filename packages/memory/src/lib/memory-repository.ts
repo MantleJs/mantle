@@ -29,18 +29,25 @@ export interface MemoryRepositoryOptions {
   createdAtField?: string;
   /** Field written for auto-managed update timestamps. Default: 'updatedAt' */
   updatedAtField?: string;
+  /**
+   * Entity-field-to-storage-key overrides, for mimicking a backing store whose
+   * field names don't match the entity (e.g. mirroring a KnexRepository's `fieldMap`
+   * in tests without a real database). Default: {}
+   */
+  fieldMap?: Record<string, string>;
 }
 
 type Primitive = string | number | boolean | null;
 type WhereClause = Record<string, unknown>;
 
 export class MemoryRepository<T extends Record<string, unknown>> implements Repository<T, Partial<T>> {
-  private readonly _store = new Map<Id, T>();
+  private readonly _store = new Map<Id, Record<string, unknown>>();
   private readonly idField: string;
   private readonly autoId: boolean;
   private readonly timestamps: boolean;
   private readonly createdAtField: string;
   private readonly updatedAtField: string;
+  private readonly fieldMap: Record<string, string>;
 
   constructor(options: MemoryRepositoryOptions = {}) {
     this.idField = options.idField ?? "id";
@@ -48,16 +55,50 @@ export class MemoryRepository<T extends Record<string, unknown>> implements Repo
     this.timestamps = options.timestamps ?? true;
     this.createdAtField = options.createdAtField ?? "createdAt";
     this.updatedAtField = options.updatedAtField ?? "updatedAt";
+    this.fieldMap = options.fieldMap ?? {};
   }
 
-  get store(): ReadonlyMap<Id, T> {
+  /** Translates an entity field name to its storage key (fieldMap override, else identity). */
+  private toStorageKey(field: string): string {
+    return this.fieldMap[field] ?? field;
+  }
+
+  /** Translates a storage key back to its entity field name — the inverse of `toStorageKey`. */
+  private toEntityField(key: string): string {
+    const mapped = Object.entries(this.fieldMap).find(([, storageKey]) => storageKey === key);
+    return mapped ? mapped[0] : key;
+  }
+
+  private mapDataToStorage(data: Record<string, unknown>): Record<string, unknown> {
+    return Object.fromEntries(Object.entries(data).map(([field, value]) => [this.toStorageKey(field), value]));
+  }
+
+  private mapRecordToEntity(record: Record<string, unknown>): T {
+    return Object.fromEntries(Object.entries(record).map(([key, value]) => [this.toEntityField(key), value])) as T;
+  }
+
+  /** Renames where-clause field keys to storage keys, recursing into $or/$and. Matches whole key strings. */
+  private mapWhereToStorage(where: WhereClause): WhereClause {
+    const mapped: WhereClause = {};
+    for (const [key, value] of Object.entries(where)) {
+      if (key === "$or" || key === "$and") {
+        mapped[key] = (value as WhereClause[]).map((condition) => this.mapWhereToStorage(condition));
+      } else {
+        mapped[this.toStorageKey(key)] = value;
+      }
+    }
+    return mapped;
+  }
+
+  /** The raw internal store, keyed by id, holding records in storage-key shape (post-fieldMap). */
+  get store(): ReadonlyMap<Id, Record<string, unknown>> {
     return this._store;
   }
 
   seed(records: T[]): this {
     for (const record of records) {
       const id = record[this.idField] as Id;
-      this._store.set(id, { ...record });
+      this._store.set(id, this.mapDataToStorage({ ...record }));
     }
     return this;
   }
@@ -71,13 +112,16 @@ export class MemoryRepository<T extends Record<string, unknown>> implements Repo
     let results = Array.from(this._store.values());
 
     if (params?.where) {
-      const where = params.where;
+      const where = this.mapWhereToStorage(params.where);
       assertOperators(where, MEMORY_OPERATORS, "@mantlejs/memory");
       results = results.filter((record) => matchesWhere(record, where));
     }
 
     if (params?.sort) {
-      results = applySort(results, params.sort);
+      const sort = Object.fromEntries(
+        Object.entries(params.sort).map(([field, dir]) => [this.toStorageKey(field), dir]),
+      );
+      results = applySort(results, sort);
     }
 
     if (params?.skip) {
@@ -88,37 +132,31 @@ export class MemoryRepository<T extends Record<string, unknown>> implements Repo
       results = results.slice(0, params.limit);
     }
 
-    if (params?.select) {
-      const select = params.select;
-      results = results.map((r) => selectFields(r, select));
-    }
-
-    return results;
+    const entities = results.map((r) => this.mapRecordToEntity(r));
+    return params?.select ? entities.map((r) => selectFields(r, params.select as string[])) : entities;
   }
 
   async findById(id: Id): Promise<T | null> {
-    return this._store.get(id) ?? null;
+    const record = this._store.get(id);
+    return record ? this.mapRecordToEntity(record) : null;
   }
 
   async save(data: Partial<T>): Promise<T> {
-    const id: Id =
-      this.autoId && data[this.idField] === undefined
-        ? crypto.randomUUID()
-        : (data[this.idField] as Id);
+    const id: Id = this.autoId && data[this.idField] === undefined ? crypto.randomUUID() : (data[this.idField] as Id);
 
     if (this._store.has(id)) {
       throw new Conflict(`Record with id ${id} already exists`);
     }
 
     const now = new Date().toISOString();
-    const record = {
+    const record = this.mapDataToStorage({
       ...data,
       [this.idField]: id,
       ...(this.timestamps ? { [this.createdAtField]: now, [this.updatedAtField]: now } : {}),
-    } as T;
+    } as Record<string, unknown>);
 
     this._store.set(id, record);
-    return record;
+    return this.mapRecordToEntity(record);
   }
 
   async saveAll(data: Partial<T>[]): Promise<T[]> {
@@ -129,38 +167,35 @@ export class MemoryRepository<T extends Record<string, unknown>> implements Repo
     if (!this._store.has(id)) {
       throw new NotFound(`Record with id ${id} not found`);
     }
-    const existing = this._store.get(id) as T;
+    const existing = this._store.get(id) as Record<string, unknown>;
     const now = new Date().toISOString();
-    const record = {
-      ...data,
-      [this.idField]: id,
-      ...(this.timestamps
-        ? {
-            [this.createdAtField]: (existing as Record<string, unknown>)[this.createdAtField],
-            [this.updatedAtField]: now,
-          }
-        : {}),
-    } as T;
+    const record = this.mapDataToStorage({ ...data, [this.idField]: id } as Record<string, unknown>);
+    if (this.timestamps) {
+      record[this.toStorageKey(this.createdAtField)] = existing[this.toStorageKey(this.createdAtField)];
+      record[this.toStorageKey(this.updatedAtField)] = now;
+    }
 
     this._store.set(id, record);
-    return record;
+    return this.mapRecordToEntity(record);
   }
 
   async patchById(id: Id, data: Partial<T>): Promise<T> {
     if (!this._store.has(id)) {
       throw new NotFound(`Record with id ${id} not found`);
     }
-    const existing = this._store.get(id) as T;
+    const existing = this._store.get(id) as Record<string, unknown>;
     const now = new Date().toISOString();
-    const record = {
+    const record: Record<string, unknown> = {
       ...existing,
-      ...data,
-      [this.idField]: id,
-      ...(this.timestamps ? { [this.updatedAtField]: now } : {}),
-    } as T;
+      ...this.mapDataToStorage(data as Record<string, unknown>),
+      [this.toStorageKey(this.idField)]: id,
+    };
+    if (this.timestamps) {
+      record[this.toStorageKey(this.updatedAtField)] = now;
+    }
 
     this._store.set(id, record);
-    return record;
+    return this.mapRecordToEntity(record);
   }
 
   async deleteById(id: Id): Promise<T> {
@@ -169,17 +204,18 @@ export class MemoryRepository<T extends Record<string, unknown>> implements Repo
       throw new NotFound(`Record with id ${id} not found`);
     }
     this._store.delete(id);
-    return record;
+    return this.mapRecordToEntity(record);
   }
 
   async count(params?: QueryParams): Promise<number> {
     if (!params?.where) {
       return this._store.size;
     }
-    assertOperators(params.where, MEMORY_OPERATORS, "@mantlejs/memory");
+    const where = this.mapWhereToStorage(params.where);
+    assertOperators(where, MEMORY_OPERATORS, "@mantlejs/memory");
     let count = 0;
     for (const record of this._store.values()) {
-      if (matchesWhere(record, params.where)) count++;
+      if (matchesWhere(record, where)) count++;
     }
     return count;
   }
@@ -301,7 +337,10 @@ function matchesOperators(fieldValue: unknown, ops: Record<string, unknown>): bo
 }
 
 function likeMatch(value: string, pattern: string, caseInsensitive: boolean): boolean {
-  const escaped = pattern.replace(/[.+^${}()|[\]\\]/g, "\\$&").replace(/%/g, ".*").replace(/_/g, ".");
+  const escaped = pattern
+    .replace(/[.+^${}()|[\]\\]/g, "\\$&")
+    .replace(/%/g, ".*")
+    .replace(/_/g, ".");
   const flags = caseInsensitive ? "i" : "";
   return new RegExp(`^${escaped}$`, flags).test(value);
 }
