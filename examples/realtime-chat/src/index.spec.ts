@@ -56,6 +56,37 @@ describe("realtime-chat", () => {
     }
   });
 
+  it("allows sorting message history by createdAt — the query the web client runs on login", async () => {
+    const app = createApp({ dbFilename: ":memory:", jwtSecret: "test-secret" });
+    await migrate(app);
+    const server = app.listen(0);
+    await new Promise<void>((resolve) => server.once("listening", resolve));
+    const baseUrl = `http://localhost:${(server.address() as AddressInfo).port}`;
+
+    try {
+      const registered = await fetch(`${baseUrl}/users`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ email: "grace@example.com", password: "s3cret!", name: "Grace" }),
+      });
+      expect(registered.status).toBe(201);
+
+      const authResponse = await fetch(`${baseUrl}/authentication`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ strategy: "local", email: "grace@example.com", password: "s3cret!" }),
+      });
+      const { accessToken } = (await authResponse.json()) as { accessToken: string };
+
+      const history = await fetch(`${baseUrl}/messages?$sort[createdAt]=asc&$limit=50`, {
+        headers: { authorization: `Bearer ${accessToken}` },
+      });
+      expect(history.status).toBe(200);
+    } finally {
+      server.close();
+    }
+  });
+
   it("rejects an unauthenticated message post", async () => {
     const app = createApp({ dbFilename: ":memory:", jwtSecret: "test-secret" });
     await migrate(app);

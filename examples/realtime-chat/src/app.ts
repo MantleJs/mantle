@@ -1,7 +1,13 @@
 import { fileURLToPath } from "node:url";
 import expressLib from "express";
 import type { Knex } from "knex";
-import { mantle, RepositoryService, type HookContext, type HookFunction, type MantleApplication } from "@mantlejs/mantle";
+import {
+  mantle,
+  RepositoryService,
+  type HookContext,
+  type HookFunction,
+  type MantleApplication,
+} from "@mantlejs/mantle";
 import { express } from "@mantlejs/express";
 import { knex } from "@mantlejs/knex";
 import { auth, authenticate, sanitizeUser } from "@mantlejs/auth";
@@ -84,7 +90,7 @@ export function createApp(config: AppConfig = {}): MantleApplication {
     after: { all: [sanitizeUser()] },
   });
 
-  app.use("messages", new RepositoryService<Message>(new MessageRepository(app), { fields: ["userId"] }), {
+  app.use("messages", new RepositoryService<Message>(new MessageRepository(app), { fields: ["userId", "createdAt"] }), {
     methods: ["find", "get", "create", "remove"],
   });
   app.service("messages").hooks({
