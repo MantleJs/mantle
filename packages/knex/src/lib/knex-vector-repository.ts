@@ -69,8 +69,15 @@ export abstract class KnexVectorRepository<T extends Record<string, unknown>, D 
   }
 
   /**
-   * Upsert a record with its embedding vector.
-   * On conflict with the idField, updates the vector and data columns (but not createdAt).
+   * Upsert a record with its embedding vector: updates the vector and data columns on an
+   * existing row (but not createdAt), or inserts a new one.
+   *
+   * Deliberately an UPDATE followed by a conditional INSERT rather than a single
+   * `INSERT ... ON CONFLICT DO UPDATE` — Postgres validates NOT NULL constraints on the full
+   * candidate insert tuple before checking for a conflict, so a single-statement upsert that
+   * only lists the id/vector/timestamp columns fails on any other NOT NULL column (e.g. a
+   * required `title`) even when the conflicting row already has one. Not atomic: a concurrent
+   * upsertVector on the same id between the UPDATE and the INSERT could race to insert twice.
    */
   async upsertVector(id: Id, vector: number[], data: Partial<T>): Promise<T> {
     this.assertPostgres();
@@ -80,25 +87,28 @@ export abstract class KnexVectorRepository<T extends Record<string, unknown>, D 
       const now = new Date();
       const idColumn = this.toColumn(this.idField);
       const vectorColumn = this.toColumn(this.vectorColumn);
+      const mappedData = this.mapDataToColumns(data as Record<string, unknown>);
+
+      const updatePayload: Record<string, unknown> = {
+        ...mappedData,
+        [vectorColumn]: vectorRaw,
+        ...(this.timestamps ? { [this.toColumn(this.updatedAtField)]: now } : {}),
+      };
+      const [updated] = await this.qb(this.tableName).where(idColumn, id).update(updatePayload).returning("*");
+      if (updated) {
+        return this.mapRowToEntity(updated as Record<string, unknown>);
+      }
+
       const insertPayload: Record<string, unknown> = {
         [idColumn]: id,
-        ...this.mapDataToColumns(data as Record<string, unknown>),
+        ...mappedData,
         [vectorColumn]: vectorRaw,
         ...(this.timestamps
           ? { [this.toColumn(this.createdAtField)]: now, [this.toColumn(this.updatedAtField)]: now }
           : {}),
       };
-      const mergePayload: Record<string, unknown> = {
-        ...this.mapDataToColumns(data as Record<string, unknown>),
-        [vectorColumn]: vectorRaw,
-        ...(this.timestamps ? { [this.toColumn(this.updatedAtField)]: now } : {}),
-      };
-      const [row] = await this.qb(this.tableName)
-        .insert(insertPayload)
-        .onConflict(idColumn)
-        .merge(mergePayload)
-        .returning("*");
-      return this.mapRowToEntity(row as Record<string, unknown>);
+      const [inserted] = await this.qb(this.tableName).insert(insertPayload).returning("*");
+      return this.mapRowToEntity(inserted as Record<string, unknown>);
     } catch (err) {
       if (err instanceof GeneralError) throw err;
       throw this.wrapError(err);

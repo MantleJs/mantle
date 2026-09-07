@@ -179,79 +179,105 @@ describe("KnexVectorRepository", () => {
   });
 
   describe("upsertVector", () => {
-    it("returns the upserted row", async () => {
-      const row = { id: "1", title: "Doc", embedding: "[0.1,0.2]" };
-      const { app } = makeSetup([row]);
-      expect(await new TestVectorRepo(app).upsertVector("1", [0.1, 0.2], { title: "Doc" })).toEqual(row);
+    describe("when a row with the id already exists (UPDATE branch)", () => {
+      it("returns the updated row", async () => {
+        const row = { id: "1", title: "Doc", embedding: "[0.1,0.2]" };
+        const { app } = makeSetup([row]);
+        expect(await new TestVectorRepo(app).upsertVector("1", [0.1, 0.2], { title: "Doc" })).toEqual(row);
+      });
+
+      it("updates by the idField, without ever calling insert", async () => {
+        const { qb, app } = makeSetup([{ id: "1" }]);
+        await new TestVectorRepo(app).upsertVector("1", [0.1], { title: "Doc" });
+        expect(qb["where"]).toHaveBeenCalledWith("id", "1");
+        expect(qb["insert"]).not.toHaveBeenCalled();
+      });
+
+      it("includes the vector raw expression and data fields in the update payload", async () => {
+        const { qb, app, rawResult } = makeSetup([{ id: "1" }]);
+        await new TestVectorRepo(app).upsertVector("1", [0.1, 0.2], { title: "Doc" });
+        const [updatePayload] = qb["update"].mock.calls[0] as [Record<string, unknown>];
+        expect(updatePayload).toHaveProperty("title", "Doc");
+        expect(updatePayload["embedding"]).toBe(rawResult);
+      });
+
+      it("adds only updatedAt to the update payload when timestamps is true", async () => {
+        const { qb, app } = makeSetup([{ id: "1" }]);
+        await new TestVectorRepoWithTimestamps(app).upsertVector("1", [0.1], {});
+        const [updatePayload] = qb["update"].mock.calls[0] as [Record<string, unknown>];
+        expect(updatePayload).toHaveProperty("updatedAt");
+        expect(updatePayload).not.toHaveProperty("createdAt");
+      });
+
+      it("does not add updatedAt to the update payload when timestamps is false", async () => {
+        const { qb, app } = makeSetup([{ id: "1" }]);
+        await new TestVectorRepo(app).upsertVector("1", [0.1], {});
+        const [updatePayload] = qb["update"].mock.calls[0] as [Record<string, unknown>];
+        expect(updatePayload).not.toHaveProperty("updatedAt");
+      });
+
+      it("uses updatedAtField when overridden", async () => {
+        const { qb, app } = makeSetup([{ id: "1" }]);
+        await new TestVectorRepoCustomTimestampFields(app).upsertVector("1", [0.1], {});
+        const [updatePayload] = qb["update"].mock.calls[0] as [Record<string, unknown>];
+        expect(updatePayload).toHaveProperty("updated_at");
+        expect(updatePayload).not.toHaveProperty("updatedAt");
+      });
     });
 
-    it("inserts with the record id in the payload", async () => {
-      const { qb, app } = makeSetup([{ id: "1" }]);
-      await new TestVectorRepo(app).upsertVector("1", [0.1], { title: "Doc" });
-      const [insertPayload] = qb["insert"].mock.calls[0] as [Record<string, unknown>];
-      expect(insertPayload).toHaveProperty("id", "1");
-    });
+    describe("when no row with the id exists (INSERT branch)", () => {
+      function makeUpdateThenInsertSetup(insertedRow: unknown, clientName = "pg") {
+        const setup = makeSetup(insertedRow, clientName);
+        setup.qb["returning"].mockResolvedValueOnce([]).mockResolvedValueOnce(insertedRow);
+        return setup;
+      }
 
-    it("includes the vector raw expression in the insert payload", async () => {
-      const { qb, app, rawResult } = makeSetup([{ id: "1" }]);
-      await new TestVectorRepo(app).upsertVector("1", [0.1, 0.2], {});
-      const [insertPayload] = qb["insert"].mock.calls[0] as [Record<string, unknown>];
-      expect(insertPayload["embedding"]).toBe(rawResult);
-    });
+      it("falls back to insert when the update affects no rows", async () => {
+        const row = { id: "1", title: "Doc", embedding: "[0.1,0.2]" };
+        const { app } = makeUpdateThenInsertSetup([row]);
+        expect(await new TestVectorRepo(app).upsertVector("1", [0.1, 0.2], { title: "Doc" })).toEqual(row);
+      });
 
-    it("calls onConflict with the idField", async () => {
-      const { qb, app } = makeSetup([{ id: "1" }]);
-      await new TestVectorRepo(app).upsertVector("1", [0.1], {});
-      expect(qb["onConflict"]).toHaveBeenCalledWith("id");
-    });
+      it("inserts with the record id in the payload", async () => {
+        const { qb, app } = makeUpdateThenInsertSetup([{ id: "1" }]);
+        await new TestVectorRepo(app).upsertVector("1", [0.1], { title: "Doc" });
+        const [insertPayload] = qb["insert"].mock.calls[0] as [Record<string, unknown>];
+        expect(insertPayload).toHaveProperty("id", "1");
+      });
 
-    it("passes merge payload to merge()", async () => {
-      const { qb, app, rawResult } = makeSetup([{ id: "1" }]);
-      await new TestVectorRepo(app).upsertVector("1", [0.1], { title: "Doc" });
-      const [mergePayload] = qb["merge"].mock.calls[0] as [Record<string, unknown>];
-      expect(mergePayload).toHaveProperty("title", "Doc");
-      expect(mergePayload["embedding"]).toBe(rawResult);
-    });
+      it("includes the vector raw expression in the insert payload", async () => {
+        const { qb, app, rawResult } = makeUpdateThenInsertSetup([{ id: "1" }]);
+        await new TestVectorRepo(app).upsertVector("1", [0.1, 0.2], {});
+        const [insertPayload] = qb["insert"].mock.calls[0] as [Record<string, unknown>];
+        expect(insertPayload["embedding"]).toBe(rawResult);
+      });
 
-    it("adds createdAt and updatedAt to insert payload when timestamps is true", async () => {
-      const { qb, app } = makeSetup([{ id: "1" }]);
-      await new TestVectorRepoWithTimestamps(app).upsertVector("1", [0.1], {});
-      const [insertPayload] = qb["insert"].mock.calls[0] as [Record<string, unknown>];
-      expect(insertPayload).toHaveProperty("createdAt");
-      expect(insertPayload).toHaveProperty("updatedAt");
-      expect(insertPayload["createdAt"]).toBeInstanceOf(Date);
-    });
+      it("adds createdAt and updatedAt to insert payload when timestamps is true", async () => {
+        const { qb, app } = makeUpdateThenInsertSetup([{ id: "1" }]);
+        await new TestVectorRepoWithTimestamps(app).upsertVector("1", [0.1], {});
+        const [insertPayload] = qb["insert"].mock.calls[0] as [Record<string, unknown>];
+        expect(insertPayload).toHaveProperty("createdAt");
+        expect(insertPayload).toHaveProperty("updatedAt");
+        expect(insertPayload["createdAt"]).toBeInstanceOf(Date);
+      });
 
-    it("adds only updatedAt to merge payload when timestamps is true", async () => {
-      const { qb, app } = makeSetup([{ id: "1" }]);
-      await new TestVectorRepoWithTimestamps(app).upsertVector("1", [0.1], {});
-      const [mergePayload] = qb["merge"].mock.calls[0] as [Record<string, unknown>];
-      expect(mergePayload).toHaveProperty("updatedAt");
-      expect(mergePayload).not.toHaveProperty("createdAt");
-    });
+      it("does not add timestamps to the insert payload when timestamps is false", async () => {
+        const { qb, app } = makeUpdateThenInsertSetup([{ id: "1" }]);
+        await new TestVectorRepo(app).upsertVector("1", [0.1], {});
+        const [insertPayload] = qb["insert"].mock.calls[0] as [Record<string, unknown>];
+        expect(insertPayload).not.toHaveProperty("createdAt");
+        expect(insertPayload).not.toHaveProperty("updatedAt");
+      });
 
-    it("does not add timestamps to payloads when timestamps is false", async () => {
-      const { qb, app } = makeSetup([{ id: "1" }]);
-      await new TestVectorRepo(app).upsertVector("1", [0.1], {});
-      const [insertPayload] = qb["insert"].mock.calls[0] as [Record<string, unknown>];
-      const [mergePayload] = qb["merge"].mock.calls[0] as [Record<string, unknown>];
-      expect(insertPayload).not.toHaveProperty("createdAt");
-      expect(insertPayload).not.toHaveProperty("updatedAt");
-      expect(mergePayload).not.toHaveProperty("updatedAt");
-    });
-
-    it("uses createdAtField/updatedAtField when overridden", async () => {
-      const { qb, app } = makeSetup([{ id: "1" }]);
-      await new TestVectorRepoCustomTimestampFields(app).upsertVector("1", [0.1], {});
-      const [insertPayload] = qb["insert"].mock.calls[0] as [Record<string, unknown>];
-      const [mergePayload] = qb["merge"].mock.calls[0] as [Record<string, unknown>];
-      expect(insertPayload).toHaveProperty("created_at");
-      expect(insertPayload).toHaveProperty("updated_at");
-      expect(mergePayload).toHaveProperty("updated_at");
-      expect(insertPayload).not.toHaveProperty("createdAt");
-      expect(insertPayload).not.toHaveProperty("updatedAt");
-      expect(mergePayload).not.toHaveProperty("createdAt");
-      expect(mergePayload).not.toHaveProperty("updatedAt");
+      it("uses createdAtField/updatedAtField when overridden", async () => {
+        const { qb, app } = makeUpdateThenInsertSetup([{ id: "1" }]);
+        await new TestVectorRepoCustomTimestampFields(app).upsertVector("1", [0.1], {});
+        const [insertPayload] = qb["insert"].mock.calls[0] as [Record<string, unknown>];
+        expect(insertPayload).toHaveProperty("created_at");
+        expect(insertPayload).toHaveProperty("updated_at");
+        expect(insertPayload).not.toHaveProperty("createdAt");
+        expect(insertPayload).not.toHaveProperty("updatedAt");
+      });
     });
 
     it("throws GeneralError for non-pg clients", async () => {
@@ -286,9 +312,9 @@ describe("KnexVectorRepository", () => {
     it("converts data payload keys to snake_case in upsertVector", async () => {
       const { qb, app } = makeSetup([{ id: "1" }]);
       await new TestVectorRepoSnakeCase(app).upsertVector("1", [0.1], { docId: "d1" });
-      const [insertPayload] = qb["insert"].mock.calls[0] as [Record<string, unknown>];
-      expect(insertPayload).toHaveProperty("doc_id", "d1");
-      expect(insertPayload).not.toHaveProperty("docId");
+      const [updatePayload] = qb["update"].mock.calls[0] as [Record<string, unknown>];
+      expect(updatePayload).toHaveProperty("doc_id", "d1");
+      expect(updatePayload).not.toHaveProperty("docId");
     });
   });
 
