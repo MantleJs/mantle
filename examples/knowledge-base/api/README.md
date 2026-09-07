@@ -4,8 +4,14 @@ The Express backend for [Mantle KB](../README.md) — see the parent README for 
 capability table and quick start.
 
 ```bash
+# From examples/knowledge-base (one level up from this package) — one-time setup:
+cd examples/knowledge-base
+cp .env.example .env      # seed/serve load this via the envFile option below; must exist
+docker compose up -d      # Postgres (pgvector) + Redis — seed/serve need these reachable
+
+# From the workspace root (or anywhere inside it):
 npx nx build knowledge-base-api
-npx nx run knowledge-base-api:seed    # sample data (requires the database to be up)
+npx nx run knowledge-base-api:seed    # sample data
 npx nx run knowledge-base-api:serve   # http://localhost:3030
 ```
 

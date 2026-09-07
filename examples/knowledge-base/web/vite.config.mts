@@ -5,6 +5,9 @@ import tailwindcss from "@tailwindcss/vite";
 
 export default defineConfig(() => ({
   root: import.meta.dirname,
+  // Vite's default envDir is `root` (this folder). The example's single .env file lives
+  // one level up, alongside the API's — this points Vite's VITE_* loading at it.
+  envDir: "../",
   cacheDir: "../../../node_modules/.vite/examples/knowledge-base/web",
   server: {
     port: 4200,

@@ -12,7 +12,8 @@
         "dependsOn": ["build"],
         "options": {
           "command": "node dist/index.js",
-          "cwd": "{projectRoot}"
+          "cwd": "{projectRoot}",
+          "envFile": "examples/knowledge-base/.env"
         }
       },
       "seed": {
@@ -20,7 +21,8 @@
         "dependsOn": ["build"],
         "options": {
           "command": "node dist/seed.js",
-          "cwd": "{projectRoot}"
+          "cwd": "{projectRoot}",
+          "envFile": "examples/knowledge-base/.env"
         }
       }
     }

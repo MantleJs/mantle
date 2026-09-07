@@ -13,16 +13,27 @@ Two Nx projects:
 ## Quick start
 
 ```bash
-cp .env.example .env               # defaults work as-is — no secrets required
-docker compose up -d               # Postgres (pgvector) + Redis
-npx nx run knowledge-base-api:seed # sample users, articles, comments
-npx nx run knowledge-base-api:serve   # http://localhost:3030
-npx nx run knowledge-base-web:serve   # http://localhost:4200 (dev server)
+# 1. From this directory (examples/knowledge-base) — creates .env alongside docker-compose.yml.
+#    Both the API (via the seed/serve targets' envFile option) and the web dev server (via Vite's
+#    envDir) read this single file; defaults work as-is, no secrets required.
+cd examples/knowledge-base
+cp .env.example .env
+docker compose up -d               # Postgres (pgvector) + Redis — also run from this directory
+
+# 2. From the workspace root (or anywhere inside it — Nx resolves projects by name).
+cd ../..                                # back to the repo root, if you cd'd above
+npx nx run knowledge-base-api:seed      # sample users, articles, comments
+npx nx run knowledge-base-api:serve     # http://localhost:3030
+npx nx run knowledge-base-web:serve     # http://localhost:4200 (dev server)
 ```
 
 Log in with a seeded account (`ada@example.com` / `s3cretpass`), or register a new one — local
 auth is all that's required. OAuth strategies (Google, GitHub, Apple, Microsoft, LinkedIn) each
 activate automatically once their client credentials are set in `.env`; nothing else changes.
+
+`.env` is a required prerequisite once created — `knowledge-base-api:seed`/`:serve` load it via
+the `envFile` executor option (see `api/package.json`), so a missing `.env` fails those commands
+outright rather than silently falling back. Always run step 1 before step 2.
 
 ## What's wired
 

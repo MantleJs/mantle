@@ -52,3 +52,8 @@ examples/realtime-chat/public/app.js
 examples/realtime-chat/chat.db
 examples/knowledge-base/**/uploads
 vite.config.*.timestamp*
+
+# local env files (copied from .env.example — never commit real secrets)
+.env
+.env.local
+.local.env
