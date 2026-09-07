@@ -1,23 +1,33 @@
 import { createApp } from "./app.js";
 import { migrate } from "./migrate.js";
+import { UserRepository } from "./repositories/user-repository.js";
+import { ArticleRepository, ArticleVectorRepository } from "./repositories/article-repository.js";
+import { CommentRepository } from "./repositories/comment-repository.js";
+import { createEmbedder } from "./embedder.js";
 import type { User } from "./entities/user.js";
 import type { Article } from "./entities/article.js";
 
 /** Seeds through the registered services (not raw repositories) so hashing, the
- * multi-repo article write, and embeddings all happen exactly as they would in prod. */
+ * multi-repo article write, and embeddings all happen exactly as they would in prod.
+ * Existence checks go straight to the repositories, since e.g. "users".find requires
+ * auth this script doesn't have — safe to run more than once against the same database,
+ * each write is skipped when a matching record (by email / title) already exists. */
 async function main(): Promise<void> {
   const app = createApp();
   await migrate(app);
 
+  const userRepo = new UserRepository(app);
   const seedUsers: Array<Partial<User>> = [
     { email: "ada@example.com", password: "s3cretpass", name: "Ada Lovelace" },
     { email: "grace@example.com", password: "s3cretpass", name: "Grace Hopper" },
   ];
   const users: User[] = [];
   for (const data of seedUsers) {
-    users.push(await app.service<User>("users").create(data));
+    const [existing] = await userRepo.findAll({ where: { email: data.email } });
+    users.push(existing ?? (await app.service<User>("users").create(data)));
   }
 
+  const articleRepo = new ArticleRepository(app);
   const seedArticles: Array<Partial<Article>> = [
     {
       title: "Onboarding Guide",
@@ -35,15 +45,28 @@ async function main(): Promise<void> {
       authorId: users[0].id,
     },
   ];
+  // create() embeds new articles via ArticlesService's own reembed step — reused articles
+  // need it done explicitly here (same "title\nbody" input) so a DB partially seeded by an
+  // earlier, pre-idempotent run still ends up with every article embedded for semantic search.
+  const embedder = createEmbedder();
+  const articleVectors = new ArticleVectorRepository(app);
   const articles: Article[] = [];
   for (const data of seedArticles) {
-    articles.push(await app.service<Article>("articles").create(data, { user: users[0] }));
+    const [existing] = await articleRepo.findAll({ where: { title: data.title } });
+    const article = existing ?? (await app.service<Article>("articles").create(data, { user: users[0] }));
+    articles.push(article);
+    if (existing) {
+      const vector = await embedder.embed(`${article.title}\n${article.body}`);
+      await articleVectors.upsertVector(article.id, vector, {});
+    }
   }
 
-  await app.service("comments").create(
-    { articleId: articles[0].id, body: "Super helpful, thanks for writing this up!" },
-    { user: users[1] },
-  );
+  const commentBody = "Super helpful, thanks for writing this up!";
+  const commentRepo = new CommentRepository(app);
+  const [existingComment] = await commentRepo.findAll({ where: { articleId: articles[0].id, body: commentBody } });
+  if (!existingComment) {
+    await app.service("comments").create({ articleId: articles[0].id, body: commentBody }, { user: users[1] });
+  }
 
   console.log(`Seeded ${users.length} users and ${articles.length} articles.`);
   await app.teardown();
