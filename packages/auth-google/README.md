@@ -110,11 +110,22 @@ import type { GoogleStrategyConfig } from "@mantlejs/auth-google";
 
 ## Google Cloud Console setup
 
+No API needs to be enabled — this strategy calls Google's OpenID Connect userinfo endpoint
+directly for the `openid`/`profile`/`email` scopes, not the (long since shut down) Google+ API
+or the People API.
+
 1. Create a project at [console.cloud.google.com](https://console.cloud.google.com)
-2. Enable the **Google+ API** (or **People API**)
-3. Create OAuth 2.0 credentials (Web application)
+2. Under **Google Auth Platform → Branding**, configure the app name and support email, then
+   under **Audience** set the publishing status. `openid`, `email`, and `profile` are
+   non-sensitive scopes that don't require verification. If the app stays in **Testing** mode,
+   add your own Google account under **Audience → Test users** or sign-in will be blocked.
+3. Under **Google Auth Platform → Clients**, create a client (application type **Web application**)
 4. Add the callback URL to **Authorized redirect URIs**: `https://your-domain.com/auth/google/callback`
 5. Copy the **Client ID** and **Client Secret** into your environment
+
+(Google has renamed/reshuffled this console section before and may again — if these labels
+have drifted, look for "OAuth consent screen"/"Branding" and "Credentials"/"Clients"; the
+underlying steps are the same.)
 
 ---
 
