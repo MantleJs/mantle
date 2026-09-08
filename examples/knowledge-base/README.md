@@ -30,10 +30,36 @@ npx nx run knowledge-base-web:serve     # http://localhost:4200 (dev server)
 Log in with a seeded account (`ada@example.com` / `s3cretpass`), or register a new one — local
 auth is all that's required. OAuth strategies (Google, GitHub, Apple, Microsoft, LinkedIn) each
 activate automatically once their client credentials are set in `.env`; nothing else changes.
+A successful (or failed) OAuth login redirects the browser back to `WEB_URL` (default
+`http://localhost:4200`) with the session — or an error — in the URL fragment, which
+`web/src/pages/AuthPage.tsx` picks up on load.
 
 `.env` is a required prerequisite once created — `knowledge-base-api:seed`/`:serve` load it via
 the `envFile` executor option (see `api/package.json`), so a missing `.env` fails those commands
 outright rather than silently falling back. Always run step 1 before step 2.
+
+## Setting up an OAuth provider
+
+Each strategy package's README has the full console walkthrough for getting a client ID/secret
+and registering a redirect URI. With the API running on the default `localhost:3030`, register
+exactly this callback URL on the provider's side (the API's own domain, not `WEB_URL` — the
+provider redirects to the API, which then redirects on to the web app):
+
+| Provider | Setup steps | Local callback URL to register | Env vars |
+| --- | --- | --- | --- |
+| Google | [`auth-google` README](../../packages/auth-google/README.md#google-cloud-console-setup) | `http://localhost:3030/auth/google/callback` | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` |
+| GitHub | [`auth-github` README](../../packages/auth-github/README.md#github-oauth-app-setup) | `http://localhost:3030/auth/github/callback` | `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET` |
+| Microsoft | [`auth-microsoft` README](../../packages/auth-microsoft/README.md#microsoft-entra-admin-center-setup) | `http://localhost:3030/auth/microsoft/callback` | `MICROSOFT_CLIENT_ID`, `MICROSOFT_CLIENT_SECRET`, `MICROSOFT_TENANT` (optional) |
+| LinkedIn | [`auth-linkedin` README](../../packages/auth-linkedin/README.md#linkedin-developer-app-setup) | `http://localhost:3030/auth/linkedin/callback` | `LINKEDIN_CLIENT_ID`, `LINKEDIN_CLIENT_SECRET` |
+| Apple | [`auth-apple` README](../../packages/auth-apple/README.md#apple-developer-setup) | — see caveat below | `APPLE_CLIENT_ID`, `APPLE_TEAM_ID`, `APPLE_KEY_ID`, `APPLE_PRIVATE_KEY` |
+
+**Apple is the exception**: Sign in with Apple requires an HTTPS Return URL — plain
+`http://localhost` is rejected outright. To exercise it locally, tunnel the API (e.g. `ngrok
+http 3030`) and use the tunnel's HTTPS URL as both `WEB_URL` and the registered Return URL,
+or skip Apple locally and only verify it against a deployed HTTPS domain.
+
+Once credentials for a provider are in `.env`, restart `knowledge-base-api:serve` — they're read
+at boot, so an already-running server won't pick up a `.env` edit.
 
 ## What's wired
 

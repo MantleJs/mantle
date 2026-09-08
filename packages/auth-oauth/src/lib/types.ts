@@ -61,4 +61,15 @@ export interface OAuthPluginConfig {
    * implementation (Redis or similar) so the callback can land on any instance.
    */
   stateStore?: OAuthStateStore;
+  /**
+   * Frontend URL to redirect to once the OAuth dance completes, for browser-based flows
+   * where `/auth/{providerKey}` is opened via full-page navigation (an `<a href>`, not
+   * `fetch`) and a frontend page needs to pick up the resulting session. When set:
+   *   - success redirects to `${redirectUrl}#accessToken=...&refreshToken=...`
+   *   - failure redirects to `${redirectUrl}#error=...`
+   * Tokens go in the URL fragment, never the query string, so they aren't sent to the
+   * server or logged. Omit to get the original behavior: a JSON `{ accessToken,
+   * refreshToken, user }` body on success, or a thrown error passed to `next()` on failure.
+   */
+  redirectUrl?: string;
 }

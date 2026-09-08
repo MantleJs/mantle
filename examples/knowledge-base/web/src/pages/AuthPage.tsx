@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { useCreate } from "@mantlejs/react";
 import { client, apiUrl } from "../lib/client.js";
 import { Button } from "../components/ui/button.js";
@@ -18,6 +18,24 @@ export function AuthPage() {
   const [mode, setMode] = useState<"login" | "register">("login");
   const [error, setError] = useState<string | undefined>();
   const registerUser = useCreate<User>("users");
+
+  // The OAuth callback (see api/src/app.ts's configureOAuthStrategies) redirects here with
+  // tokens — or a failure message — in the URL fragment, since the "Continue with Google"
+  // link below is a full-page navigation, not a fetch() this page could read a response from.
+  useEffect(() => {
+    const hash = window.location.hash;
+    if (!hash) return;
+    const params = new URLSearchParams(hash.slice(1));
+    window.history.replaceState(null, "", window.location.pathname + window.location.search);
+
+    const accessToken = params.get("accessToken");
+    if (accessToken) {
+      void client.setTokens({ accessToken, refreshToken: params.get("refreshToken") ?? undefined });
+      return;
+    }
+    const oauthError = params.get("error");
+    if (oauthError) setError(oauthError);
+  }, []);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();

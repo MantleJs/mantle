@@ -65,6 +65,16 @@ export class MantleClient {
     return result;
   }
 
+  /**
+   * Hydrate the client from a token pair obtained outside `authenticate()` — e.g. an OAuth
+   * provider's redirect-back callback landing tokens in the URL fragment. Stores them and
+   * emits `'authenticated'`, same as a successful `authenticate()` call.
+   */
+  async setTokens(tokens: { accessToken: string; refreshToken?: string }): Promise<void> {
+    await this.storeTokens(tokens);
+    this.emitter.emit("authenticated");
+  }
+
   async logout(): Promise<void> {
     const token = await this.loadAccessToken();
     // Fire-and-forget: servers without a logout endpoint just 404.

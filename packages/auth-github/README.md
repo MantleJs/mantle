@@ -87,6 +87,7 @@ type GitHubStrategyConfig = {
 | `scope`         | `string[]` | `['read:user', 'user:email']` | GitHub OAuth scopes                                                                           |
 | `entity`        | `string`   | `'users'`                     | Mantle service used to find or create users                                                   |
 | `entityIdField` | `string`   | `'githubId'`                  | Field on the user record matched against GitHub's `id` value                                  |
+| `redirectUrl`   | `string`   | none — returns JSON           | Frontend URL to redirect to on completion, with tokens (or an error) in the URL fragment — see [`@mantlejs/auth-oauth`](../auth-oauth/README.md#redirecting-back-to-a-frontend-redirecturl) |
 
 **Routes registered:**
 

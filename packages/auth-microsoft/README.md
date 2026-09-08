@@ -87,6 +87,7 @@ interface MicrosoftStrategyConfig extends OAuthPluginConfig {
 | `scope`         | `string[]` | `['openid', 'profile', 'email']` | Microsoft OAuth scopes                                                         |
 | `entity`        | `string`   | `'users'`                        | Mantle service used to find or create users                                    |
 | `entityIdField` | `string`   | `'microsoftId'`                  | Field on the user record matched against Microsoft's `sub` claim               |
+| `redirectUrl`   | `string`   | none — returns JSON              | Frontend URL to redirect to on completion, with tokens (or an error) in the URL fragment — see [`@mantlejs/auth-oauth`](../auth-oauth/README.md#redirecting-back-to-a-frontend-redirecturl) |
 
 **Routes registered:**
 

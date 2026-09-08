@@ -137,7 +137,8 @@ export function createApp(config: AppConfig = {}): MantleApplication {
     error: { all: [requestLogger, errorLogger] },
   });
 
-  configureOAuthStrategies(app, redis);
+  const webUrl = process.env.WEB_URL ?? "http://localhost:4200";
+  configureOAuthStrategies(app, redis, webUrl);
 
   const embedder = createEmbedder();
   const articlesVectorRepo = new ArticleVectorRepository(app);
@@ -212,15 +213,23 @@ export function createApp(config: AppConfig = {}): MantleApplication {
   return app;
 }
 
-/** Each strategy activates only when its client credentials are present in the environment. */
-function configureOAuthStrategies(app: MantleApplication, redis: Redis | undefined): void {
+/**
+ * Each strategy activates only when its client credentials are present in the environment.
+ * `redirectUrl` sends the browser back to the web app with tokens (or an error) in the URL
+ * fragment on completion — required here since `/auth/{provider}` is a full-page navigation
+ * (an `<a href>`, not `fetch`), so the JSON-body response `@mantlejs/auth-oauth` returns by
+ * default would otherwise strand the user on the API's own origin.
+ */
+function configureOAuthStrategies(app: MantleApplication, redis: Redis | undefined, webUrl: string): void {
   const stateStore = redis ? redisStateStore(redis) : undefined;
+  const redirectUrl = `${webUrl}/`;
 
   if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
     app.configure(
       googleStrategy({
         clientId: process.env.GOOGLE_CLIENT_ID,
         clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+        redirectUrl,
         ...(stateStore ? { stateStore } : {}),
       }),
     );
@@ -231,6 +240,7 @@ function configureOAuthStrategies(app: MantleApplication, redis: Redis | undefin
       githubStrategy({
         clientId: process.env.GITHUB_CLIENT_ID,
         clientSecret: process.env.GITHUB_CLIENT_SECRET,
+        redirectUrl,
         ...(stateStore ? { stateStore } : {}),
       }),
     );
@@ -243,6 +253,7 @@ function configureOAuthStrategies(app: MantleApplication, redis: Redis | undefin
         teamId: process.env.APPLE_TEAM_ID,
         keyId: process.env.APPLE_KEY_ID,
         privateKey: process.env.APPLE_PRIVATE_KEY,
+        redirectUrl,
         ...(stateStore ? { stateStore } : {}),
       }),
     );
@@ -254,6 +265,7 @@ function configureOAuthStrategies(app: MantleApplication, redis: Redis | undefin
         clientId: process.env.MICROSOFT_CLIENT_ID,
         clientSecret: process.env.MICROSOFT_CLIENT_SECRET,
         tenant: process.env.MICROSOFT_TENANT ?? "common",
+        redirectUrl,
         ...(stateStore ? { stateStore } : {}),
       }),
     );
@@ -264,6 +276,7 @@ function configureOAuthStrategies(app: MantleApplication, redis: Redis | undefin
       linkedinStrategy({
         clientId: process.env.LINKEDIN_CLIENT_ID,
         clientSecret: process.env.LINKEDIN_CLIENT_SECRET,
+        redirectUrl,
         ...(stateStore ? { stateStore } : {}),
       }),
     );

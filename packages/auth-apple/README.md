@@ -105,6 +105,7 @@ type AppleStrategyConfig = {
 | `scope`         | `string[]` | `['name', 'email']`      | Sign in with Apple scopes                                           |
 | `entity`        | `string`   | `'users'`                | Mantle service used to find or create users                         |
 | `entityIdField` | `string`   | `'appleId'`              | Field on the user record matched against the id_token's `sub` claim |
+| `redirectUrl`   | `string`   | none — returns JSON     | Frontend URL to redirect to on completion, with tokens (or an error) in the URL fragment — see [`@mantlejs/auth-oauth`](../auth-oauth/README.md#redirecting-back-to-a-frontend-redirecturl) |
 
 **Routes registered:**
 

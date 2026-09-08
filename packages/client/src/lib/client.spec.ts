@@ -221,6 +221,23 @@ describe("authentication", () => {
     expect(fresh.getAccessToken()).toBe("persisted");
   });
 
+  it("setTokens() stores a pre-obtained token pair and emits 'authenticated' without a network call", async () => {
+    const authenticated = vi.fn();
+    client.on("authenticated", authenticated);
+    await client.setTokens({ accessToken: "at-oauth", refreshToken: "rt-oauth" });
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(client.getAccessToken()).toBe("at-oauth");
+    expect(await storage.getItem("mantle-access-token")).toBe("at-oauth");
+    expect(await storage.getItem("mantle-refresh-token")).toBe("rt-oauth");
+    expect(authenticated).toHaveBeenCalledTimes(1);
+  });
+
+  it("setTokens() without a refreshToken stores only the access token", async () => {
+    await client.setTokens({ accessToken: "at-oauth" });
+    expect(await storage.getItem("mantle-access-token")).toBe("at-oauth");
+    expect(await storage.getItem("mantle-refresh-token")).toBeNull();
+  });
+
   it("logout() clears tokens, emits 'logout', and fires a best-effort server call", async () => {
     fetchMock.mockResolvedValueOnce(jsonResponse({ accessToken: "at-1", refreshToken: "rt-1", user: {} }, 201));
     await client.authenticate({ strategy: "local" });

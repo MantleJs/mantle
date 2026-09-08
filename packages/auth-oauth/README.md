@@ -167,6 +167,26 @@ function createOAuthPlugin(providerKey: string, provider: OAuthProvider, config:
 }
 ```
 
+### Redirecting back to a frontend (`redirectUrl`)
+
+`/auth/{providerKey}` is meant to be opened via full-page navigation (an `<a href>`, not
+`fetch`) — the browser leaves your app to consent on the provider's site and comes back on
+its own. Without `redirectUrl`, the callback's JSON response above just strands the user on
+the API's own origin. Set `redirectUrl` to send them back into the frontend instead:
+
+```typescript
+app.configure(googleStrategy({ clientId, clientSecret, redirectUrl: "https://app.example.com/" }));
+```
+
+- Success redirects to `${redirectUrl}#accessToken=...&refreshToken=...`
+- Failure redirects to `${redirectUrl}#error=...`
+
+Tokens travel in the URL **fragment**, never the query string, so they never reach a server
+log or a `Referer` header. On the frontend, read `window.location.hash` on load, hand the
+tokens to `@mantlejs/client`'s `client.setTokens({ accessToken, refreshToken })`, and strip
+the fragment with `history.replaceState`. See `examples/knowledge-base/web/src/pages/AuthPage.tsx`
+for a complete example.
+
 #### `OAuthPluginConfig`
 
 | Field           | Type              | Default                        | Description                                                                                                       |
@@ -178,6 +198,7 @@ function createOAuthPlugin(providerKey: string, provider: OAuthProvider, config:
 | `entity`        | `string`          | `'users'`                      | Service used to find or create users                                                                              |
 | `entityIdField` | `string`          | `'{providerKey}Id'`            | Field matched against the provider's user ID                                                                      |
 | `stateStore`    | `OAuthStateStore` | in-memory                      | Store for pending OAuth state. Multi-instance deployments must inject a shared (e.g. Redis-backed) implementation |
+| `redirectUrl`   | `string`          | none — returns JSON            | Frontend URL to send the browser back to once the callback completes (see below)                                 |
 
 ---
 

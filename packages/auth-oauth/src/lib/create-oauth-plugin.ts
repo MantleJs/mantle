@@ -29,9 +29,21 @@ export function createOAuthPlugin(
     const scope = config.scope ?? provider.defaultScope;
     const entity = config.entity ?? "users";
     const entityIdField = config.entityIdField ?? `${providerKey}Id`;
+    const redirectUrl = config.redirectUrl;
 
     // In-memory by default. Multi-instance deployments (e.g. Cloud Run) must inject a shared store.
     const stateStore = config.stateStore ?? createStateStore();
+
+    // With redirectUrl set, a failure lands the browser back on the frontend (as `#error=...`)
+    // instead of dead-ending on this server's own JSON error response.
+    const handleError = (res: HttpResponseLike, next: (err?: unknown) => void, err: unknown): void => {
+      if (redirectUrl) {
+        const message = err instanceof Error ? err.message : "OAuth authentication failed";
+        res.redirect(`${redirectUrl}#error=${encodeURIComponent(message)}`);
+      } else {
+        next(err);
+      }
+    };
 
     router.get(`/auth/${providerKey}`, async (req, res, next): Promise<void> => {
       try {
@@ -48,7 +60,7 @@ export function createOAuthPlugin(
         const authUrl = provider.buildAuthUrl({ clientId: config.clientId, redirectUri, scope, state, codeVerifier });
         res.redirect(authUrl);
       } catch (err) {
-        next(err);
+        handleError(res, next, err);
       }
     });
 
@@ -93,7 +105,12 @@ export function createOAuthPlugin(
       const sub = String(user["id"] ?? user["_id"]);
       const { accessToken, refreshToken } = await engine.createTokenPair(sub);
 
-      res.json({ accessToken, refreshToken, user });
+      if (redirectUrl) {
+        const fragment = new URLSearchParams({ accessToken, ...(refreshToken ? { refreshToken } : {}) });
+        res.redirect(`${redirectUrl}#${fragment.toString()}`);
+      } else {
+        res.json({ accessToken, refreshToken, user });
+      }
     };
 
     if (provider.callbackMethod === "POST") {
@@ -107,7 +124,7 @@ export function createOAuthPlugin(
           };
           await handleCallback(req, res, payload, { body });
         } catch (err) {
-          next(err);
+          handleError(res, next, err);
         }
       });
     } else {
@@ -115,7 +132,7 @@ export function createOAuthPlugin(
         try {
           await handleCallback(req, res, req.query as Record<string, string | undefined>);
         } catch (err) {
-          next(err);
+          handleError(res, next, err);
         }
       });
     }

@@ -390,6 +390,38 @@ describe("createOAuthPlugin()", () => {
       const { provider } = await invokeCallback();
       expect(vi.mocked(provider.fetchProfile).mock.calls[0]).toEqual(["provider-access-token"]);
     });
+
+    // ─── redirectUrl ────────────────────────────────────────────────────────────
+
+    it("redirects to redirectUrl with tokens in the fragment on success, instead of returning JSON", async () => {
+      const { res } = await invokeCallback({ config: { redirectUrl: "http://localhost:4200/" } });
+      expect(res.json).not.toHaveBeenCalled();
+      expect(res.redirect).toHaveBeenCalledWith(
+        "http://localhost:4200/#accessToken=mantle.jwt.token&refreshToken=mantle.refresh.token",
+      );
+    });
+
+    it("omits refreshToken from the fragment when the engine doesn't issue one", async () => {
+      const engine = makeEngine({ createTokenPair: vi.fn().mockResolvedValue({ accessToken: "mantle.jwt.token" }) });
+      const { res } = await invokeCallback({ engine, config: { redirectUrl: "http://localhost:4200/" } });
+      expect(res.redirect).toHaveBeenCalledWith("http://localhost:4200/#accessToken=mantle.jwt.token");
+    });
+
+    it("redirects to redirectUrl with an error fragment on failure, instead of calling next()", async () => {
+      const { res, next } = await invokeCallback({
+        query: { code: undefined, state: undefined },
+        config: { redirectUrl: "http://localhost:4200/" },
+      });
+      expect(next).not.toHaveBeenCalled();
+      expect(res.redirect).toHaveBeenCalledWith(
+        "http://localhost:4200/#error=" + encodeURIComponent("Missing code or state parameter"),
+      );
+    });
+
+    it("propagates errors to next() as before when redirectUrl is not set", async () => {
+      const { next } = await invokeCallback({ query: { code: undefined, state: undefined } });
+      expect(next).toHaveBeenCalledWith(expect.any(NotAuthenticated));
+    });
   });
 
   // ─── POST callback route ─────────────────────────────────────────────────────
