@@ -151,7 +151,7 @@ export function createApp(config: AppConfig = {}): MantleApplication {
   app.service("articles").hooks({
     before: {
       all: [requestLogger],
-      create: [requireUser, validate(articleCreateSchema)],
+      create: [requireUser, validate(articleCreateSchema), attachActor("authorId")],
       update: [requireUser],
       patch: [requireUser],
       remove: [requireUser],

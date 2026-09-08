@@ -17,6 +17,7 @@ export function ArticlesPage({ onSelect }: ArticlesPageProps) {
   const [searchResults, setSearchResults] = useState<Array<Article & { _score: number }> | undefined>();
   const [searching, setSearching] = useState(false);
   const [showNewForm, setShowNewForm] = useState(false);
+  const [createError, setCreateError] = useState<string | undefined>();
 
   const articlesQuery = useFind<Article>("articles", { query: { $sort: { createdAt: "desc" } } }, { realtime: true });
   const createArticle = useCreate<Article>("articles");
@@ -39,10 +40,16 @@ export function ArticlesPage({ onSelect }: ArticlesPageProps) {
 
   async function handleCreate(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
-    const form = new FormData(event.currentTarget);
-    await createArticle.mutateAsync({ title: String(form.get("title")), body: String(form.get("body")) });
-    (event.target as HTMLFormElement).reset();
-    setShowNewForm(false);
+    setCreateError(undefined);
+    const form = event.currentTarget;
+    const data = new FormData(form);
+    try {
+      await createArticle.mutateAsync({ title: String(data.get("title")), body: String(data.get("body")) });
+      form.reset();
+      setShowNewForm(false);
+    } catch (err) {
+      setCreateError(err instanceof Error ? err.message : "Something went wrong");
+    }
   }
 
   const list: Array<Article & { _score?: number }> = searchResults ?? toArray(articlesQuery.data);
@@ -73,6 +80,7 @@ export function ArticlesPage({ onSelect }: ArticlesPageProps) {
           <form onSubmit={handleCreate} className="flex flex-col gap-3">
             <Input name="title" placeholder="Title" required />
             <Textarea name="body" placeholder="Write something…" rows={4} required />
+            {createError && <p className="text-sm text-red-600">{createError}</p>}
             <Button type="submit" disabled={createArticle.isPending}>
               Publish
             </Button>
