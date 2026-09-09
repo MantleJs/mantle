@@ -1,5 +1,5 @@
-import type { Id, Repository, Service, ServiceParams, VectorRepository } from "@mantlejs/mantle";
-import { NotFound } from "@mantlejs/mantle";
+import type { Id, QueryParams, Repository, Service, ServiceParams, VectorRepository } from "@mantlejs/mantle";
+import { BadRequest, NotFound } from "@mantlejs/mantle";
 import type { Article } from "../entities/article.js";
 import type { ActivityLog } from "../entities/activity-log.js";
 import type { Embedder } from "../embedder.js";
@@ -20,7 +20,7 @@ export class ArticlesService implements Service<Article> {
   ) {}
 
   async find(params?: ServiceParams): Promise<Article[]> {
-    return this.articles.findAll({ where: params?.query });
+    return this.articles.findAll(parseArticlesQuery(params?.query ?? {}));
   }
 
   async get(id: Id): Promise<Article> {
@@ -65,4 +65,49 @@ export class ArticlesService implements Service<Article> {
     const vector = await this.embedder.embed(`${article.title}\n${article.body}`);
     await this.vectors.upsertVector(article.id, vector, {});
   }
+}
+
+/**
+ * Splits the framework's reserved query keys (`$limit`/`$skip`/`$sort`/`$select` — see
+ * `RepositoryService.parseQuery` in `@mantlejs/mantle`) out of an otherwise-`where` query
+ * object. `ArticlesService` doesn't extend `RepositoryService` (it composes repositories
+ * instead), so it doesn't get this translation for free — passing `params.query` straight
+ * through as `where` would mistake e.g. `$sort` for a field-equality filter and reject it as
+ * an unsupported operator.
+ */
+function parseArticlesQuery(query: Record<string, unknown>): QueryParams {
+  const where: Record<string, unknown> = {};
+  const parsed: QueryParams = { where };
+
+  for (const [key, value] of Object.entries(query)) {
+    if (key === "$limit") parsed.limit = toNonNegativeInt(key, value);
+    else if (key === "$skip") parsed.skip = toNonNegativeInt(key, value);
+    else if (key === "$sort") parsed.sort = toSort(value);
+    else if (key === "$select") parsed.select = Array.isArray(value) ? (value as string[]) : [String(value)];
+    else where[key] = value;
+  }
+
+  return parsed;
+}
+
+function toNonNegativeInt(key: string, value: unknown): number {
+  const n = typeof value === "number" ? value : Number(value);
+  if (!Number.isInteger(n) || n < 0) {
+    throw new BadRequest(`${key} must be a non-negative integer, got '${String(value)}'`);
+  }
+  return n;
+}
+
+function toSort(value: unknown): Record<string, "asc" | "desc"> {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    throw new BadRequest("$sort must be an object of field: asc|desc pairs");
+  }
+  const sort: Record<string, "asc" | "desc"> = {};
+  for (const [field, dir] of Object.entries(value as Record<string, unknown>)) {
+    const d = String(dir);
+    if (d === "asc" || d === "1") sort[field] = "asc";
+    else if (d === "desc" || d === "-1") sort[field] = "desc";
+    else throw new BadRequest(`$sort direction for '${field}' must be asc, desc, 1, or -1, got '${d}'`);
+  }
+  return sort;
 }

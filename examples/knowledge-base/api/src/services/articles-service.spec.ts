@@ -95,7 +95,7 @@ describe("ArticlesService (multi-repository composition)", () => {
     await expect(service.get(999)).rejects.toThrow(NotFound);
   });
 
-  it("find() passes params.query straight through as the where clause", async () => {
+  it("find() passes plain query fields through as the where clause", async () => {
     const { service, articles } = makeService();
     await articles.save({ title: "A", body: "...", authorId: 1 });
     await articles.save({ title: "B", body: "...", authorId: 2 });
@@ -103,5 +103,24 @@ describe("ArticlesService (multi-repository composition)", () => {
     const results = await service.find({ query: { authorId: 2 } });
     expect(results).toHaveLength(1);
     expect(results[0]?.title).toBe("B");
+  });
+
+  it("find() applies $sort instead of treating it as a where filter", async () => {
+    const { service, articles } = makeService();
+    await articles.save({ title: "A", body: "..." });
+    await articles.save({ title: "B", body: "..." });
+
+    const results = await service.find({ query: { $sort: { title: "desc" } } });
+    expect(results.map((a) => a.title)).toEqual(["B", "A"]);
+  });
+
+  it("find() applies $limit and $skip", async () => {
+    const { service, articles } = makeService();
+    await articles.save({ title: "A", body: "..." });
+    await articles.save({ title: "B", body: "..." });
+    await articles.save({ title: "C", body: "..." });
+
+    const results = await service.find({ query: { $sort: { title: "asc" }, $limit: 1, $skip: 1 } });
+    expect(results.map((a) => a.title)).toEqual(["B"]);
   });
 });
