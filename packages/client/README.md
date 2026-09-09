@@ -40,6 +40,27 @@ Values arrive server-side as strings — pair services with `RepositoryService` 
 
 On a 401, the client attempts **one** token rotation — `POST /authentication` with `{ strategy: "refresh", refreshToken }` — then retries the original request. Concurrent 401s share a single refresh (the server's rotation treats a reused refresh token as theft and revokes the whole family). If the refresh fails, tokens are cleared, `'logout'` is emitted, and the original 401 error is thrown.
 
+### Restoring a session on startup
+
+`getAccessToken()` is synchronous, reading only the **in-memory** copy — on a fresh page load
+(or a new `MantleClient` instance) that copy is empty until something hydrates it from `storage`,
+which normally only happens as a side effect of the first authenticated REST call. A UI that
+checks `getAccessToken()` before making any request — the natural thing to do to decide whether
+to render a logged-in or logged-out view on mount — will see `undefined` and show its logged-out
+state on every refresh, even with a valid session sitting in storage. Use `isAuthenticated()`
+instead, which hydrates first:
+
+```typescript
+const [authenticated, setAuthenticated] = useState<boolean | undefined>(undefined); // undefined = "checking"
+useEffect(() => {
+  void api.isAuthenticated().then(setAuthenticated);
+}, []);
+```
+
+`setTokens({ accessToken, refreshToken })` hydrates the client from a token pair obtained outside
+`authenticate()` — e.g. an OAuth provider's redirect-back callback landing tokens in a URL
+fragment. It stores them and emits `'authenticated'`, the same as a successful `authenticate()`.
+
 ### Real-time events
 
 When the `socket` option is configured, `service.on("created" | "updated" | "patched" | "removed", handler)` subscribes to the server's Socket.IO broadcasts (`"<path> <event>"`). The socket connects lazily on the first `.on()` call, all services share one connection, and multiple handlers for the same event multiplex over a single underlying socket listener. Calling `.on()` without the `socket` option throws a `GeneralError`-shaped `MantleClientError`.
@@ -134,8 +155,10 @@ Creates a `MantleClient`. Throws `TypeError` if `url` is missing.
 | --------------------------- | ------------------------------------------------------------------------------------ |
 | `service<T>(path)`          | Returns the (cached) `ServiceClient<T>` for a service path                           |
 | `authenticate(credentials)` | `POST /authentication`, stores tokens, emits `'authenticated'`, returns `AuthResult` |
+| `setTokens(tokens)`         | Stores a `{ accessToken, refreshToken? }` pair obtained outside `authenticate()`, emits `'authenticated'` |
+| `isAuthenticated()`         | `Promise<boolean>` — hydrates from storage first if needed. Use on startup, not `getAccessToken()` (see "Restoring a session on startup") |
 | `logout()`                  | Clears tokens, emits `'logout'`, fires a best-effort `POST /authentication/logout`   |
-| `getAccessToken()`          | Current access token (synchronous, from the in-memory copy)                          |
+| `getAccessToken()`          | Current access token (synchronous, from the in-memory copy — may be `undefined` until something hydrates it, even with a valid session in storage) |
 | `on(event, handler)`        | Client events: `'authenticated'`, `'logout'`, `'reconnect'`                          |
 | `off(event, handler)`       | Remove a client event handler                                                        |
 

@@ -221,6 +221,27 @@ describe("authentication", () => {
     expect(fresh.getAccessToken()).toBe("persisted");
   });
 
+  it("isAuthenticated() resolves true when a token is already in memory, without a network call", async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({ accessToken: "at-1", refreshToken: "rt-1", user: {} }, 201));
+    await client.authenticate({ strategy: "local" });
+    fetchMock.mockClear();
+
+    await expect(client.isAuthenticated()).resolves.toBe(true);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("isAuthenticated() resolves false for a client with no persisted session", async () => {
+    await expect(client.isAuthenticated()).resolves.toBe(false);
+  });
+
+  it("isAuthenticated() hydrates from storage and resolves true for a fresh client with a persisted token", async () => {
+    await storage.setItem("mantle-access-token", "persisted");
+    const fresh = mantle({ url: BASE, storage });
+
+    await expect(fresh.isAuthenticated()).resolves.toBe(true);
+    expect(fresh.getAccessToken()).toBe("persisted");
+  });
+
   it("setTokens() stores a pre-obtained token pair and emits 'authenticated' without a network call", async () => {
     const authenticated = vi.fn();
     client.on("authenticated", authenticated);

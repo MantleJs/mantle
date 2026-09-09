@@ -90,6 +90,18 @@ export class MantleClient {
     return this.accessToken;
   }
 
+  /**
+   * Whether a persisted session exists, hydrating the in-memory access token from storage first
+   * if nothing has triggered that yet. Use this on app startup instead of `getAccessToken()` —
+   * that one is synchronous and returns `undefined` until hydration has happened (normally the
+   * side effect of an authenticated REST call), even when a valid token is sitting in storage
+   * from a previous session. A UI that checks `getAccessToken()` on first render will show its
+   * logged-out state on every page load/refresh regardless of a persisted session.
+   */
+  async isAuthenticated(): Promise<boolean> {
+    return (await this.loadAccessToken()) !== undefined;
+  }
+
   on(event: ClientEvent, handler: () => void): this {
     this.emitter.on(event, handler);
     return this;
