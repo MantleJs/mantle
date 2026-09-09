@@ -176,7 +176,7 @@ if (engine.storage.getSignedUrl) {
 
 ### `handleUpload(field, options?)`
 
-A `before` hook factory. Parses the multipart body, validates the file, stores it via the configured adapter, and writes an `UploadedFile` to `context.data[field]`.
+A `before` hook factory. Parses the multipart body, validates the file, stores it via the configured adapter, writes an `UploadedFile` to `context.data[field]`, and merges any other ordinary (non-file) form fields sent alongside it into `context.data` too — e.g. a hidden `articleId` field on the same upload form, so the record a file belongs to can travel with it in one request.
 
 ```typescript
 app.service("photos").hooks({
@@ -187,19 +187,41 @@ app.service("photos").hooks({
 });
 ```
 
+```http
+POST /photos
+Content-Type: multipart/form-data; boundary=----boundary
+
+------boundary
+Content-Disposition: form-data; name="albumId"
+
+42
+------boundary
+Content-Disposition: form-data; name="photo"; filename="avatar.jpg"
+Content-Type: image/jpeg
+
+<binary file data>
+------boundary--
+```
+
+`create` receives `context.data.albumId === "42"` (a string — same as a URL-encoded form or query
+string; coerce it yourself, e.g. `Number(context.data.albumId)`) alongside `context.data.photo`.
+
 #### Behaviour
 
 | Condition | Result |
 | --- | --- |
 | `params.request` is absent (internal call, or an unsupported transport) and `required: false` | Returns context unchanged |
 | `params.request` is absent (internal call, or an unsupported transport) and `required: true` | Throws `BadRequest` |
-| File field not present in form and `required: false` | Returns context unchanged |
+| File field not present in form and `required: false` | Merges any other form fields into `context.data`; the target field stays absent |
 | File field not present in form and `required: true` | Throws `BadRequest` |
 | MIME type not in `allowedMimeTypes` | Throws `BadRequest` |
 | File exceeds `maxFileSize` | Throws `BadRequest` |
-| File valid | Writes `UploadedFile` to `context.data[field]` |
+| File valid | Writes `UploadedFile` to `context.data[field]` and merges other form fields into `context.data` |
 
-Unrelated form fields are discarded automatically. When multiple files share the same field name, only the first is captured.
+Unrelated *file* fields are discarded — when multiple files share the same field name, or a file
+is sent under a different field name than the one `handleUpload()` was called with, only the
+targeted field's file is captured. Ordinary text fields are always captured, regardless of where
+they fall relative to the file part in the multipart body.
 
 #### `HandleUploadOptions`
 

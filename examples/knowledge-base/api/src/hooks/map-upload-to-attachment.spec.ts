@@ -4,11 +4,11 @@ import { BadRequest } from "@mantlejs/mantle";
 import { mapUploadToAttachment } from "./map-upload-to-attachment.js";
 
 describe("mapUploadToAttachment()", () => {
-  it("reshapes the parsed upload into Attachment fields", () => {
+  it("reshapes the parsed upload into Attachment fields, coercing the string articleId to a number", () => {
     const ctx = {
       params: { user: { id: 3 } },
       data: {
-        articleId: 9,
+        articleId: "9",
         file: { fieldname: "file", originalname: "notes.pdf", mimetype: "application/pdf", size: 1024, path: "/tmp/x", key: "abc123" },
       },
     } as unknown as HookContext;
@@ -23,6 +23,20 @@ describe("mapUploadToAttachment()", () => {
       articleId: 9,
       uploadedBy: 3,
     });
+  });
+
+  it("defaults articleId to null when it isn't a valid integer string", () => {
+    const ctx = {
+      params: {},
+      data: {
+        articleId: "not-a-number",
+        file: { fieldname: "file", originalname: "a.txt", mimetype: "text/plain", size: 1, path: "/tmp/a", key: "k" },
+      },
+    } as unknown as HookContext;
+
+    const result = mapUploadToAttachment()(ctx) as HookContext;
+
+    expect(result.data).toMatchObject({ articleId: null });
   });
 
   it("defaults articleId to null and uploadedBy to null when absent", () => {

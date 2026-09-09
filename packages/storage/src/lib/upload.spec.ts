@@ -422,6 +422,68 @@ describe("handleUpload()", () => {
     expect(uploaded.originalname).toBe("b.txt");
   });
 
+  it("captures ordinary text fields sent alongside the file", async () => {
+    const storage = diskStorage({ destination: tmpDir });
+    const engine = makeEngine({ storage });
+    const CRLF = "\r\n";
+    const body = Buffer.concat([
+      Buffer.from(
+        `--${BOUNDARY}${CRLF}Content-Disposition: form-data; name="articleId"${CRLF}${CRLF}42${CRLF}`,
+      ),
+      Buffer.from(
+        `--${BOUNDARY}${CRLF}Content-Disposition: form-data; name="file"; filename="notes.txt"${CRLF}Content-Type: text/plain${CRLF}${CRLF}notes${CRLF}`,
+      ),
+      Buffer.from(`--${BOUNDARY}--${CRLF}`),
+    ]);
+    const req = makeMultipartRequest(body);
+    const ctx = makeCtx({ app: makeApp({ upload: engine }), params: { provider: "rest", request: req } });
+
+    const result = await handleUpload("file")(ctx);
+
+    const data = result.data as Record<string, unknown>;
+    expect(data["articleId"]).toBe("42");
+    expect((data["file"] as UploadedFile).originalname).toBe("notes.txt");
+  });
+
+  it("captures a text field that comes after the file part in the body", async () => {
+    const storage = diskStorage({ destination: tmpDir });
+    const engine = makeEngine({ storage });
+    const CRLF = "\r\n";
+    const body = Buffer.concat([
+      Buffer.from(
+        `--${BOUNDARY}${CRLF}Content-Disposition: form-data; name="file"; filename="notes.txt"${CRLF}Content-Type: text/plain${CRLF}${CRLF}notes${CRLF}`,
+      ),
+      Buffer.from(
+        `--${BOUNDARY}${CRLF}Content-Disposition: form-data; name="articleId"${CRLF}${CRLF}42${CRLF}`,
+      ),
+      Buffer.from(`--${BOUNDARY}--${CRLF}`),
+    ]);
+    const req = makeMultipartRequest(body);
+    const ctx = makeCtx({ app: makeApp({ upload: engine }), params: { provider: "rest", request: req } });
+
+    const result = await handleUpload("file")(ctx);
+
+    const data = result.data as Record<string, unknown>;
+    expect(data["articleId"]).toBe("42");
+    expect((data["file"] as UploadedFile).originalname).toBe("notes.txt");
+  });
+
+  it("merges captured fields into context.data even when the target file field is absent", async () => {
+    const engine = makeEngine();
+    const CRLF = "\r\n";
+    const body = Buffer.concat([
+      Buffer.from(`--${BOUNDARY}${CRLF}Content-Disposition: form-data; name="articleId"${CRLF}${CRLF}42${CRLF}`),
+      Buffer.from(`--${BOUNDARY}--${CRLF}`),
+    ]);
+    const req = makeMultipartRequest(body);
+    const ctx = makeCtx({ app: makeApp({ upload: engine }), params: { provider: "rest", request: req } });
+
+    const result = await handleUpload("file")(ctx);
+
+    expect((result.data as Record<string, unknown>)["articleId"]).toBe("42");
+    expect((result.data as Record<string, unknown>)["file"]).toBeUndefined();
+  });
+
   it("throws BadRequest when the file exceeds maxFileSize", async () => {
     const storage = diskStorage({ destination: tmpDir });
     const engine = makeEngine({ storage, maxFileSize: 5 });
