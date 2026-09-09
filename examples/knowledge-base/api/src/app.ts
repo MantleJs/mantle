@@ -1,8 +1,10 @@
 import { Redis } from "ioredis";
 import {
   mantle,
+  GeneralError,
   RepositoryService,
   VectorRepositoryService,
+  type HttpRouterLike,
   type Logger,
   type MantleApplication,
 } from "@mantlejs/mantle";
@@ -18,7 +20,7 @@ import { linkedinStrategy } from "@mantlejs/auth-linkedin";
 import { redisRefreshTokenStore, redisStateStore } from "@mantlejs/auth-redis";
 import { socketio } from "@mantlejs/socketio";
 import { sync, redisAdapter } from "@mantlejs/sync";
-import { upload, handleUpload } from "@mantlejs/storage";
+import { upload, handleUpload, type UploadEngine } from "@mantlejs/storage";
 import { config as loadConfig } from "@mantlejs/config";
 import { validate } from "@mantlejs/schema";
 import { logRequest, logError } from "@mantlejs/logger";
@@ -204,6 +206,7 @@ export function createApp(config: AppConfig = {}): MantleApplication {
     after: { all: [requestLogger] },
     error: { all: [requestLogger, errorLogger] },
   });
+  registerAttachmentDownload(app);
 
   app.use("activity", new RepositoryService(new ActivityLogRepository(app)), {
     methods: ["find", "get"],
@@ -285,4 +288,52 @@ function configureOAuthStrategies(app: MantleApplication, redis: Redis | undefin
       }),
     );
   }
+}
+
+/** Response object of a raw route handler: the neutral `HttpResponseLike` contract only covers
+ * JSON/redirect, but streaming a file back needs the underlying Express response directly —
+ * `@mantlejs/storage` deliberately leaves "how do I serve a download" to application code. */
+interface DownloadResponse extends NodeJS.WritableStream {
+  setHeader(name: string, value: string): unknown;
+  attachment(filename?: string): unknown;
+}
+
+/**
+ * `@mantlejs/storage` stores files but has no opinion on how they're served back — this wires
+ * that up for the example. Cloud adapters (S3/GCS) redirect to a signed URL; disk storage streams
+ * the file through this server. Not registered as an "attachments" service method (custom methods
+ * dispatch as POST with a JSON body — see CLAUDE.md) since a GET with a binary response is a better
+ * fit for a browser download link.
+ */
+function registerAttachmentDownload(app: MantleApplication): void {
+  const router = app.get<HttpRouterLike>("http:router");
+  if (!router) return;
+
+  router.get("/attachments/:id/download", async (req, res, next) => {
+    try {
+      const id = (req as unknown as { params: Record<string, string> }).params.id;
+      // Routed through the service (not the repository directly) so this inherits whatever
+      // hooks "attachments".get ever grows — auth, logging — instead of silently bypassing them.
+      const attachment = await app.service<Attachment>("attachments").get(id, {
+        provider: "rest",
+        headers: req.headers as Record<string, string>,
+      });
+
+      const engine = app.get<UploadEngine>("upload");
+      if (!engine) throw new GeneralError("Upload storage is not configured");
+
+      if (engine.storage.getSignedUrl) {
+        res.redirect(await engine.storage.getSignedUrl(attachment.key));
+        return;
+      }
+
+      const stream = await engine.storage.retrieve(attachment.key);
+      const download = res as unknown as DownloadResponse;
+      download.setHeader("Content-Type", attachment.mimetype);
+      download.attachment(attachment.filename);
+      stream.pipe(download);
+    } catch (err) {
+      next(err);
+    }
+  });
 }

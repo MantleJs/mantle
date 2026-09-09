@@ -302,6 +302,7 @@ import type {
   DiskStorageConfig,
   HandleUploadOptions,
   GetSignedUrlOptions,
+  UploadEngine,
 } from "@mantlejs/storage";
 ```
 
@@ -314,6 +315,7 @@ import type {
 | `DiskStorageConfig` | Options for `diskStorage()` |
 | `HandleUploadOptions` | Options for `handleUpload()` |
 | `GetSignedUrlOptions` | Options for `StorageAdapter.getSignedUrl()` |
+| `UploadEngine` | The `{ maxFileSize, allowedMimeTypes, storage }` object stored at `app.get("upload")` |
 
 ---
 

@@ -84,8 +84,16 @@ export function ArticleDetailPage({ articleId, onBack }: ArticleDetailPageProps)
         <h2 className="mb-2 text-sm font-semibold text-slate-900">Attachments</h2>
         <ul className="mb-2 flex flex-col gap-1">
           {toArray(attachments.data).map((file) => (
-            <li key={file.id} className="text-sm text-slate-600">
-              {file.filename} <span className="text-xs text-slate-400">({file.mimetype}, {file.size}B)</span>
+            <li key={file.id} className="flex items-center justify-between text-sm text-slate-600">
+              <span>
+                {file.filename} <span className="text-xs text-slate-400">({file.mimetype}, {file.size}B)</span>
+              </span>
+              <a
+                href={`${apiUrl}/attachments/${file.id}/download`}
+                className="text-xs font-medium text-slate-900 underline hover:no-underline"
+              >
+                Download
+              </a>
             </li>
           ))}
         </ul>

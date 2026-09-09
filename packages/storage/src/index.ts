@@ -9,4 +9,5 @@ export type {
   DiskStorageConfig,
   HandleUploadOptions,
   GetSignedUrlOptions,
+  UploadEngine,
 } from "./lib/types.js";
