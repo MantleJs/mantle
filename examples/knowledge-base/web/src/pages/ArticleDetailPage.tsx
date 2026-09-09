@@ -1,4 +1,4 @@
-import { useRef, useState, type FormEvent } from "react";
+import { useRef, useState, type ChangeEvent, type FormEvent } from "react";
 import { useCreate, useFind, useGet } from "@mantlejs/react";
 import type { Paginated } from "@mantlejs/client";
 import { apiUrl, client } from "../lib/client.js";
@@ -28,6 +28,11 @@ export function ArticleDetailPage({ articleId, onBack }: ArticleDetailPageProps)
   const createComment = useCreate<Comment>("comments");
   const fileInput = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
+  const [fileName, setFileName] = useState<string | undefined>();
+
+  function handleFileChange(event: ChangeEvent<HTMLInputElement>): void {
+    setFileName(event.target.files?.[0]?.name);
+  }
 
   async function handleComment(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
@@ -55,6 +60,7 @@ export function ArticleDetailPage({ articleId, onBack }: ArticleDetailPageProps)
       });
       await attachments.refetch();
       (event.target as HTMLFormElement).reset();
+      setFileName(undefined);
     } finally {
       setUploading(false);
     }
@@ -83,9 +89,13 @@ export function ArticleDetailPage({ articleId, onBack }: ArticleDetailPageProps)
             </li>
           ))}
         </ul>
-        <form onSubmit={handleUpload} className="flex gap-2">
-          <input ref={fileInput} type="file" name="file" className="text-sm" />
-          <Button type="submit" variant="secondary" disabled={uploading}>
+        <form onSubmit={handleUpload} className="flex items-center gap-2">
+          <input ref={fileInput} type="file" name="file" className="sr-only" onChange={handleFileChange} />
+          <Button type="button" variant="secondary" onClick={() => fileInput.current?.click()}>
+            Choose file
+          </Button>
+          <span className="flex-1 truncate text-sm text-slate-500">{fileName ?? "No file chosen"}</span>
+          <Button type="submit" disabled={uploading || !fileName}>
             {uploading ? "Uploading…" : "Upload"}
           </Button>
         </form>
