@@ -133,6 +133,57 @@ describe("socketio() — plugin setup", () => {
     );
   });
 
+  it("does not set cors on the Server by default", () => {
+    const app = makeApp();
+    app.configure(socketio());
+    callListen(app);
+    expect(vi.mocked(Server).mock.calls[0]?.[1]).not.toHaveProperty("cors");
+  });
+
+  it("cors: true reflects the request Origin and allows the CRUD verbs", () => {
+    const app = makeApp();
+    app.configure(socketio({ cors: true }));
+    callListen(app);
+    const corsOptions = vi.mocked(Server).mock.calls[0]?.[1]?.cors as {
+      origin: (origin: string | undefined, cb: (err: null, allowed: string | boolean) => void) => void;
+      methods: string[];
+      credentials: boolean;
+    };
+    expect(corsOptions.methods).toEqual(["GET", "POST", "PUT", "PATCH", "DELETE"]);
+    expect(corsOptions.credentials).toBe(false);
+
+    const cb = vi.fn();
+    corsOptions.origin("http://localhost:4200", cb);
+    expect(cb).toHaveBeenCalledWith(null, "http://localhost:4200");
+  });
+
+  it("cors: { origin } restricts to an allow-list", () => {
+    const app = makeApp();
+    app.configure(socketio({ cors: { origin: ["http://allowed.example.com"] } }));
+    callListen(app);
+    const corsOptions = vi.mocked(Server).mock.calls[0]?.[1]?.cors as {
+      origin: (origin: string | undefined, cb: (err: null, allowed: string | boolean) => void) => void;
+    };
+
+    const cb = vi.fn();
+    corsOptions.origin("http://evil.example.com", cb);
+    expect(cb).toHaveBeenCalledWith(null, false);
+
+    cb.mockClear();
+    corsOptions.origin("http://allowed.example.com", cb);
+    expect(cb).toHaveBeenCalledWith(null, "http://allowed.example.com");
+  });
+
+  it("an explicit serverOptions.cors overrides the cors option", () => {
+    const app = makeApp();
+    app.configure(socketio({ cors: true, serverOptions: { cors: { origin: "https://fixed.example.com" } } }));
+    callListen(app);
+    expect(vi.mocked(Server)).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ cors: { origin: "https://fixed.example.com" } }),
+    );
+  });
+
   it("sets pingTimeout when timeout is provided", () => {
     const app = makeApp();
     app.configure(socketio({ timeout: 5000 }));

@@ -90,7 +90,11 @@ export function createApp(config: AppConfig = {}): MantleApplication {
       }),
     )
     .configure(localStrategy())
-    .configure(socketio())
+    // socket.io attaches its own request listener ahead of Express's middleware, so the
+    // express({ cors: true }) above never runs for the /socket.io/* handshake — without this,
+    // the web dev server (a different origin/port) can't open a socket at all, so realtime
+    // updates (new comments, article edits) never arrive until the next full refetch.
+    .configure(socketio({ cors: true }))
     .configure(upload({ storage: createStorageAdapter() }));
 
   if (config.logger) {

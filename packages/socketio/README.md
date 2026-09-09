@@ -141,7 +141,7 @@ app.configure(
   socketio({
     path: "/socket.io",
     timeout: 30000,
-    serverOptions: { cors: { origin: "http://localhost:5173", credentials: true } },
+    cors: true,
   }),
 );
 ```
@@ -152,7 +152,8 @@ app.configure(
 | --------------- | ------------------------ | -------------- | -------------------------------------------------- |
 | `path`          | `string`                 | `"/socket.io"` | URL path the Socket.IO server listens on           |
 | `timeout`       | `number`                 | `20000`        | Ping timeout in ms before closing idle connections (engine.io's built-in default; only overridden when set) |
-| `serverOptions` | `Partial<ServerOptions>` | —              | Additional Socket.IO `Server` constructor options  |
+| `cors`          | `boolean \| CorsOptions` | disabled       | CORS on the socket.io handshake. **Set this whenever the client's `url` is a different origin than the page** — e.g. a frontend dev server and an API dev server on different ports. `true` reflects `Origin` and allows the CRUD verbs; pass a `CorsOptions` (same shape as `@mantlejs/express`'s `cors` option) to restrict it. Socket.IO attaches its own request listener ahead of the HTTP transport's middleware, so the transport's own `cors` option (`express({ cors: true })` and friends) never runs for `/socket.io/*` — this is the only way to allow a cross-origin socket connection. |
+| `serverOptions` | `Partial<ServerOptions>` | —              | Additional Socket.IO `Server` constructor options. An explicit `serverOptions.cors` overrides the `cors` option above. |
 
 ---
 

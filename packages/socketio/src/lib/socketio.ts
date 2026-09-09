@@ -1,8 +1,9 @@
 import type { Server as HttpServer } from "http";
 import { Server, type ServerOptions, type Socket } from "socket.io";
-import { GeneralError, MantleError } from "@mantlejs/mantle";
+import { CORS_DEFAULT_METHODS, GeneralError, MantleError, resolveCorsOrigin } from "@mantlejs/mantle";
 import type {
   ChannelPublisher,
+  CorsOptions,
   Id,
   MantleApplication,
   MantleChannel,
@@ -15,6 +16,19 @@ export interface SocketioOptions {
   serverOptions?: Partial<ServerOptions>;
   timeout?: number;
   path?: string;
+  /**
+   * Enable CORS on the socket.io handshake. socket.io attaches its own request listener to the
+   * underlying HTTP server (for the `/socket.io/*` path) ahead of the HTTP transport's own
+   * middleware, so `@mantlejs/express`'s `cors` option — or the equivalent on `@mantlejs/koa` /
+   * `@mantlejs/http` — never runs for it; a browser client on a different origin than the API
+   * (the common case: a frontend dev server and an API dev server on different ports) cannot
+   * open a socket at all without this. `true` resolves to permissive defaults (reflects
+   * `Origin`, allows the CRUD verbs, no credentials); pass a `CorsOptions` object to customize
+   * origin/methods/headers/credentials. Disabled (no CORS headers) by default — set this
+   * whenever the client's `url` differs from the page's own origin. An explicit
+   * `serverOptions.cors` always wins over this option.
+   */
+  cors?: boolean | CorsOptions;
 }
 
 const STANDARD_METHODS = ["find", "get", "create", "update", "patch", "remove"] as const;
@@ -295,6 +309,27 @@ function wireSocketEvents(app: MantleApplication, io: Server): void {
   });
 }
 
+// ─── CORS ──────────────────────────────────────────────────────────────────────
+
+/**
+ * Translates the framework's normalized `CorsOptions` into the shape engine.io forwards to the
+ * `cors` npm package — the same translation `@mantlejs/express` does for its own Express
+ * middleware, so `cors: true`/`CorsOptions` behave identically across transports.
+ */
+function buildCorsOptions(cors: boolean | CorsOptions): NonNullable<ServerOptions["cors"]> {
+  const corsOptions: CorsOptions = typeof cors === "object" ? cors : {};
+  return {
+    origin: (requestOrigin, callback) => {
+      callback(null, resolveCorsOrigin(corsOptions.origin, requestOrigin) ?? false);
+    },
+    methods: corsOptions.methods ?? CORS_DEFAULT_METHODS,
+    allowedHeaders: corsOptions.allowedHeaders,
+    exposedHeaders: corsOptions.exposedHeaders,
+    credentials: corsOptions.credentials ?? false,
+    maxAge: corsOptions.maxAge,
+  };
+}
+
 // ─── Plugin ───────────────────────────────────────────────────────────────────
 
 export function socketio(options?: SocketioOptions): MantlePlugin {
@@ -310,6 +345,7 @@ export function socketio(options?: SocketioOptions): MantlePlugin {
       const io = new Server(httpServer as HttpServer, {
         path: options?.path ?? "/socket.io",
         ...(options?.timeout !== undefined ? { pingTimeout: options.timeout } : {}),
+        ...(options?.cors ? { cors: buildCorsOptions(options.cors) } : {}),
         ...options?.serverOptions,
       });
 
