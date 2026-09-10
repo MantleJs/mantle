@@ -94,6 +94,18 @@ strictly in order: develop packages (items 1–8) → release plan (item 9) → 
   Verdaccio) → build + test → boot → CRUD round-trip → clean SIGTERM exit. Bug fixes only — no new CLI
   features.
   **Accept:** CI smoke job green against workspace packages.
+  **Update (2026-09-10):** added `.github/workflows/ci.yml` (push/PR — build/test/lint/typecheck +
+  this `e2e-scaffold` target; the prior workflow was manual-publish-only, so nothing ran this in CI
+  before). Along the way, found a real npm bug: npm 11.2–11.4's Arborist crashes
+  (`Cannot read properties of null (reading 'edgesOut')`) resolving vitest's peer-dependency graph —
+  reproduced with a bare `vitest@^4.1.0` devDependency outside this repo entirely, confirmed fixed in
+  npm 11.19.1. `ci.yml` pins `npm install -g npm@11.19.1` before installing. Not a Mantle code bug,
+  but a real risk for anyone scaffolding a new app with an affected npm on their PATH — worth keeping
+  in mind for `create-mantlejs`'s docs if it comes up again post-release. Local verification of this
+  specific target was blocked by an unrelated, machine-local issue (a stray npm install directly under
+  this developer's home directory shadows npm resolution for anything run under it, independent of
+  nvm's global version) — confirmed it doesn't apply to fresh CI runners, but flagged to the user
+  rather than touched, since it's outside the repo.
 
 ## Stage 2 — Release plan
 
@@ -154,11 +166,18 @@ strictly in order: develop packages (items 1–8) → release plan (item 9) → 
   `password`, which broke `auth-local`'s own internal credential lookup on the same service — fixed to gate
   on `params.provider` (same "no provider = internal/trusted" convention `authenticate()` already uses),
   regression test added. `npx nx run-many -t build,test,lint,typecheck` green across all 40 projects.
-  **Outstanding:** this sandbox has no Docker daemon, so the `docker compose up` + live-Postgres/pgvector
-  run, the seed script, and the web UI against a real backend were not exercised end-to-end here — recommend
-  a human run through `examples/knowledge-base/README.md`'s quick start before treating this as the release
-  gate. Attachment download (streaming the stored file back) isn't wired — `attachments` covers
-  upload + metadata only; noted as a known scope cut in the example's README.
+  **Update (2026-09-10):** Docker is now available; ran the full quick start end-to-end —
+  `docker compose up -d` (pgvector + redis), `knowledge-base-api:seed`, `knowledge-base-api:serve`, and
+  `knowledge-base-web:build`, all green. Live smoke: local-auth login, authed `articles` find, `users`
+  401-without-auth, OpenAPI doc lists `articles`, MCP `tools/list` matches the expected set. Attachment
+  download route (added since, item unrelated to this checklist entry — see `6df653d`) verified live:
+  upload → download round-trips byte-for-byte with correct headers, missing id → 404; README's stale
+  "known scope cut" note for it removed. Along the way, `npx nx run-many -t build,test,lint,typecheck`
+  surfaced one real regression — `auth-oauth`'s spec-helper config type hadn't been widened for the
+  `redirectUrl` option added in `1730782`, failing typecheck — fixed
+  (`packages/auth-oauth/src/lib/create-oauth-plugin.spec.ts`); full re-run is green across all 40 projects.
+  **Note:** attachment upload/download in this example have only ever been verified manually (curl), not
+  via `app.spec.ts` — consistent with how this area was tested from the start, not a new gap.
 
 - [x] **11. Build starter examples** *(TDD §9)*
   `examples/todo-minimal` (`@mantlejs/http` + `@mantlejs/memory`, single file, < 100 lines) and

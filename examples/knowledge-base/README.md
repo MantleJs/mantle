@@ -109,7 +109,4 @@ Lists `articles_find`, `articles_get`, `articles_create`, `articles_update`, `se
 
 ## Known scope cuts
 
-- Attachment **download** isn't wired — `attachments` exposes metadata (`find`/`get`) and
-  `create` (upload), but there's no streaming/signed-URL download route yet. The `StorageAdapter`
-  interface already has `retrieve()`/`getSignedUrl()`; adding the route is a natural follow-up.
 - The client-side search embedder only matches the server's *local* default (see above).

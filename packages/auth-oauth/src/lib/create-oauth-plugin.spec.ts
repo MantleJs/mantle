@@ -2,7 +2,7 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import type { MantleApplication } from "@mantlejs/mantle";
 import { NotAuthenticated } from "@mantlejs/mantle";
 import type { AuthEngine } from "@mantlejs/auth";
-import type { OAuthProvider } from "./types.js";
+import type { OAuthProvider, OAuthPluginConfig } from "./types.js";
 
 const mockStateStore = {
   set: vi.fn(),
@@ -256,7 +256,7 @@ describe("createOAuthPlugin()", () => {
         query?: Record<string, string | undefined>;
         engine?: AuthEngine;
         provider?: OAuthProvider;
-        config?: Partial<typeof BASE_CONFIG>;
+        config?: Partial<OAuthPluginConfig>;
       } = {},
     ) {
       const provider = options.provider ?? makeProvider();
