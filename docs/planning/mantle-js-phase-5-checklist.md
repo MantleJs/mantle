@@ -102,10 +102,16 @@ strictly in order: develop packages (items 1–8) → release plan (item 9) → 
   npm 11.19.1. `ci.yml` pins `npm install -g npm@11.19.1` before installing. Not a Mantle code bug,
   but a real risk for anyone scaffolding a new app with an affected npm on their PATH — worth keeping
   in mind for `create-mantlejs`'s docs if it comes up again post-release. Local verification of this
-  specific target was blocked by an unrelated, machine-local issue (a stray npm install directly under
-  this developer's home directory shadows npm resolution for anything run under it, independent of
-  nvm's global version) — confirmed it doesn't apply to fresh CI runners, but flagged to the user
-  rather than touched, since it's outside the repo.
+  specific target was initially blocked by an unrelated, machine-local issue (a stray npm install
+  directly under this developer's home directory shadowed npm resolution for anything run under it,
+  independent of nvm's global version) — confirmed it doesn't apply to fresh CI runners, and flagged
+  to the user rather than touched, since it was outside the repo. **Resolved (2026-09-10):** the user
+  removed the stray `~/node_modules`; re-ran `npx nx run create-mantlejs:e2e-scaffold` and it passed
+  end-to-end under npm 11.19.1 — scaffold → `mantle generate service` → workspace-linked `npm install`
+  → `npm run build` → `npm test` → boot on an ephemeral port → `POST`/`GET /items` round-trip → `SIGTERM`
+  → clean exit. This is the same target `ci.yml` now runs on every push/PR, so this was the last
+  unverified piece of the Stage 4 pre-flight audit; item 8 (and the checklist as a whole through
+  Stage 3) is confirmed green.
 
 ## Stage 2 — Release plan
 
