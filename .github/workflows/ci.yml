@@ -24,10 +24,14 @@ jobs:
         with:
           fetch-depth: 0
 
+      # 22, not 20: examples/realtime-chat's better-sqlite3@13 requires Node >=22 - on 20 the
+      # prebuilt native binding segfaults the whole process on first use (not a catchable error),
+      # which vitest surfaces as an opaque "Worker exited unexpectedly". Reproduced and confirmed
+      # fixed in a clean ubuntu-latest-equivalent container before landing this.
       - name: Install Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
 
       # npm 11.2-11.4 crash in Arborist's peer-set resolution (`Cannot read properties of null
       # (reading 'edgesOut')`) when installing vitest's peer graph — hit by both this workspace's

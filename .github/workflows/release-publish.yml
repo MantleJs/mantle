@@ -36,10 +36,12 @@ jobs:
         with:
           fetch-depth: 0
 
+      # 22, not 20: examples/realtime-chat's better-sqlite3@13 requires Node >=22, and segfaults
+      # the whole process on Node 20 instead of throwing a catchable error — see ci.yml.
       - name: Install Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           registry-url: https://registry.npmjs.org/
 
       - name: Install dependencies

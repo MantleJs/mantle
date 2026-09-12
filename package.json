@@ -2,6 +2,9 @@
   "name": "@mantle/source",
   "version": "0.0.0",
   "license": "MIT",
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "check-publish-fields": "node tools/check-publish-fields.mjs"
   },
