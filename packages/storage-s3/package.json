@@ -1,6 +1,6 @@
 {
   "name": "@mantlejs/storage-s3",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "type": "module",
   "main": "./dist/index.js",
   "module": "./dist/index.js",
@@ -43,8 +43,8 @@
     "aws"
   ],
   "peerDependencies": {
-    "@mantlejs/mantle": "^0.0.1",
-    "@mantlejs/storage": "^0.0.1",
+    "@mantlejs/mantle": "^0.1.0",
+    "@mantlejs/storage": "^0.1.0",
     "@aws-sdk/client-s3": "^3.0.0",
     "@aws-sdk/lib-storage": "^3.0.0",
     "@aws-sdk/s3-request-presigner": "^3.0.0"

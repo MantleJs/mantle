@@ -6,8 +6,8 @@
     "name": "knowledge-base-web"
   },
   "dependencies": {
-    "@mantlejs/client": "0.0.1",
-    "@mantlejs/react": "0.0.1",
+    "@mantlejs/client": "^0.1.0",
+    "@mantlejs/react": "^0.1.0",
     "socket.io-client": "^4.8.1",
     "clsx": "^2.1.1",
     "tailwind-merge": "^3.6.0"

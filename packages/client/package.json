@@ -1,6 +1,6 @@
 {
   "name": "@mantlejs/client",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "type": "module",
   "main": "./dist/index.js",
   "module": "./dist/index.js",
@@ -33,7 +33,7 @@
     }
   },
   "devDependencies": {
-    "@mantlejs/mantle": "0.0.1"
+    "@mantlejs/mantle": "0.1.0"
   },
   "description": "Type-safe client for Mantle JS APIs — call services from browsers and Node.js",
   "license": "MIT",

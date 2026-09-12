@@ -1,6 +1,6 @@
 {
   "name": "@mantlejs/express",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "type": "module",
   "main": "./dist/index.js",
   "module": "./dist/index.js",
@@ -43,7 +43,7 @@
     "api"
   ],
   "peerDependencies": {
-    "@mantlejs/mantle": "^0.0.1",
+    "@mantlejs/mantle": "^0.1.0",
     "express": "^5.0.0"
   }
 }

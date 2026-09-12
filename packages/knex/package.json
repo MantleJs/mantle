@@ -1,6 +1,6 @@
 {
   "name": "@mantlejs/knex",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "type": "module",
   "main": "./dist/index.js",
   "module": "./dist/index.js",
@@ -45,7 +45,7 @@
     "database"
   ],
   "peerDependencies": {
-    "@mantlejs/mantle": "^0.0.1",
+    "@mantlejs/mantle": "^0.1.0",
     "knex": "^3.0.0"
   }
 }

@@ -1,6 +1,6 @@
 {
   "name": "@mantlejs/react",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "type": "module",
   "main": "./dist/index.js",
   "module": "./dist/index.js",
@@ -25,12 +25,12 @@
     "tslib": "^2.3.0"
   },
   "peerDependencies": {
-    "@mantlejs/client": "^0.0.1",
+    "@mantlejs/client": "^0.1.0",
     "@tanstack/react-query": "^5.0.0",
     "react": "^18.0.0 || ^19.0.0"
   },
   "devDependencies": {
-    "@mantlejs/client": "0.0.1"
+    "@mantlejs/client": "0.1.0"
   },
   "description": "React bindings for Mantle JS — hooks and providers over the Mantle client SDK",
   "license": "MIT",

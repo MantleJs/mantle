@@ -1,6 +1,6 @@
 {
   "name": "@mantlejs/mongodb",
-  "version": "0.0.1",
+  "version": "0.1.0-experimental",
   "type": "module",
   "main": "./dist/index.js",
   "module": "./dist/index.js",
@@ -44,7 +44,7 @@
     "repository"
   ],
   "peerDependencies": {
-    "@mantlejs/mantle": "^0.0.1",
+    "@mantlejs/mantle": "^0.1.0",
     "mongodb": "^6.0.0 || ^7.0.0"
   }
 }
