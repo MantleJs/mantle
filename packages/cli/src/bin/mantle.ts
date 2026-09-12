@@ -1,11 +1,16 @@
 #!/usr/bin/env node
+import { readFileSync } from "node:fs";
 import { program } from "commander";
 import { newProject } from "../lib/new.js";
 import type { Transport, Database, Auth } from "../lib/new.js";
 import { generateCommand } from "../lib/generate.js";
 import { addPackage } from "../lib/add.js";
 
-program.name("mantle").description("Mantle JS CLI").version("0.0.1");
+const pkg = JSON.parse(readFileSync(new URL("../../package.json", import.meta.url), "utf8")) as {
+  version: string;
+};
+
+program.name("mantle").description("Mantle JS CLI").version(pkg.version);
 
 program
   .command("new <project-name>")
