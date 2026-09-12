@@ -64,7 +64,12 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           NPM_CONFIG_PROVENANCE: true
 
+      # Runs even if the stable step reports failure: npm rejects any already-published version
+      # outright (safe, expected on a retry after a partial failure), which still counts as a
+      # step failure and would otherwise skip this entirely — but experimental deserves its own
+      # attempt regardless of stable's outcome.
       - name: Publish experimental group (dist-tag experimental)
+        if: ${{ !cancelled() }}
         run: >
           npx nx release publish
           --groups=experimental
