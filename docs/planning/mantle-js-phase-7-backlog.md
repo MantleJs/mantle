@@ -1,9 +1,17 @@
-# Mantle JS — Phase 6 Backlog
+# Mantle JS — Phase 7 Backlog
 
-Items earmarked for Phase 6. This is a backlog, not a checklist — a Phase 6 PRD must be written before these
-become actionable checklist items. Items 1–2 were moved here from the [Phase 5 checklist](./mantle-js-phase-5-checklist.md)
-(2026-07 scope decision: Phase 5 focuses on release readiness — `@mantlejs/mcp`, Apple/Microsoft auth, logging
-hardening, the canonical example, and the first npm release).
+Items earmarked for Phase 7 or later. This is a backlog, not a checklist — a Phase 7 PRD must be written before
+these become actionable checklist items. Originally filed as the Phase 6 backlog; items 1–2 moved here from the
+[Phase 5 checklist](./mantle-js-phase-5-checklist.md) (2026-07 scope decision: Phase 5 focuses on release
+readiness — `@mantlejs/mcp`, Apple/Microsoft auth, logging hardening, the canonical example, and the first npm
+release).
+
+**Update (2026-09-15):** deferred again, past Phase 6, when the [Phase 6 PRD](./mantle-js-phase-6-prd.md) was
+written. [`BAAS-READINESS.md`](./BAAS-READINESS.md) argues explicitly against adding new package surface
+(items 1–2 here are both new packages) before hardening the adapters and packages already shipped — Phase 6's
+goals are entirely about that hardening plus the three targeted additions the readiness doc identifies as
+actually unclaimed in the market (agent identity, an audit hook, auto-embed). None of items 1–5 below serve
+that positioning directly, so none were pulled forward. See the Phase 6 PRD's Decisions table, #1.
 
 ---
 

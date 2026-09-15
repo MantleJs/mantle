@@ -7,7 +7,7 @@ strictly in order: develop packages (items 1–8) → release plan (item 9) → 
 
 > **Restructure note (2026-07-18):** the previous version of this checklist held three review-derived items.
 > `@mantlejs/mcp` stays (item 1); `KnexTimeSeriesRepository` and `@mantlejs/arangodb` moved to the
-> [Phase 6 backlog](./mantle-js-phase-6-backlog.md), which also holds the website, the UI library, and the
+> [Phase 6 backlog](./mantle-js-phase-7-backlog.md), which also holds the website, the UI library, and the
 > Phase 4 non-goal deferrals. The first npm release moved **in** from Phase 4 item 8 (item 12 below).
 > **Update (2026-07-19):** `@mantlejs/auth-linkedin` added (item 5); `@mantlejs/mcp` promoted from the
 > experimental tier to a **stable `0.1.0` release requirement** (PRD decision #11).
@@ -270,6 +270,6 @@ strictly in order: develop packages (items 1–8) → release plan (item 9) → 
 
 - [Phase 5 PRD](./mantle-js-phase-5-prd.md)
 - [Phase 5 TDD](./mantle-js-phase5-tdd.md)
-- [Phase 6 Backlog](./mantle-js-phase-6-backlog.md) — items moved out of this checklist
+- [Phase 6 Backlog](./mantle-js-phase-7-backlog.md) — items moved out of this checklist
 - [Phase 4 Checklist](./mantle-js-phase-4-checklist.md) — source of item 12
 - [AI-First Architecture Review](./ai-first-architecture-review.md) — §6.3 (`@mantlejs/mcp` rationale)

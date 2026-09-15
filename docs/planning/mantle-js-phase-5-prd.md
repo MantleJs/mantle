@@ -86,10 +86,10 @@ Phase 5 package summary:
 
 - No Mantle UI library — the canonical example uses shadcn/ui directly; the Mantle UI library
   (Supabase-UI-style blocks) is Phase 6, where the example gets retrofitted as its first consumer
-  (see [Phase 6 backlog](./mantle-js-phase-6-backlog.md) item 4)
+  (see [Phase 6 backlog](./mantle-js-phase-7-backlog.md) item 4)
 - No website — mantlejs.org is Phase 6; Phase 5's documentation deliverable is complete package READMEs
 - No `KnexTimeSeriesRepository`, no `@mantlejs/arangodb` — moved to the
-  [Phase 6 backlog](./mantle-js-phase-6-backlog.md) (items 1–2)
+  [Phase 6 backlog](./mantle-js-phase-7-backlog.md) (items 1–2)
 - No GraphQL transport, rate limiting, multi-tenancy primitives, Vue composables, Neptune/Cosmos adapters —
   still deferred (Phase 6 backlog item 5)
 - No replacement of the Mantle `Logger` contract with LogLayer — LogLayer is supported *via adapter*, not
@@ -423,7 +423,7 @@ mantle/
 
 - [Phase 5 TDD](./mantle-js-phase5-tdd.md)
 - [Phase 5 Checklist](./mantle-js-phase-5-checklist.md)
-- [Phase 6 Backlog](./mantle-js-phase-6-backlog.md)
+- [Phase 6 Backlog](./mantle-js-phase-7-backlog.md)
 - [Phase 4 PRD](./mantle-js-phase-4-prd.md) — Publish Tiering, batch-atomicity precedent
 - [Phase 4 Checklist](./mantle-js-phase-4-checklist.md) — item 8 (moved here)
 - [AI-First Architecture Review](./ai-first-architecture-review.md) — §6.3 (`@mantlejs/mcp` rationale)

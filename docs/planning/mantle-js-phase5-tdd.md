@@ -540,6 +540,6 @@ prod mode, `@mantlejs/config` for all of the above, seed script, `README` walkth
 
 - [Phase 5 PRD](./mantle-js-phase-5-prd.md)
 - [Phase 5 Checklist](./mantle-js-phase-5-checklist.md)
-- [Phase 6 Backlog](./mantle-js-phase-6-backlog.md)
+- [Phase 6 Backlog](./mantle-js-phase-7-backlog.md)
 - Prior art: [Phase 4 TDD](./mantle-js-phase4-tdd.md), `packages/auth-google/src/lib/google-strategy.ts`,
   `packages/auth-oauth/src/lib/create-oauth-plugin.ts`, `packages/logger/src/lib/*`
