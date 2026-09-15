@@ -199,7 +199,7 @@ strictly in order: develop packages (items 1–8) → release plan (item 9) → 
 
 ## Stage 4 — Release
 
-- [ ] **12. First npm release — curated package set** *(moved from Phase 4 item 8; TDD §10)*
+- [x] **12. First npm release — curated package set** *(moved from Phase 4 item 8; TDD §10)*
   - Verdaccio rehearsal: `nx release publish` to the local registry; rerun the CLI smoke test (item 8) and
     `todo-minimal` against it
   - Publish for real via `nx release` (dependency-ordered; stable tier then experimental dist-tag)
@@ -208,6 +208,61 @@ strictly in order: develop packages (items 1–8) → release plan (item 9) → 
     registry versions and boot it
   - Tag `v0.1.0`, publish GitHub release notes (`nx release changelog`)
   **Accept:** all published packages resolvable and importable; live-registry scaffold works; tag + notes out.
+  **Done (2026-09-15):** all 31 stable packages live at `0.1.0` (dist-tag `latest`), all 5 experimental
+  packages live at `0.1.0-experimental` (dist-tag `experimental`), `create-mantlejs` live at `0.1.0`. GitHub
+  releases published: [`v0.1.0`](https://github.com/MantleJs/mantle/releases/tag/v0.1.0) and
+  [`v0.1.0-experimental`](https://github.com/MantleJs/mantle/releases/tag/v0.1.0-experimental) (marked
+  prerelease). Post-release verification done against the live registry (not just Verdaccio): fresh `npm
+  install` of every stable package + `create-mantlejs` from an empty project, a real CRUD smoke test against
+  the installed `mantle`+`memory` packages, `npm create mantlejs` scaffolding/installing/building/booting
+  against the live registry, `todo-minimal` re-pointed at registry versions with a full CRUD round-trip, and
+  all 5 experimental packages installing via the explicit `@experimental` tag.
+
+  This was the most incident-heavy item in the checklist — real, previously-undiscovered bugs, found only
+  because this was the first time any of this ever ran for real (all prior testing was dry-run or Verdaccio):
+  - `examples/*/package.json` pinned internal `@mantlejs/*` deps at an **exact** `0.0.1`. The moment the real
+    packages moved to `0.1.0`, this broke npm's workspace linking and `nx release version`'s lockfile-update
+    step (needs registry metadata for a version that was never published) — would have broken on this release
+    and every future one. Fixed to `^0.1.0` ranges.
+  - `packages/cli/src/lib/versions.ts`'s `MANTLE_VERSION` constant (hardcoded `^0.0.1`) is what
+    `create-mantlejs` actually writes into every scaffolded app — the just-published `create-mantlejs@0.1.0`
+    was generating apps requesting a version of `@mantlejs/express` that no longer existed. Fixed, and
+    `mantle --version` switched to reading its own `package.json` at runtime instead of a separate hardcoded
+    literal, so this can't drift again.
+  - CI (`ci.yml`, `release-publish.yml`) pinned Node 20. `examples/realtime-chat`'s `better-sqlite3@13`
+    requires Node >=22 and **segfaults the whole process** on 20 instead of throwing a catchable error —
+    vitest surfaced this as an opaque "Worker exited unexpectedly," with no OOM/signal evidence anywhere in
+    the log. Root-caused by reproducing in a container matching `ubuntu-latest` + Node 20 exactly. Bumped both
+    workflows to Node 22, added `engines.node >=22` at the workspace root.
+  - Real publish failed twice more, informative both times: (1) the npm account's `auth-and-writes` 2FA
+    requires an OTP on every publish, which no non-interactive CI token can provide — needed a Granular
+    Access Token created with 2FA bypass explicitly enabled (npm's own documented path for bootstrapping
+    Trusted Publishing on packages that have never been published, since Trusted Publishing itself can't be
+    configured until a package already exists — see [npm's trusted-publishers docs](https://docs.npmjs.com/trusted-publishers/)).
+    (2) `create-mantlejs` is deliberately unscoped (not `@mantlejs/create-mantlejs`), so the token's
+    `@mantlejs`-scoped permission didn't cover it — 403 on that one package while the other 30 published
+    successfully. Retrying the whole `stable` group doesn't work once some packages already succeeded: nx's
+    dependency-graph-aware publish treats npm's (harmless, expected) "cannot publish over previously
+    published version" rejection on an upstream package (`mantle`, `cli`) as blocking every downstream
+    package — including `create-mantlejs`, which never got a fresh attempt. `--projects` can't help either;
+    nx forbids filtering to a subset of a `"fixed"` release group. Resolved by publishing `create-mantlejs`
+    directly with a plain `npm publish` from the package directory, bypassing nx's graph entirely. Also fixed
+    along the way: `release-publish.yml`'s experimental-publish step was silently skipped whenever the
+    stable step "failed" (including on this exact harmless-retry scenario) — added `if: ${{ !cancelled() }}`
+    so experimental always gets its own attempt.
+  - The 5 experimental packages' `latest` dist-tag ended up pointing at `0.1.0-experimental` alongside the
+    intended `experimental` tag — a documented npm behavior (a package's very first publish always sets
+    `latest` in addition to whatever `--tag` was requested, since a package must always have some `latest`).
+    Attempted to remove it (`npm dist-tag rm`) — npm rejects that outright (E400): a package's only/last
+    `latest` tag can never be removed, and there's no stable version yet to redirect it to instead. Accepted
+    as an inherent limitation for now (there's no fix until/unless one of these adapters ships a real stable
+    release); noted in the `v0.1.0-experimental` release notes rather than left undocumented. A worthwhile,
+    non-urgent follow-up: none of these 5 packages' descriptions mention "experimental" at all — worth adding
+    on a future patch.
+  - `nx release changelog` can't create a GitHub Release at all with this workspace's config — it disables
+    workspace-level changelog generation (and therefore release creation) outright whenever more than one
+    release group is configured, which is exactly our stable/experimental split. Wrote release notes by hand
+    instead and published both via `gh release create` directly.
 
 ---
 
