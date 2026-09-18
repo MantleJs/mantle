@@ -2,13 +2,17 @@
 
 Work through these in order. Each item maps to a spec in the [Phase 6 PRD](./mantle-js-phase-6-prd.md), which
 itself is grounded in [`BAAS-READINESS.md`](./BAAS-READINESS.md). Phase 6 runs in three stages, strictly
-ordered: harden what's released (items 1–4) → extend with three targeted additions (items 5–7) → release
-(item 8).
+ordered: harden what's released (items 1–4) → extend with three targeted additions plus one new OAuth
+strategy (items 5–8) → release (item 9).
 
 > **Note (2026-09-15):** this phase's PRD deferred `KnexTimeSeriesRepository`, `@mantlejs/arangodb`, the
 > Mantle website, and the Mantle UI library — all four moved to the old Phase 6 backlog previously — into a
 > new [Phase 7 backlog](./mantle-js-phase-7-backlog.md). `BAAS-READINESS.md` argues explicitly against adding
 > package surface before hardening what's already shipped; see the PRD's Decisions table, #1.
+>
+> **Update (2026-09-17):** `@mantlejs/auth-twitter` (item 8) added directly to this phase's scope, despite
+> `BAAS-READINESS.md` §1.4 explicitly recommending against more OAuth strategies — see the PRD's Decisions
+> table, #7.
 
 ---
 
@@ -105,19 +109,34 @@ ordered: harden what's released (items 1–4) → extend with three targeted add
   the new hook — replaced with it if the hook is a strict improvement, left alone with a documented reason if
   not.
 
+- [ ] **8. Implement `@mantlejs/auth-twitter`** *(PRD spec 13)*
+  New package over `@mantlejs/auth-oauth` + Arctic's `Twitter` provider class. PKCE on (Arctic's
+  `createAuthorizationURL` takes a `codeVerifier`) — same posture as `auth-google`/`auth-microsoft`, unlike
+  the no-PKCE strategies. Standard GET callback. Profile from X's API v2 `users/me` endpoint — confirm the
+  exact path, required scopes, and response shape against X's current developer docs before implementing,
+  don't assume the PRD's spec is exact (this platform's API/branding moves faster than the other six
+  providers already shipped). `entityIdField` default `"twitterId"`; config is plain `OAuthPluginConfig`.
+  Update `CLAUDE.md` dependency matrix + root README + `packages/cli/src/lib/versions.ts`'s `--auth` choice
+  list (an eighth strategy alongside the existing seven).
+  **Accept:** specs mirroring `google-strategy.spec.ts` (PKCE URL construction with `codeVerifier`; exchange
+  failure; userinfo normalization with/without optional fields; missing user-id field → `GeneralError`);
+  `create-mantlejs` e2e-scaffold smoke test still green with `--auth twitter` added as a choice.
+
 ## Stage 3 — Release
 
-- [ ] **8. Version and publish**
+- [ ] **9. Version and publish**
   Finalize tier placement: `@mantlejs/audit` and `@mantlejs/embeddings` (if built) default to
   `0.1.0-experimental` per the standing rule (PRD Decision #3) unless this stage's review finds a specific
-  reason to except one, using the same process Phase 5 used for `openapi`. Decide and record whether an
-  empty/near-empty `experimental` `nx.json` group (once adapters promote out of it) is removed or kept for
-  future use (PRD Release Plan). Then: `nx release version` for both groups (peer ranges bumped first, per
+  reason to except one, using the same process Phase 5 used for `openapi`. `@mantlejs/auth-twitter` joins
+  `stable` directly (PRD Decision #7) — same mechanism as `auth-apple`/`auth-microsoft`/`auth-linkedin`
+  joining `stable` from a standing start in Phase 5. Decide and record whether an empty/near-empty
+  `experimental` `nx.json` group (once adapters promote out of it) is removed or kept for future use (PRD
+  Release Plan). Then: `nx release version` for both groups (peer ranges bumped first, per
   `docs/releasing.md`), Verdaccio rehearsal, real publish via `release-publish.yml`, post-release verification
   (fresh installs, a scaffold/example re-pointed at registry versions) — the same process Phase 5's item 12
   proved out, reused as-is.
   **Accept:** every package from this phase resolvable and importable from the public registry at its correct
-  tier; `nx run-many -t build,test,lint,typecheck` green across the workspace including the two new packages;
+  tier; `nx run-many -t build,test,lint,typecheck` green across the workspace including all new packages;
   GitHub release notes published for whichever tags this phase's version bump produces.
 
 ---
@@ -129,4 +148,4 @@ ordered: harden what's released (items 1–4) → extend with three targeted add
 - [Phase 7 Backlog](./mantle-js-phase-7-backlog.md) — items moved out of this checklist
 - [Phase 5 Checklist](./mantle-js-phase-5-checklist.md) — item 9 (promotion-bar precedent), item 12 (release
   pipeline, the exact-pin bug this phase's item 4 checks for proactively)
-- [`docs/releasing.md`](../releasing.md) — release runbook this phase's item 8 reuses
+- [`docs/releasing.md`](../releasing.md) — release runbook this phase's item 9 reuses

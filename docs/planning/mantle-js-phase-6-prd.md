@@ -39,12 +39,16 @@ Phase 6 delivers, in this order:
 2. **Three targeted additions** — agent identity + capability scopes (extends `@mantlejs/auth` +
    `@mantlejs/mcp`), an audit hook (new `@mantlejs/audit`), and an auto-embed-on-write hook (new
    `@mantlejs/embeddings`, pending a scope-verification spike)
-3. **Release** — version and publish everything above, following the same `nx release` pipeline Phase 5 built
+3. **An eighth OAuth strategy** — `@mantlejs/auth-twitter` (X/Twitter sign-in), added directly to this phase's
+   scope rather than derived from `BAAS-READINESS.md`'s own priorities, which explicitly argue against more
+   providers — see [Decisions](#architectural--design-decisions) #7
+4. **Release** — version and publish everything above, following the same `nx release` pipeline Phase 5 built
    and hardened
 
 This PRD does not introduce new architectural concepts beyond what `CLAUDE.md` already defines. Every addition
 in Part 2 builds directly on primitives that already exist: the hook pipeline, the `Repository<T>` contract,
-and `@mantlejs/mcp`'s expose map.
+and `@mantlejs/mcp`'s expose map. Item 3 is the one exception to that framing — it's not derived from
+`BAAS-READINESS.md` at all, just riding along in the same release.
 
 ---
 
@@ -72,6 +76,8 @@ and `@mantlejs/mcp`'s expose map.
   params, result summary, timestamp }` to a pluggable sink, where the sink is itself just a `Repository<T>`
 - Verify what "embedding support" in `pinecone`/`qdrant`/`mongodb` actually means today (developer supplies
   the vector, or the adapter generates it), then ship an auto-embed-on-write hook if the former is confirmed
+- Ship `@mantlejs/auth-twitter` — X/Twitter sign-in over the `@mantlejs/auth-oauth` base (explicit scope
+  addition — see [Decisions](#architectural--design-decisions) #7)
 - Publish everything above via the same `nx release` pipeline (two fixed groups collapse into effectively one
   once promotion lands — see [Release Plan](#release-plan))
 
@@ -105,7 +111,7 @@ control-plane application** that *uses* Mantle, never in this monorepo:
 
 Phase 6 runs in three stages. Unlike Phase 5 — where the release was strictly last because the release
 *was* the deliverable — here the release is last because everything before it changes what gets released
-(promoted tier membership, two new packages, an extended `HookContext`).
+(promoted tier membership, three new packages, an extended `HookContext`).
 
 1. **Harden** — adapter conformance matrix, `@mantlejs/mcp` verification, auth hardening, adapter promotion.
    Sequenced first because Part 2's additions build on primitives (the hook pipeline, `@mantlejs/mcp`'s
@@ -113,7 +119,8 @@ Phase 6 runs in three stages. Unlike Phase 5 — where the release was strictly 
 2. **Extend** — agent identity + capability scopes, `@mantlejs/audit`, the auto-embed hook (which also
    formalizes the cross-adapter write-consistency pattern this stage needs, using the auto-embed hook as the
    first concrete case — deliberately sequenced after there's a real example to design against, per
-   `BAAS-READINESS.md`'s own suggested ordering)
+   `BAAS-READINESS.md`'s own suggested ordering), and `@mantlejs/auth-twitter` (independent of the other two —
+   no shared primitives, can land in parallel with either)
 3. **Release** — finalize tier placement for new/promoted packages, version, publish
 
 ---
@@ -245,6 +252,24 @@ proving the primary write survives an embedding-provider failure, and a real usa
 `api/src/services/articles-service.ts`) if the scope verification confirms this is net-new capability rather
 than something the example already hand-rolls equivalently.
 
+### 13. `@mantlejs/auth-twitter` *(explicit scope addition — see Decision #7)*
+
+New package over `@mantlejs/auth-oauth` + Arctic, following the exact precedent of `auth-google`/
+`auth-microsoft`/`auth-linkedin`. Arctic's provider class is `Twitter` (not `X`) — `createAuthorizationURL`
+takes a `codeVerifier`, confirming this is a **PKCE** strategy, same posture as `auth-google`/`auth-microsoft`,
+not the no-PKCE posture `auth-github`/`auth-facebook`/`auth-linkedin` use. Standard GET callback (Arctic's
+`Twitter` class has no `form_post`/POST-callback signature, unlike Apple). Profile fetched from X's API v2
+`users/me` endpoint; `entityIdField` default `"twitterId"`; config is plain `OAuthPluginConfig`. Confirm the
+exact userinfo endpoint path, required scopes (expect `users.read` at minimum; `tweet.read` if any profile
+field requires it), and current response shape against X's live developer docs during implementation — API
+surface and branding both move fast on this platform, more so than the other six providers already shipped.
+Update `CLAUDE.md` dependency matrix + root README + `packages/cli/src/lib/versions.ts`'s auth-choice list
+(the CLI scaffolds all seven existing strategies as `--auth` choices; this becomes an eighth) once merged.
+
+**Accept:** specs mirroring `google-strategy.spec.ts` (PKCE URL construction including `codeVerifier`;
+exchange failure; userinfo normalization with/without optional profile fields; missing `sub`/user-id field →
+`GeneralError`); `create-mantlejs` e2e-scaffold smoke test still green with the new `--auth` choice added.
+
 ---
 
 ## Adapter Promotion Plan
@@ -302,7 +327,9 @@ mechanical steps this phase's changes require:
   stable in the phase it's introduced" rule (Phase 5 Decision #11's own framing) — `@mantlejs/audit` and
   `@mantlejs/embeddings` (if built) ship `0.1.0-experimental` unless a Phase 6 stage-2 tier-list review finds
   cause for an exception, mirroring exactly how Phase 5 handled this same question for every new package
-  except `mcp`
+  except `mcp`. **`@mantlejs/auth-twitter` is the established exception to this default** (Decision #7) — it
+  joins `stable` directly at `stable`'s current version, same as `auth-apple`/`auth-microsoft`/`auth-linkedin`
+  did in Phase 5
 - **Promoted adapters version-jump into `stable`** at merge time — see
   [Adapter Promotion Plan](#adapter-promotion-plan) point 4; run the same dry-run verification Phase 5's item 9
   used before the first real version bump
@@ -330,7 +357,8 @@ mantle/
 ├── packages/
 │   ├── [all Phase 1–5 packages]
 │   ├── audit/            @mantlejs/audit       [NEW P6]
-│   └── embeddings/       @mantlejs/embeddings  [NEW P6 — pending scope verification, spec 12]
+│   ├── embeddings/       @mantlejs/embeddings  [NEW P6 — pending scope verification, spec 12]
+│   └── auth-twitter/     @mantlejs/auth-twitter [NEW P6]
 ```
 
 ### Updated Package Dependency Rules (Phase 6 additions)
@@ -339,6 +367,7 @@ mantle/
 | --- | --- |
 | `@mantlejs/audit` | `@mantlejs/mantle` |
 | `@mantlejs/embeddings` | `@mantlejs/mantle` (adapter-specific vector repository packages as peer deps, not hard deps — mirrors how `@mantlejs/storage-s3`/`-gcs` relate to `@mantlejs/storage`) |
+| `@mantlejs/auth-twitter` | `@mantlejs/mantle`, `@mantlejs/auth-oauth` |
 
 No changes to any existing package's allowed dependencies. `dynamodb`/`pinecone`/`qdrant`/`neo4j`/`mongodb`'s
 entries in the dependency matrix are unchanged by promotion — moving release *tier* doesn't change the
@@ -359,8 +388,11 @@ architectural dependency rules, only which `nx.json` release group and npm dist-
 - Every call an `AgentPrincipal` makes produces exactly one queryable audit record, retrievable via a normal
   `Service<T>.find()` call against the audit sink — "what did my agents actually do" is an API call, not a
   grep through logs
-- `npx nx run-many -t build,test,lint,typecheck` green across the workspace, including the two new packages
+- `npx nx run-many -t build,test,lint,typecheck` green across the workspace, including all new packages
+  (`@mantlejs/audit`, `@mantlejs/embeddings` if built, `@mantlejs/auth-twitter`)
 - Zero regressions in the canonical example (`examples/knowledge-base`) from the promotion or the two new hooks
+- `create-mantlejs` scaffolds a working X/Twitter login flow when `--auth twitter` is selected, exercised by
+  the same `e2e-scaffold` smoke test every other auth choice already goes through
 
 ---
 
@@ -374,6 +406,7 @@ architectural dependency rules, only which `nx.json` release group and npm dist-
 | 4 | `authorizeAgent()` reuses `@mantlejs/mcp`'s expose-map denial logic rather than a parallel implementation | Two independent deny-by-default implementations for adjacent concerns (MCP tool exposure, agent capability scope) is exactly the kind of drift `BAAS-READINESS.md` §1.3 warns about for the manifest-source question — same principle applies here even though this is new code, not existing code |
 | 5 | Cross-adapter write-consistency pattern is documented once the auto-embed hook gives a concrete case, not designed in the abstract first | Direct from `BAAS-READINESS.md`'s own suggested sequencing (§"Suggested sequencing", point 6) |
 | 6 | The auto-embed hook's scope is verified *before* any code is written | `BAAS-READINESS.md` is explicit that this might already be partially or fully done — building `@mantlejs/embeddings` without checking first risks duplicating capability that `MongoVectorRepository`, `pinecone`, or `qdrant` already has |
+| 7 | Add `@mantlejs/auth-twitter` to Phase 6, despite `BAAS-READINESS.md` §1.4 explicitly recommending against more OAuth strategies | Explicit scope addition (2026-09-17) — not derived from the readiness doc's own priorities, added directly. Follows the Phase 5 precedent for *new OAuth strategy* packages specifically (Phase 5 Decision, tiering section): a thin strategy over the already-battle-tested `auth-oauth` base ships stable despite being new, same as `auth-apple`/`auth-microsoft`/`auth-linkedin` did — this is a narrower, already-established exception to the general "new packages default to experimental" rule (Decision #3), not a second exception being invented here |
 
 ---
 
