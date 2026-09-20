@@ -95,6 +95,13 @@ class ServiceHandleImpl<T> implements ServiceHandle<T> {
       service: this.service,
       path: this.path,
       method,
+      // Mirrors params.provider — the top-level field documented on HookContext (CLAUDE.md) and
+      // already read by @mantlejs/logger's logRequest/logError hooks. Was previously never set
+      // here at all, so every log record's `provider` field was silently `undefined` regardless
+      // of actual transport — a confirmed bug, not a design choice; params.provider is the field
+      // hooks are actually meant to (and, e.g. @mantlejs/auth's authenticate(), correctly do)
+      // branch on for "was this an internal call", so both fields must always agree.
+      provider: (params ?? {}).provider,
       params: params ?? {},
       id,
       data,

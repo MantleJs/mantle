@@ -189,6 +189,14 @@ side-by-side equivalence with the HTTP path for the same hook chain.
 HTTP and once via MCP with equivalent credentials, and asserts identical accept/reject behavior — the only
 difference being `HookContext.provider`.
 
+**Done (2026-09-22):** confirmed, with one significant catch — recorded in full in the
+[Phase 6 Checklist](./mantle-js-phase-6-checklist.md) item 2, not duplicated here. Building the exact
+assertion this spec asks for surfaced a real, previously-undiscovered bug: `HookContext.provider`
+was never populated by the dispatch pipeline at all (only `params.provider` was), which meant
+`@mantlejs/logger`'s stable `logRequest`/`logError` hooks — which read that exact field — had
+always logged `provider: undefined` for every request in every deployment. Fixed at the root in
+`@mantlejs/mantle`'s `makeContext()`, with new regression coverage in `application.spec.ts`.
+
 ### 4. Auth hardening *(BAAS-READINESS §1.4)*
 
 No new OAuth strategies. Confirm, under concurrent/multi-instance conditions (the failure mode that doesn't

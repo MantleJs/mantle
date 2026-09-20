@@ -350,6 +350,49 @@ describe("Hook pipeline — error hooks", () => {
     await app.service<User>("users").find(params);
     expect(capturedProvider).toBe("rest");
   });
+
+  it("HookContext.provider mirrors params.provider — the top-level field CLAUDE.md documents and @mantlejs/logger's logRequest/logError hooks read", async () => {
+    // Regression test: makeContext() previously never set the top-level `provider` field at
+    // all, so it was always undefined regardless of transport — a confirmed bug, not by design.
+    // @mantlejs/logger's stable logRequest/logError hooks read exactly this field, so every
+    // deployment's log records silently showed `provider: undefined` no matter which transport
+    // (or none) actually made the call.
+    const app = mantle();
+    let capturedTopLevelProvider: string | undefined;
+    app.use("users", makeUserService());
+    app.service<User>("users").hooks({
+      before: {
+        all: [
+          (ctx) => {
+            capturedTopLevelProvider = ctx.provider;
+            return ctx;
+          },
+        ],
+      },
+    });
+
+    await app.service<User>("users").find({ provider: "mcp" });
+    expect(capturedTopLevelProvider).toBe("mcp");
+  });
+
+  it("HookContext.provider is undefined for an internal call, same as params.provider", async () => {
+    const app = mantle();
+    let capturedTopLevelProvider: string | undefined;
+    app.use("users", makeUserService());
+    app.service<User>("users").hooks({
+      before: {
+        all: [
+          (ctx) => {
+            capturedTopLevelProvider = ctx.provider;
+            return ctx;
+          },
+        ],
+      },
+    });
+
+    await app.service<User>("users").find();
+    expect(capturedTopLevelProvider).toBeUndefined();
+  });
 });
 
 describe("Logger", () => {

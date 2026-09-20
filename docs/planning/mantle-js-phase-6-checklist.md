@@ -79,13 +79,40 @@ strategy (items 5–8) → release (item 9).
   only the root segment. `npx nx run-many -t build,test,lint,typecheck` green across all 40
   projects; `CLAUDE.md`'s operator table and every affected package's README updated to match.
 
-- [ ] **2. `@mantlejs/mcp` — verify hook-pipeline equivalence** *(PRD spec 3)*
+- [x] **2. `@mantlejs/mcp` — verify hook-pipeline equivalence** *(PRD spec 3)*
   Manifest source, raw-query absence, and expose-map granularity are already confirmed by direct inspection
   (see PRD spec 3) — no code changes expected for those three. The one open question needing a spec: does an
   MCP-originated call and an HTTP-originated call against the same service run through *identical*
   `authenticate`/`authorize` hooks, differing only in `HookContext.provider`?
   **Accept:** a spec registering one service with an `authenticate`+`authorize` hook chain, calling it once
   via HTTP and once via MCP with equivalent credentials, asserting identical accept/reject behavior.
+  **Done (2026-09-22):** added `packages/mcp/src/lib/hook-pipeline-equivalence.spec.ts` — one app,
+  one `articles` service, a real `authenticate("jwt")` hook (from `@mantlejs/auth`, not a stand-in)
+  plus a small authorization hook, called once via `@mantlejs/http`'s REST route and once via
+  `@mantlejs/mcp`'s `tools/call`, for three cases (no credentials, wrong role, right role) — all
+  three confirm identical accept/reject decisions, with the recorded `HookContext.provider` the
+  only thing that differs between the two calls.
+  **Confirmed real, previously-undiscovered bug found and fixed while building this spec** (not
+  something the spec was looking for — it surfaced while wiring up the exact assertion the
+  acceptance criteria asks for, "differing only in `HookContext.provider`"): that field was
+  **never populated by the dispatch pipeline at all**. `application.ts`'s `makeContext()` builds
+  every `HookContext` without ever setting `.provider`, only `.params.provider` — confirmed by
+  grepping the entire `@mantlejs/mantle` source for any assignment to it and finding none. This
+  matters because `@mantlejs/auth`'s `authenticate()`/`sanitizeUser()` hooks correctly read
+  `context.params.provider` and were never affected — but `@mantlejs/logger`'s stable, shipped
+  `logRequest`/`logError` hooks read `ctx.provider` (the top-level field, per `CLAUDE.md`'s own
+  documented `HookContext` shape), meaning **every deployment's log records have always shown
+  `provider: undefined`**, regardless of whether the call was REST, MCP, socket.io, or truly
+  internal — silently defeating exactly the "what did my agents actually do" observability this
+  phase's audit-first positioning depends on. The logger package's own unit tests never caught
+  this because they hand-construct `HookContext` objects with both fields set directly, never
+  exercising a real dispatch. Fixed at the source — `makeContext()` now sets
+  `provider: params?.provider` — rather than patching `@mantlejs/logger`, since the fix is
+  correct for every current and future consumer of the documented field, not just that one
+  package. Two new regression tests added directly to `@mantlejs/mantle`'s own
+  `application.spec.ts` (provider mirrors `params.provider` for a real dispatched call; both are
+  `undefined` for an internal call) so this can't silently regress again.
+  `npx nx run-many -t build,test,lint,typecheck` green across all 40 projects.
 
 - [ ] **3. Auth hardening under concurrency** *(PRD spec 4)*
   No new OAuth strategies. Specs proving, against `@mantlejs/auth-redis` specifically: concurrent refresh
