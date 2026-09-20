@@ -154,8 +154,14 @@ distance, where lower is more similar.
 | `$ne: null`         | `must_not is_null`                  |
 | `$in`               | `match.any`                         |
 | `$nin`              | `must_not match.any`                |
+| `$contains` (scalar) | `match.value` — Qdrant already matches "any element equals this value" when the field is an array, so this is the same shape as plain equality |
+| `$contains` (array) | one ANDed `match.value` per element — every element required, not "any of" |
+| `$contains` (object) | recurses into each key as a nested dot-path, flattening to leaf `match.value`/ANDed-array conditions the same way |
 | `$or`               | `should`                            |
 | `$and`              | `must`                              |
+
+Nested fields (`"metadata.owner.name"`) are addressed natively — Qdrant's payload filter `key`
+accepts dot-path strings directly, for every operator above, no translation needed.
 
 ---
 

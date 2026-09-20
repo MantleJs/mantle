@@ -142,6 +142,7 @@ export abstract class DynamoDbRepository<T extends Record<string, unknown>, D = 
       operators: [...DYNAMODB_OPERATORS],
       pagination: "both",
       fullTextSearch: false,
+      nestedPaths: true,
       // Mirrors the Query-vs-Scan branch in findAll(): Query is only possible when a
       // sort key is defined and the where clause pins the partition key.
       scanning: (where) => !(this.sortKey && where[this.partitionKey] !== undefined),

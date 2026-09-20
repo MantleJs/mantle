@@ -57,6 +57,7 @@ export abstract class MongoRepository<T extends Record<string, unknown>, D = Par
       operators: [...MONGO_OPERATORS],
       pagination: "offset",
       fullTextSearch: false,
+      nestedPaths: true,
     };
   }
 

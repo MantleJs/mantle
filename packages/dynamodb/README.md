@@ -50,15 +50,21 @@ The repository uses:
 | `{ field: [a, b] }`                | `#n IN (...)` (shorthand)  |
 | `{ field: { $nin: [...] } }`       | `NOT (#n IN (...))`        |
 | `{ field: { $begins: "prefix" } }` | `begins_with(#n, :v)`      |
-| `{ field: { $contains: "str" } }`  | `contains(#n, :v)`         |
+| `{ field: { $contains: "str" } }`  | `contains(#n, :v)` — scalar: substring/element match |
+| `{ field: { $contains: [...] } }`  | `(contains(#n,:v0) AND contains(#n,:v1) ...)` — one ANDed `contains()` per element (every element required, matching the memory/supabase/knex-pg reference semantics) |
+| `{ field: { $contains: {...} } }`  | flattened into ANDed leaf conditions, one per nested path — DynamoDB has no native nested-object containment function, so a superset check on an object operand is expressed as "every leaf key/value matches at its path" |
+| `{ "a.b.c": value }`               | `#n0.#n1.#n2 = :v` — nested attribute path (each segment gets its own alias) |
 | `{ $or: [...] }`                   | `(expr OR expr)`           |
 | `{ $and: [...] }`                  | `(expr AND expr)`          |
 
 `$like` is deliberately unsupported (DynamoDB has no wildcard matching) and throws `BadRequest`.
 
-Note: `$contains` here maps to DynamoDB's native `contains()` — set/list membership of a single
-value, or substring match on strings. This differs from the jsonb `@>` semantics used by the
-memory/supabase/knex adapters (no array-operand "contains every element", no object superset).
+Nested dot-path fields (`"metadata.owner.name"`) address real nested attributes — DynamoDB
+supports this natively via multi-segment `ExpressionAttributeNames` aliases (`#n0.#n1.#n2`), and
+every operator above (including `$in`/`$nin`/null-checks) works the same whether the field is
+top-level or nested — DynamoDB's expression language treats a nested document path like any other
+operand, unlike SQL dialects where `IN`/null-checks against a JSON path need special handling
+that isn't always available.
 
 ---
 

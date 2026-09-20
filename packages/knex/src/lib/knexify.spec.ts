@@ -16,6 +16,7 @@ function makeBuilder(client = "pg") {
     whereRaw: vi.fn(),
     whereILike: vi.fn(),
     whereJsonSupersetOf: vi.fn(),
+    whereJsonPath: vi.fn(),
   };
   // All methods return the same builder for chaining
   for (const key of Object.keys(qb)) {
@@ -206,7 +207,7 @@ describe("knexify", () => {
     });
   });
 
-  describe("$contains (jsonb containment, PostgreSQL only)", () => {
+  describe("$contains (jsonb/JSON containment, PostgreSQL + MySQL only)", () => {
     it("maps an object operand to whereJsonSupersetOf on pg", () => {
       const qb = makeBuilder("pg");
       knexify(qb, { metadata: { $contains: { owner: { name: "alice" } } } });
@@ -234,11 +235,159 @@ describe("knexify", () => {
       );
     });
 
-    it("rejects $contains on non-PostgreSQL clients, naming the operator and client", () => {
+    it("also maps to whereJsonSupersetOf on mysql2 — MySQL's JSON_CONTAINS via the same knex method", () => {
       const qb = makeBuilder("mysql2");
-      expect(() => knexify(qb, { tags: { $contains: "blue" } })).toThrow(BadRequest);
-      expect(() => knexify(qb, { tags: { $contains: "blue" } })).toThrow(
-        /\$contains is only supported by @mantlejs\/knex on PostgreSQL \(current client: mysql2\)/,
+      knexify(qb, { tags: { $contains: "blue" } });
+      expect((qb as unknown as Record<string, ReturnType<typeof vi.fn>>)["whereJsonSupersetOf"]).toHaveBeenCalledWith(
+        "tags",
+        ["blue"],
+      );
+    });
+
+    it("rejects $contains on clients with no native JSON-superset function, naming the operator and client", () => {
+      for (const client of ["sqlite3", "mssql"]) {
+        const qb = makeBuilder(client);
+        expect(() => knexify(qb, { tags: { $contains: "blue" } })).toThrow(BadRequest);
+        expect(() => knexify(qb, { tags: { $contains: "blue" } })).toThrow(
+          /\$contains is only supported by @mantlejs\/knex on PostgreSQL and MySQL/,
+        );
+      }
+    });
+  });
+
+  describe("dot-path (nested JSON field) support", () => {
+    it("addresses a nested field via whereJsonPath for equality", () => {
+      const qb = makeBuilder("pg");
+      knexify(qb, { "metadata.owner.name": "alice" });
+      expect((qb as unknown as Record<string, ReturnType<typeof vi.fn>>)["whereJsonPath"]).toHaveBeenCalledWith(
+        "metadata",
+        "$.owner.name",
+        "=",
+        "alice",
+      );
+    });
+
+    it("addresses a nested field via whereJsonPath for comparison operators", () => {
+      const qb = makeBuilder("mysql2");
+      knexify(qb, { "metadata.level": { $gt: 4 } });
+      expect((qb as unknown as Record<string, ReturnType<typeof vi.fn>>)["whereJsonPath"]).toHaveBeenCalledWith(
+        "metadata",
+        "$.level",
+        ">",
+        4,
+      );
+    });
+
+    it("works for sqlite3 and mssql too", () => {
+      for (const client of ["sqlite3", "mssql"]) {
+        const qb = makeBuilder(client);
+        knexify(qb, { "metadata.owner.name": "alice" });
+        expect((qb as unknown as Record<string, ReturnType<typeof vi.fn>>)["whereJsonPath"]).toHaveBeenCalledWith(
+          "metadata",
+          "$.owner.name",
+          "=",
+          "alice",
+        );
+      }
+    });
+
+    it("supports $ne, $like, $notlike on a nested field", () => {
+      const qb = makeBuilder("pg");
+      knexify(qb, { "metadata.owner.name": { $ne: "alice" } });
+      expect((qb as unknown as Record<string, ReturnType<typeof vi.fn>>)["whereJsonPath"]).toHaveBeenCalledWith(
+        "metadata",
+        "$.owner.name",
+        "!=",
+        "alice",
+      );
+
+      knexify(qb, { "metadata.owner.name": { $like: "al%" } });
+      expect((qb as unknown as Record<string, ReturnType<typeof vi.fn>>)["whereJsonPath"]).toHaveBeenCalledWith(
+        "metadata",
+        "$.owner.name",
+        "like",
+        "al%",
+      );
+
+      knexify(qb, { "metadata.owner.name": { $notlike: "al%" } });
+      expect((qb as unknown as Record<string, ReturnType<typeof vi.fn>>)["whereJsonPath"]).toHaveBeenCalledWith(
+        "metadata",
+        "$.owner.name",
+        "not like",
+        "al%",
+      );
+    });
+
+    it("$ilike on a nested field works on pg", () => {
+      const qb = makeBuilder("pg");
+      knexify(qb, { "metadata.owner.name": { $ilike: "AL%" } });
+      expect((qb as unknown as Record<string, ReturnType<typeof vi.fn>>)["whereJsonPath"]).toHaveBeenCalledWith(
+        "metadata",
+        "$.owner.name",
+        "ilike",
+        "AL%",
+      );
+    });
+
+    it("rejects $ilike on a nested field for non-pg clients", () => {
+      const qb = makeBuilder("mysql2");
+      expect(() => knexify(qb, { "metadata.owner.name": { $ilike: "AL%" } })).toThrow(BadRequest);
+      expect(() => knexify(qb, { "metadata.owner.name": { $ilike: "AL%" } })).toThrow(
+        /\$ilike on nested field .* is only supported by @mantlejs\/knex on PostgreSQL/,
+      );
+    });
+
+    it("rejects null checks on a nested field", () => {
+      const qb = makeBuilder("pg");
+      expect(() => knexify(qb, { "metadata.owner.name": null })).toThrow(BadRequest);
+      expect(() => knexify(qb, { "metadata.owner.name": null })).toThrow(/Null checks on nested field/);
+    });
+
+    it("rejects the $in array shorthand on a nested field", () => {
+      const qb = makeBuilder("pg");
+      expect(() => knexify(qb, { "metadata.owner.name": ["alice", "bob"] })).toThrow(BadRequest);
+      expect(() => knexify(qb, { "metadata.owner.name": { $in: ["alice", "bob"] } })).toThrow(BadRequest);
+      expect(() => knexify(qb, { "metadata.owner.name": { $nin: ["alice", "bob"] } })).toThrow(BadRequest);
+    });
+
+    it("$contains on a nested field maps to a raw JSON-containment expression on pg", () => {
+      const qb = makeBuilder("pg");
+      knexify(qb, { "metadata.tags": { $contains: "a" } });
+      expect((qb as unknown as Record<string, ReturnType<typeof vi.fn>>)["whereRaw"]).toHaveBeenCalledWith(
+        "?? #> ? @> ?::jsonb",
+        ["metadata", "{tags}", JSON.stringify(["a"])],
+      );
+    });
+
+    it("$contains on a nested field maps to JSON_CONTAINS on mysql", () => {
+      const qb = makeBuilder("mysql2");
+      knexify(qb, { "metadata.tags": { $contains: "a" } });
+      expect((qb as unknown as Record<string, ReturnType<typeof vi.fn>>)["whereRaw"]).toHaveBeenCalledWith(
+        "JSON_CONTAINS(??, ?, ?)",
+        ["metadata", JSON.stringify(["a"]), "$.tags"],
+      );
+    });
+
+    it("rejects $contains on a nested field for sqlite/mssql", () => {
+      for (const client of ["sqlite3", "mssql"]) {
+        const qb = makeBuilder(client);
+        expect(() => knexify(qb, { "metadata.tags": { $contains: "a" } })).toThrow(BadRequest);
+      }
+    });
+
+    it("rejects a nested field entirely on an unrecognized client", () => {
+      const qb = makeBuilder("oracledb");
+      expect(() => knexify(qb, { "metadata.owner.name": "alice" })).toThrow(BadRequest);
+      expect(() => knexify(qb, { "metadata.owner.name": "alice" })).toThrow(
+        /Nested field "metadata\.owner\.name" is not supported by @mantlejs\/knex on this client/,
+      );
+    });
+
+    it("composes with $or/$and", () => {
+      const qb = makeBuilder("pg");
+      knexify(qb, { $or: [{ "metadata.owner.name": "alice" }, { status: "active" }] });
+      expect((qb as unknown as Record<string, ReturnType<typeof vi.fn>>)["where"]).toHaveBeenCalledWith(
+        expect.any(Function),
       );
     });
   });
@@ -274,5 +423,18 @@ describe("mapWhereFields", () => {
   it("recurses into $and branches without renaming the $and key itself", () => {
     const where: WhereClause = { $and: [{ userId: 1 }, { name: "Bob" }] };
     expect(mapWhereFields(where, shout)).toEqual({ $and: [{ USERID: 1 }, { NAME: "Bob" }] });
+  });
+
+  it("maps only the root segment of a dot-path field, leaving nested JSON keys untouched", () => {
+    // The nested segments ("ownerName") are JSON keys inside the stored document, not SQL
+    // identifiers — a columnCase/fieldMap convention like snake_case must never reformat them.
+    expect(mapWhereFields({ "userInfo.ownerName": "alice" }, shout)).toEqual({
+      "USERINFO.ownerName": "alice",
+    });
+  });
+
+  it("maps the dot-path root inside $or/$and branches too", () => {
+    const where: WhereClause = { $or: [{ "userInfo.ownerName": "alice" }] };
+    expect(mapWhereFields(where, shout)).toEqual({ $or: [{ "USERINFO.ownerName": "alice" }] });
   });
 });

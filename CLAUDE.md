@@ -187,13 +187,42 @@ Operators supported in `where`:
 - Inclusion: `$in`, `$nin`
 - Logical: `$or`, `$and` (accept arrays of where clauses)
 - Pattern: `$like`, `$notlike`, `$ilike`
-- Containment: `$contains` (jsonb `@>` semantics; memory, supabase, knex on pg, dynamodb, mongodb)
-- Nested paths: dot-path keys like `"metadata.tags"` (memory, supabase, mongodb; supabase maps to PostgREST `->`/`->>`, mongodb is native)
+- Containment: `$contains` — "field is a superset of this value" (scalar → contains-element,
+  array → contains-every-element, object → recursive key/value superset)
+- Nested paths: dot-path keys like `"metadata.owner.name"` address nested fields
+
+Every adapter's `describe().capabilities` reports exactly which operators it accepts (matching
+what its `assertOperators` call enforces — no adapter advertises a capability it doesn't actually
+support) and a `nestedPaths: boolean` flag. Support is uneven by design, not oversight — some gaps
+are architectural (a backend that genuinely cannot represent nested data), not a missing
+translator feature:
+
+| Adapter | `$contains` | Nested paths (`"a.b.c"`) |
+| --- | --- | --- |
+| `memory` | ✅ full (reference implementation) | ✅ full |
+| `supabase` | ✅ jsonb `@>` (Postgres) | ✅ PostgREST `->`/`->>` |
+| `mongodb` | ✅ native | ✅ native |
+| `knex` — PostgreSQL | ✅ jsonb `@>` | ✅ `jsonb_path_query_first` (via `whereJsonPath`) |
+| `knex` — MySQL | ✅ `JSON_CONTAINS` | ✅ `JSON_EXTRACT` (via `whereJsonPath`) |
+| `knex` — SQLite | ❌ no native JSON-superset function | ✅ `json_extract` (via `whereJsonPath`) |
+| `knex` — MSSQL | ❌ no native JSON-superset function | ✅ `JSON_VALUE` (via `whereJsonPath`) |
+| `dynamodb` | ✅ `contains()`, ANDed per element/leaf for array/object operands | ✅ multi-segment `#name0.#name1` attribute paths |
+| `qdrant` | ✅ `match.value`, ANDed per element/leaf (arrays auto-match-any-element) | ✅ native (dot-path payload keys) |
+| `neo4j` | ❌ node properties can't hold nested objects at all | ❌ same — architectural, not a gap |
+| `pinecone` | ❌ metadata values are flat scalars/scalar-arrays only | ❌ same — architectural, not a gap |
+
+On `knex`, capability depends on the **connected client** (`describe()` is computed from it, not
+a static per-package constant) — check `describe().capabilities` rather than assuming every knex
+deployment behaves the same. `$ilike` on a dot-path field is PostgreSQL-only (not standard SQL,
+unlike `like`/`not like`/`!=`, which work identically across all four supported clients);
+`$in`/`$nin`/null-checks on a dot-path field are unsupported on every client (no clean SQL
+translation) and throw a clear `BadRequest` rather than silently misbehaving.
 
 Adapters reject unsupported operators via `assertOperators` (BadRequest naming the operator).
 The shared conformance fixture for nested-path + `$contains` semantics is exported from
 `@mantlejs/mantle` (`NESTED_QUERY_RECORDS` / `NESTED_QUERY_CASES`); `@mantlejs/memory` is the
-executable reference.
+executable reference, and `knex`/`dynamodb`/`qdrant`/`supabase`/`mongodb` all run the same cases
+as translator-assertion specs.
 
 ### HookContext<T>
 

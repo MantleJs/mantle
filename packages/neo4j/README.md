@@ -170,6 +170,12 @@ await repo.withTransaction(async (txRepo) => {
 | `$or`                     | `(a OR b OR …)`                             |
 | `$and`                    | `(a AND b AND …)`                           |
 
+`$contains` and dot-path nested fields (`"metadata.owner.name"`) are **not supported** —
+architectural, not a missing translator feature: Neo4j node properties can only hold flat
+scalars/scalar-arrays, never nested objects, so there's no nested structure to address or check
+containment against in the first place. `describe().capabilities.nestedPaths` reports `false`
+accordingly.
+
 ---
 
 ### `toNeo4jWhere(where, alias?)`

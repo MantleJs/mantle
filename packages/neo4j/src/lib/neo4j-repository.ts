@@ -47,6 +47,10 @@ export abstract class Neo4jRepository<T extends Record<string, unknown>> impleme
       operators: [...NEO4J_OPERATORS],
       pagination: "offset",
       fullTextSearch: false,
+      // Node properties cannot hold nested objects at all — this is architectural, not a
+      // missing translator feature. A dot-path field name is treated as a literal property
+      // name (and will simply never match, since no property is actually named "a.b.c").
+      nestedPaths: false,
     };
   }
 

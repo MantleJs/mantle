@@ -13,7 +13,7 @@ interface User extends Record<string, unknown> {
 
 // ─── Mock helpers ────────────────────────────────────────────────────────────
 
-function makeQb(resolveWith: unknown) {
+function makeQb(resolveWith: unknown, clientName = "pg") {
   const qb: Record<string, ReturnType<typeof vi.fn>> = {
     where: vi.fn(),
     whereNull: vi.fn(),
@@ -24,6 +24,8 @@ function makeQb(resolveWith: unknown) {
     whereLike: vi.fn(),
     whereNotLike: vi.fn(),
     whereILike: vi.fn(),
+    whereJsonPath: vi.fn(),
+    whereJsonSupersetOf: vi.fn(),
     orderBy: vi.fn(),
     offset: vi.fn(),
     limit: vi.fn(),
@@ -44,11 +46,16 @@ function makeQb(resolveWith: unknown) {
   qb["first"].mockResolvedValue(resolveWith);
   qb["returning"].mockResolvedValue(resolveWith);
   qb["count"].mockResolvedValue(resolveWith);
+  // Real knex query builders carry the same `.client` reference as the `Knex` instance they
+  // were built from — mock that here too, not just on the outer `knexFn` below, so client-aware
+  // code paths that read it off a query builder (as `@mantlejs/knex`'s where-clause translator
+  // does, same as real knex itself) see the right client instead of "unknown".
+  (qb as Record<string, unknown>)["client"] = { config: { client: clientName } };
   return qb;
 }
 
 function makeSetup(resolveWith: unknown, clientName = "pg") {
-  const qb = makeQb(resolveWith);
+  const qb = makeQb(resolveWith, clientName);
   const knexFn = vi.fn().mockReturnValue(qb) as unknown as Knex;
   (knexFn as unknown as Record<string, unknown>)["client"] = { config: { client: clientName } };
   (knexFn as unknown as Record<string, unknown>)["transaction"] = vi.fn();
@@ -375,6 +382,21 @@ describe("KnexRepository", () => {
       qb["select"].mockRejectedValue("string error");
       await expect(new TestRepo(app).findAll()).rejects.toBeInstanceOf(GeneralError);
     });
+
+    it("passes an already-typed MantleError through unchanged, instead of crashing on its numeric code", async () => {
+      // A BadRequest's `code` is a numeric HTTP status (400) — `wrapError`'s SQLSTATE-prefix
+      // logic assumes a driver's string error code and calls `.slice()` on it. Before the fix,
+      // any BadRequest thrown synchronously inside a repository method's try block (e.g. the
+      // where-clause translator rejecting an unsupported operator or nested field) crashed with
+      // an unrelated "code.slice is not a function" TypeError instead of propagating cleanly.
+      const { app } = makeSetup([]);
+      await expect(
+        new TestRepo(app).findAll({ where: { "metadata.owner.name": null } }),
+      ).rejects.toMatchObject({
+        constructor: BadRequest,
+        message: expect.stringMatching(/Null checks on nested field/),
+      });
+    });
   });
 
   describe("columnCase: snake_case", () => {
@@ -389,6 +411,12 @@ describe("KnexRepository", () => {
       const { qb, app } = makeSetup([]);
       await new TestRepoSnakeCase(app).findAll({ sort: { userId: "asc" } });
       expect(qb["orderBy"]).toHaveBeenCalledWith("user_id", "asc");
+    });
+
+    it("snake_cases only the root column of a dot-path field, leaving nested JSON keys untouched", async () => {
+      const { qb, app } = makeSetup([]);
+      await new TestRepoSnakeCase(app).findAll({ where: { "userMeta.ownerName": "alice" } });
+      expect(qb["whereJsonPath"]).toHaveBeenCalledWith("user_meta", "$.ownerName", "=", "alice");
     });
 
     it("converts select field names to snake_case columns", async () => {
@@ -454,13 +482,42 @@ describe("KnexRepository", () => {
   });
 
   describe("describe()", () => {
-    it("reports the exact operator set assertOperators accepts", () => {
-      const { app } = makeSetup([]);
+    it("reports the full operator set (including $contains) on pg — it supports everything", () => {
+      const { app } = makeSetup([], "pg");
       const caps = new TestRepo(app).describe();
       expect(caps.adapter).toBe("@mantlejs/knex");
       expect(new Set(caps.operators)).toEqual(KNEX_OPERATORS);
       expect(caps.pagination).toBe("offset");
       expect(caps.fullTextSearch).toBe(false);
+      expect(caps.nestedPaths).toBe(true);
+    });
+
+    it("reports the full operator set on mysql2 too — $contains via JSON_CONTAINS", () => {
+      const { app } = makeSetup([], "mysql2");
+      const caps = new TestRepo(app).describe();
+      expect(new Set(caps.operators)).toEqual(KNEX_OPERATORS);
+      expect(caps.nestedPaths).toBe(true);
+    });
+
+    it("omits $contains on sqlite3 — no native JSON-superset function — but keeps nestedPaths true", () => {
+      const { app } = makeSetup([], "sqlite3");
+      const caps = new TestRepo(app).describe();
+      expect(caps.operators).not.toContain("$contains");
+      expect(caps.nestedPaths).toBe(true);
+    });
+
+    it("omits $contains on mssql for the same reason", () => {
+      const { app } = makeSetup([], "mssql");
+      const caps = new TestRepo(app).describe();
+      expect(caps.operators).not.toContain("$contains");
+      expect(caps.nestedPaths).toBe(true);
+    });
+
+    it("reports nestedPaths false and no $contains for an unrecognized client", () => {
+      const { app } = makeSetup([], "oracledb");
+      const caps = new TestRepo(app).describe();
+      expect(caps.operators).not.toContain("$contains");
+      expect(caps.nestedPaths).toBe(false);
     });
   });
 });

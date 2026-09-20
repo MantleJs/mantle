@@ -66,6 +66,10 @@ export abstract class PineconeRepository<T extends Record<string, unknown>, D = 
       operators: [...PINECONE_OPERATORS],
       pagination: "both",
       fullTextSearch: false,
+      // Pinecone metadata values are flat scalars/scalar-arrays only — nested objects can't be
+      // stored in metadata at all, so there is no nested field to address. Architectural, not a
+      // missing translator feature.
+      nestedPaths: false,
     };
   }
 

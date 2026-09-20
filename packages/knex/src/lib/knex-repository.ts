@@ -1,8 +1,17 @@
 import type { Knex } from "knex";
 import type { Id, QueryParams, Repository, RepositoryCapabilities } from "@mantlejs/mantle";
-import { BadRequest, Conflict, Forbidden, GeneralError, NotFound, Unavailable, Unprocessable } from "@mantlejs/mantle";
+import {
+  BadRequest,
+  Conflict,
+  Forbidden,
+  GeneralError,
+  MantleError,
+  NotFound,
+  Unavailable,
+  Unprocessable,
+} from "@mantlejs/mantle";
 import type { MantleApplication } from "@mantlejs/mantle";
-import { knexify, mapWhereFields, KNEX_OPERATORS } from "./knexify.js";
+import { knexify, mapWhereFields, capabilitiesForClient } from "./knexify.js";
 import type { WhereClause } from "./knexify.js";
 import { toCamelCase, toSnakeCase } from "./naming.js";
 
@@ -40,11 +49,16 @@ export abstract class KnexRepository<T extends Record<string, unknown>, D = Part
   }
 
   describe(): RepositoryCapabilities {
+    // Client-aware — not a static constant — so this can never drift from what the
+    // translator actually accepts for the connected client (e.g. `$contains` and dot-path
+    // fields are only advertised where they're actually supported).
+    const { operators, nestedPaths } = capabilitiesForClient(this.clientName);
     return {
       adapter: "@mantlejs/knex",
-      operators: [...KNEX_OPERATORS],
+      operators,
       pagination: "offset",
       fullTextSearch: false,
+      nestedPaths,
     };
   }
 
@@ -66,8 +80,14 @@ export abstract class KnexRepository<T extends Record<string, unknown>, D = Part
     return this._trx ?? this.knex;
   }
 
+  /** The connected client's name (e.g. "pg", "mysql2", "better-sqlite3"), read off the raw
+   * `Knex` instance rather than a query builder — available even before any query has run. */
+  private get clientName(): string {
+    return (this.knex.client as unknown as { config?: { client?: string } }).config?.client ?? "";
+  }
+
   private get supportsReturning(): boolean {
-    const client = (this.knex.client as unknown as { config?: { client?: string } }).config?.client ?? "";
+    const client = this.clientName;
     return ["pg", "postgresql", "sqlite3", "mssql", "oracledb"].some((c) => client.startsWith(c));
   }
 
@@ -291,6 +311,12 @@ export abstract class KnexRepository<T extends Record<string, unknown>, D = Part
   }
 
   protected wrapError(err: unknown): Error {
+    // Already a typed MantleError (e.g. thrown by the where-clause translator for an
+    // unsupported operator or nested field) — pass it through unchanged. Below this point,
+    // `code` is assumed to be a driver-supplied SQLSTATE-style *string*; a MantleError's `code`
+    // is a numeric HTTP status, which would otherwise reach `.slice()` and throw a confusing
+    // unrelated TypeError, masking the original, already-correct error.
+    if (err instanceof MantleError) return err;
     if (!(err instanceof Error)) return new GeneralError("An unknown database error occurred");
     const code = (err as { code?: string }).code ?? "";
     const prefix = code.slice(0, 2);

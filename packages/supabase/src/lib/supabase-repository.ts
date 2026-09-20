@@ -344,6 +344,7 @@ export abstract class SupabaseRepository<T extends Record<string, unknown>, D = 
       operators: [...SUPABASE_OPERATORS],
       pagination: "offset",
       fullTextSearch: false,
+      nestedPaths: true,
     };
   }
 

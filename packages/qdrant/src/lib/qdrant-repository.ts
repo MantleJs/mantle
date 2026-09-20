@@ -69,6 +69,7 @@ export abstract class QdrantRepository<T extends Record<string, unknown>, D = Pa
       operators: [...QDRANT_OPERATORS],
       pagination: "both",
       fullTextSearch: false,
+      nestedPaths: true,
     };
   }
 

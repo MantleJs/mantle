@@ -226,6 +226,7 @@ export class MemoryRepository<T extends Record<string, unknown>> implements Repo
       operators: [...MEMORY_OPERATORS],
       pagination: "offset",
       fullTextSearch: false,
+      nestedPaths: true,
     };
   }
 }

@@ -147,6 +147,14 @@ two gaps, a written decision (per adapter: extended, or formalized-absent) recor
 [Decisions](#architectural--design-decisions) table; extended adapters covered by the existing
 `NESTED_QUERY_CASES`/shared conformance fixtures from `@mantlejs/mantle`.
 
+**Done (2026-09-20):** full per-adapter breakdown and the real bugs found along the way (a confirmed
+`knex` `describe()` drift matching the one predicted above, a pre-existing DynamoDB `$contains`
+array-operand bug, a `KnexRepository.wrapError()` crash on typed `MantleError`s, and a
+`mapWhereFields` column-case bug that would have mangled JSON key names) are recorded in the
+[Phase 6 Checklist](./mantle-js-phase-6-checklist.md) item 1 — not duplicated here to avoid drift
+between the two documents. `CLAUDE.md`'s operator table now carries the full per-adapter/per-client
+matrix this spec called for.
+
 ### 2. Cross-adapter write consistency pattern *(BAAS-READINESS §1.2)*
 
 `CLAUDE.md` already documents, correctly, that cross-adapter writes aren't atomic. Formalize the standard

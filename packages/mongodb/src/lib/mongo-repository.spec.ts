@@ -101,6 +101,7 @@ describe("MongoRepository", () => {
         operators: [...MONGO_OPERATORS],
         pagination: "offset",
         fullTextSearch: false,
+        nestedPaths: true,
       });
     });
   });

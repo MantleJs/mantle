@@ -164,16 +164,32 @@ All three methods throw `GeneralError` if the repository isn't connected to a Po
 { name: { $ilike: "alice%" } }   // case-insensitive
 { name: { $notlike: "Bob%" } }
 
-// JSON containment (PostgreSQL only — jsonb @> via whereJsonSupersetOf)
-{ tags: { $contains: "blue" } }             // tags @> '["blue"]' (contains element)
+// JSON containment (PostgreSQL: jsonb @>; MySQL: JSON_CONTAINS — both via whereJsonSupersetOf)
+{ tags: { $contains: "blue" } }             // contains element
 { tags: { $contains: ["red", "blue"] } }    // contains every element
 { metadata: { $contains: { plan: "pro" } } } // object superset
-// On non-PostgreSQL clients $contains throws BadRequest naming the operator.
+// On SQLite/MSSQL — no native JSON-superset function — $contains throws BadRequest naming the
+// operator and the connected client.
+
+// Nested (dot-path) fields — PostgreSQL, MySQL, SQLite, and MSSQL, via Knex's own
+// cross-dialect whereJsonPath (jsonb_path_query_first / JSON_EXTRACT / json_extract / JSON_VALUE)
+{ "metadata.owner.name": "alice" }              // equality
+{ "metadata.level": { $gt: 4 } }                // $lt | $lte | $gt | $gte
+{ "metadata.owner.name": { $ne: "alice" } }     // $ne
+{ "metadata.owner.name": { $like: "al%" } }     // $like | $notlike (all four clients)
+{ "metadata.owner.name": { $ilike: "AL%" } }    // PostgreSQL only — not standard SQL
+{ "metadata.tags": { $contains: "a" } }         // PostgreSQL + MySQL only, same restriction as above
+// $in/$nin and null-checks on a dot-path field have no clean SQL translation and throw
+// BadRequest — restructure the schema, or filter in application code after fetching.
 
 // Logical
 { $or: [{ role: "admin" }, { role: "editor" }] }
 { $and: [{ active: true }, { age: { $gte: 18 } }] }
 ```
+
+`describe().capabilities` reports exactly which of the above the *connected* client supports —
+check it rather than assuming, since `$contains` and `$ilike`-on-a-dot-path in particular vary by
+client (see `CLAUDE.md`'s operator table for the full per-client breakdown).
 
 ---
 

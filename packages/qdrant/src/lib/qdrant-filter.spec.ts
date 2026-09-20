@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { BadRequest } from "@mantlejs/mantle";
-import { toQdrantFilter } from "./qdrant-filter.js";
+import { BadRequest, NESTED_QUERY_CASES } from "@mantlejs/mantle";
+import { toQdrantFilter, type WhereClause } from "./qdrant-filter.js";
 
 describe("toQdrantFilter", () => {
   describe("equality", () => {
@@ -116,12 +116,6 @@ describe("toQdrantFilter", () => {
       );
     });
 
-    it("rejects $contains, naming the operator and adapter", () => {
-      expect(() => toQdrantFilter({ tags: { $contains: "blue" } })).toThrow(
-        /Operator \$contains is not supported by @mantlejs\/qdrant\. Supported: /,
-      );
-    });
-
     it("rejects unknown operators nested in $or", () => {
       expect(() => toQdrantFilter({ $or: [{ age: { $get: 21 } }] })).toThrow(BadRequest);
     });
@@ -164,5 +158,33 @@ describe("toQdrantFilter", () => {
     it("returns an empty object for an empty where clause", () => {
       expect(toQdrantFilter({})).toEqual({});
     });
+  });
+
+  describe("$contains and nested dot-path fields (D-7 shared fixture)", () => {
+    const expectedFilters: Record<string, Record<string, unknown>> = {
+      "dot-path equality": { must: [{ key: "metadata.owner.name", match: { value: "alice" } }] },
+      "dot-path comparison operator": { must: [{ key: "metadata.level", range: { gt: 4 } }] },
+      "$contains scalar element on a top-level array": {
+        must: [{ key: "tags", match: { value: "blue" } }],
+      },
+      "$contains array operand (all elements required)": {
+        must: [
+          { key: "tags", match: { value: "red" } },
+          { key: "tags", match: { value: "blue" } },
+        ],
+      },
+      "$contains on a dot-path array": { must: [{ key: "metadata.tags", match: { value: "a" } }] },
+      "$contains object operand (JSON superset)": {
+        must: [{ key: "metadata.owner.name", match: { value: "alice" } }],
+      },
+    };
+
+    for (const testCase of NESTED_QUERY_CASES) {
+      it(`translates ${testCase.name}`, () => {
+        const expected = expectedFilters[testCase.name];
+        expect(expected).toBeDefined();
+        expect(toQdrantFilter(testCase.where as WhereClause)).toEqual(expected);
+      });
+    }
   });
 });

@@ -168,6 +168,11 @@ Converts a Mantle `QueryParams.where` clause into a Pinecone metadata filter obj
 `$like` and other pattern-matching operators are unsupported — Pinecone metadata filters have no
 wildcard matching — and throw `BadRequest` naming the operator.
 
+`$contains` and dot-path nested fields (`"metadata.owner.name"`) are also **not supported** —
+architectural, not a missing translator feature: Pinecone metadata values are flat scalars or
+scalar arrays only, so there's no nested structure to address or check containment against.
+`describe().capabilities.nestedPaths` reports `false` accordingly.
+
 ```typescript
 import { toPineconeFilter } from "@mantlejs/pinecone";
 

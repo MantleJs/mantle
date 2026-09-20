@@ -18,7 +18,7 @@ strategy (items 5–8) → release (item 9).
 
 ## Stage 1 — Harden
 
-- [ ] **1. Adapter conformance matrix** *(PRD spec 1)*
+- [x] **1. Adapter conformance matrix** *(PRD spec 1)*
   For each of the two documented `QueryParams` gaps (`$contains` on knex-mysql/knex-sqlite/knex-mssql/neo4j/
   pinecone/qdrant; nested dot-paths on everything except memory/supabase/mongodb): per adapter, either extend
   the operator where semantically possible, or formalize the absence in `describe().capabilities.operators`.
@@ -28,6 +28,56 @@ strategy (items 5–8) → release (item 9).
   every adapter × gap pair; extended adapters pass the shared `NESTED_QUERY_CASES`/`$contains` conformance
   fixtures from `@mantlejs/mantle`; `describe().capabilities.operators` cross-checked against `assertOperators`
   for every stable and to-be-promoted adapter — zero drift.
+  **Done (2026-09-20):** added `nestedPaths: boolean` to `RepositoryCapabilities` (required, not
+  optional — the whole point is a discoverable `false`, not a silent omission). Per adapter:
+  - `knex` — **extended for real, on all four supported clients**, verified against live Docker
+    containers (postgres:16, mysql:8, an emulated mssql:2022, and better-sqlite3) before shipping,
+    not just asserted: dot-path fields via Knex's own cross-dialect `whereJsonPath`
+    (`jsonb_path_query_first`/`JSON_EXTRACT`/`json_extract`/`JSON_VALUE`) for
+    equality/$lt/$lte/$gt/$gte/$ne/$like/$notlike on pg/mysql/sqlite/mssql (`$ilike` pg-only — not
+    standard SQL, unlike the others); `$contains` extended to MySQL via the same
+    `whereJsonSupersetOf` knex already used for pg (`JSON_CONTAINS`, verified live); `$contains`
+    combined with a dot-path field via hand-rolled raw SQL for pg/mysql only, also verified live.
+    `$in`/`$nin`/null-checks on a dot-path field throw a clear `BadRequest` (no clean SQL
+    translation exists — confirmed live: knex's own `whereJsonPath` operator validator rejects
+    `"in"` outright). **Confirmed drift bug, fixed**: `describe()` was a static per-package
+    constant advertising `$contains` unconditionally, even on clients that threw for it at query
+    time — now client-aware, computed from the actual connected client (matching the existing
+    `supportsReturning` getter's own client-detection convention).
+  - `dynamodb` — **extended**: dot-path fields now build real multi-segment
+    `ExpressionAttributeNames` aliases (`#n0.#n1.#n2`) instead of one literal alias for the whole
+    dotted string (which would never have matched anything). **Confirmed pre-existing bug, fixed**:
+    `$contains` with an array operand passed the whole array as a single `contains()` operand
+    (DynamoDB's `contains()` only accepts a scalar) — silently wrong, not caught by any existing
+    test. Now ANDs one `contains()` call per element, matching the shared reference semantics.
+    Object-operand `$contains` (no native DynamoDB nested-superset function) flattens into ANDed
+    per-leaf-path conditions. Verified DynamoDB's expression language — unlike SQL's
+    `whereJsonPath` — treats a nested path identically to a top-level one in every position, so
+    `$in`/`$nin`/null-checks combined with a dot-path field already worked correctly with no
+    further code changes, just verification and a README correction (it previously undersold this).
+  - `qdrant` — **extended**: `$contains` added (Qdrant's array-payload match semantics make the
+    scalar case free — `match.value` against an array field already means "contains this
+    element"; array/object operands flatten into ANDed conditions, same idea as dynamodb). Nested
+    dot-path fields needed no translator code at all — Qdrant's `key` already accepts dot-path
+    strings natively — just a capability-flag change and fixture-based test proof.
+  - `supabase`, `mongodb`, `memory` — already fully correct; `nestedPaths: true` added to
+    `describe()` for completeness (metadata that didn't exist before this item).
+  - `neo4j`, `pinecone` — **formalized-absent**: both had already correctly rejected `$contains`
+    and dot-path fields; `nestedPaths: false` added to `describe()`, and both packages' READMEs
+    updated to state the restriction explicitly (architectural — neither backend can store a
+    nested object at all — rather than leaving it undocumented, which is itself the kind of gap
+    this item exists to close).
+  Two more pre-existing, unrelated bugs found and fixed along the way, surfaced only because this
+  was the first time any of this code path was exercised end-to-end through a real repository
+  call rather than the translator function directly: (1) `KnexRepository.wrapError()` assumed
+  every caught error was a raw driver error with a string SQLSTATE `code`, and crashed with an
+  unrelated `code.slice is not a function` TypeError if a typed `MantleError` (numeric `code`,
+  e.g. a `BadRequest` thrown by the where-clause translator) reached it instead — now passes
+  `MantleError` instances through unchanged. (2) `mapWhereFields`'s `columnCase`/`fieldMap`
+  conversion applied to an entire dotted field string, which would have silently reformatted JSON
+  key names (not SQL identifiers) for any `columnCase: "snake_case"` repository — fixed to convert
+  only the root segment. `npx nx run-many -t build,test,lint,typecheck` green across all 40
+  projects; `CLAUDE.md`'s operator table and every affected package's README updated to match.
 
 - [ ] **2. `@mantlejs/mcp` — verify hook-pipeline equivalence** *(PRD spec 3)*
   Manifest source, raw-query absence, and expose-map granularity are already confirmed by direct inspection

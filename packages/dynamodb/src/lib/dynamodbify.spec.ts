@@ -1,6 +1,25 @@
 import { describe, expect, it } from "vitest";
-import { BadRequest } from "@mantlejs/mantle";
-import { dynamodbify, buildKeyCondition } from "./dynamodbify.js";
+import { unmarshall } from "@aws-sdk/util-dynamodb";
+import type { AttributeValue } from "@aws-sdk/client-dynamodb";
+import { BadRequest, NESTED_QUERY_CASES } from "@mantlejs/mantle";
+import { dynamodbify, buildKeyCondition, type FilterExpression, type WhereClause } from "./dynamodbify.js";
+
+/**
+ * Expand a FilterExpression's `#nN`/`:vN` aliases back into their literal names/values, so
+ * assertions read like the SQL/AQL/etc. they represent instead of alias-index soup. Aliases are
+ * replaced longest-first to avoid `#n1` clobbering part of `#n10`.
+ */
+function resolveExpression(result: FilterExpression): string {
+  let resolved = result.expression;
+  for (const alias of Object.keys(result.names).sort((a, b) => b.length - a.length)) {
+    resolved = resolved.split(alias).join(result.names[alias]);
+  }
+  for (const alias of Object.keys(result.values).sort((a, b) => b.length - a.length)) {
+    const value = unmarshall({ v: result.values[alias] as AttributeValue })["v"] as unknown;
+    resolved = resolved.split(alias).join(JSON.stringify(value));
+  }
+  return resolved;
+}
 
 describe("dynamodbify", () => {
   it("generates a simple equality filter", () => {
@@ -110,6 +129,58 @@ describe("dynamodbify", () => {
     const nameValues = Object.values(result.names);
     expect(nameValues).toContain("status");
     expect(nameValues).toContain("role");
+  });
+
+  describe("nested dot-path fields and $contains conformance (D-7 shared fixture)", () => {
+    const expectedExpressions: Record<string, string> = {
+      "dot-path equality": 'metadata.owner.name = "alice"',
+      "dot-path comparison operator": "metadata.level > 4",
+      "$contains scalar element on a top-level array": 'contains(tags, "blue")',
+      "$contains array operand (all elements required)": '(contains(tags, "red") AND contains(tags, "blue"))',
+      "$contains on a dot-path array": 'contains(metadata.tags, "a")',
+      "$contains object operand (JSON superset)": '(metadata.owner.name = "alice")',
+    };
+
+    for (const testCase of NESTED_QUERY_CASES) {
+      it(`translates ${testCase.name}`, () => {
+        const expected = expectedExpressions[testCase.name];
+        expect(expected).toBeDefined();
+        const result = dynamodbify(testCase.where as WhereClause);
+        expect(resolveExpression(result)).toBe(expected);
+      });
+    }
+
+    it("builds a real multi-segment ExpressionAttributeNames alias for a dot-path field", () => {
+      const result = dynamodbify({ "metadata.owner.name": "alice" });
+      expect(result.expression).toMatch(/^#n\d+\.#n\d+\.#n\d+ = :v\d+$/);
+      expect(Object.values(result.names).sort()).toEqual(["metadata", "name", "owner"]);
+    });
+
+    it("requires every element for an empty $contains array (vacuously true via attribute_exists)", () => {
+      const result = dynamodbify({ tags: { $contains: [] } });
+      expect(result.expression).toMatch(/^attribute_exists\(#n\d+\)$/);
+    });
+
+    it("supports null-checks, $in, and $nin combined with a dot-path field — unlike SQL adapters, DynamoDB's expression language treats a nested path like any other operand", () => {
+      const nullResult = dynamodbify({ "metadata.owner.name": null });
+      expect(resolveExpression(nullResult)).toBe(
+        "(attribute_not_exists(metadata.owner.name) OR metadata.owner.name = null)",
+      );
+
+      const inResult = dynamodbify({ "metadata.owner.name": { $in: ["alice", "bob"] } });
+      expect(resolveExpression(inResult)).toBe('metadata.owner.name IN ("alice", "bob")');
+
+      const shorthandResult = dynamodbify({ "metadata.owner.name": ["alice", "bob"] });
+      expect(resolveExpression(shorthandResult)).toBe('metadata.owner.name IN ("alice", "bob")');
+
+      const ninResult = dynamodbify({ "metadata.owner.name": { $nin: ["alice", "bob"] } });
+      expect(resolveExpression(ninResult)).toBe('NOT (metadata.owner.name IN ("alice", "bob"))');
+    });
+
+    it("maps dot-path fields through toField for the root segment call site, leaving segments literal", () => {
+      const result = dynamodbify({ "metadata.owner.name": "alice" }, (field) => field);
+      expect(resolveExpression(result)).toBe('metadata.owner.name = "alice"');
+    });
   });
 });
 

@@ -19,9 +19,41 @@ export const QDRANT_OPERATORS: ReadonlySet<string> = new Set([
   "$ne",
   "$in",
   "$nin",
+  "$contains",
   "$or",
   "$and",
 ]);
+
+/**
+ * Flatten a `$contains` operand into one or more `must` conditions, mirroring the recursive
+ * "field is a superset of this value" semantics the D-7 conformance fixture defines:
+ *   - scalar operand   → a single match condition (Qdrant already matches "any element equals
+ *                         this value" when the payload field is an array, so this is identical
+ *                         in shape to a plain equality condition)
+ *   - array operand    → one ANDed match condition per element (every element required, not
+ *                         "any of" — `match.any` would be the wrong, OR, semantics here)
+ *   - object operand   → recurse into each key as a nested dot-path (Qdrant addresses nested
+ *                         payload fields natively via dot-path keys), flattening to leaf
+ *                         conditions the same way for arrays/scalars found at each leaf
+ */
+function flattenContains(
+  fieldPrefix: string,
+  value: unknown,
+  toField: (field: string) => string,
+): Condition[] {
+  if (Array.isArray(value)) {
+    return value.map((item) => ({
+      key: toField(fieldPrefix),
+      match: { value: item as string | number | boolean },
+    }));
+  }
+  if (value !== null && typeof value === "object") {
+    return Object.entries(value as Record<string, unknown>).flatMap(([key, nested]) =>
+      flattenContains(`${fieldPrefix}.${key}`, nested, toField),
+    );
+  }
+  return [{ key: toField(fieldPrefix), match: { value: value as string | number | boolean } }];
+}
 
 /**
  * Convert a Mantle `QueryParams.where` clause to a Qdrant payload filter object.
@@ -35,8 +67,12 @@ export const QDRANT_OPERATORS: ReadonlySet<string> = new Set([
  *   { field: { $ne: null } }      → must_not: [{ is_null: { key: "field" } }]
  *   { field: { $in: [...] } }     → must: [{ key: "field", match: { any: [...] } }]
  *   { field: { $nin: [...] } }    → must_not: [{ key: "field", match: { any: [...] } }]
+ *   { field: { $contains: v } }   → must: [flattened match conditions — see flattenContains]
  *   { $or: [...] }                → should: [mapped...]
- *   { $and: [...] }               → must: [mapped...]
+ *   { $and: [...] }                → must: [mapped...]
+ *
+ * Nested fields (`"metadata.owner.name"`) are addressed natively — Qdrant's payload filter
+ * `key` accepts dot-path strings directly, no translation needed.
  *
  * Unsupported operators (including $like/$ilike/$notlike) throw `BadRequest`.
  */
@@ -95,6 +131,10 @@ export function toQdrantFilter(
 
       if ("$nin" in ops) {
         must_not.push({ key, match: { any: ops["$nin"] as (string | number)[] } });
+      }
+
+      if ("$contains" in ops) {
+        must.push(...flattenContains(rawKey, ops["$contains"], toField));
       }
     } else {
       must.push({ key, match: { value: value as string | number | boolean } });

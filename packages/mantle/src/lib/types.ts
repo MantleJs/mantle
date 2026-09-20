@@ -88,6 +88,14 @@ export interface RepositoryCapabilities {
   pagination: "offset" | "cursor" | "both";
   /** Whether the adapter exposes native full-text search. */
   fullTextSearch: boolean;
+  /**
+   * Whether dot-path field names (e.g. `"metadata.owner.name"`) address nested fields for
+   * querying. Required (not optional) so the absence of this capability is a discoverable
+   * `false`, not a silent omission — a caller (or an agent) can check this before assuming a
+   * dot-path query will work, rather than discovering the gap as a runtime error or, worse, a
+   * literal-column-name misinterpretation.
+   */
+  nestedPaths: boolean;
   /** When present, returns true if the given where clause forces a full scan (e.g. DynamoDB Scan instead of Query). */
   scanning?: (where: Record<string, unknown>) => boolean;
 }
