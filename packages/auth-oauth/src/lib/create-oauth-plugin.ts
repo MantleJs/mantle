@@ -80,11 +80,13 @@ export function createOAuthPlugin(
         throw new NotAuthenticated("Missing code or state parameter");
       }
 
-      const pending = await stateStore.get(state);
+      // Atomic read-and-remove — not a separate get()+delete() — so two concurrent callback
+      // requests for the same state (a double-fired network request, or a replayed callback
+      // URL) can't both pass this check before either removes the entry.
+      const pending = await stateStore.consume(state);
       if (!pending) {
         throw new NotAuthenticated("Invalid or expired state");
       }
-      await stateStore.delete(state);
 
       const host = req.get("host") ?? "";
       const redirectUri = `${req.protocol}://${host}${callbackPath}`;

@@ -77,6 +77,11 @@ Layout: each `jti` is a string key holding its subject, expiring with the token 
 
 Returns an `OAuthStateStore` backed by Redis. Pass it as `stateStore` in any auth-oauth strategy config.
 
+`consume(state)` uses `GETDEL` — the same atomic read-and-remove pattern `redisRefreshTokenStore`
+uses for rotation — so two concurrent OAuth callback requests for the same `state` (a double-fired
+network request, or a replayed callback URL) resolve atomically: exactly one sees the pending entry
+and proceeds, the other sees it already gone.
+
 #### Options
 
 | Option   | Type     | Default                 | Description                                     |
@@ -98,7 +103,7 @@ import type { RedisClientLike, RedisRefreshTokenStoreOptions, RedisStateStoreOpt
 | `RedisRefreshTokenStoreOptions` | Options passed to `redisRefreshTokenStore()`                                                                                                 |
 | `RedisStateStoreOptions`        | Options passed to `redisStateStore()`                                                                                                        |
 
-The stores implement `RefreshTokenStore` from `@mantlejs/auth` (`add(jti, sub, exp)` / `consume(jti)` / `revokeAll(sub)`) and `OAuthStateStore` from `@mantlejs/auth-oauth` (`set` / `get` / `delete` / `cleanup`).
+The stores implement `RefreshTokenStore` from `@mantlejs/auth` (`add(jti, sub, exp)` / `consume(jti)` / `revokeAll(sub)`) and `OAuthStateStore` from `@mantlejs/auth-oauth` (`set` / `get` / `delete` / `consume` / `cleanup`).
 
 ---
 

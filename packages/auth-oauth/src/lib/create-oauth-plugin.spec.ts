@@ -8,6 +8,7 @@ const mockStateStore = {
   set: vi.fn(),
   get: vi.fn(),
   delete: vi.fn(),
+  consume: vi.fn(),
   cleanup: vi.fn(),
 };
 
@@ -117,7 +118,7 @@ const PENDING_STATE = { codeVerifier: "fixed-verifier", expiresAt: Date.now() + 
 describe("createOAuthPlugin()", () => {
   beforeEach(() => {
     vi.mocked(findOrCreateUser).mockResolvedValue(EXISTING_USER);
-    mockStateStore.get.mockReturnValue(PENDING_STATE);
+    mockStateStore.consume.mockReturnValue(PENDING_STATE);
     mockStateStore.set.mockReset();
     mockStateStore.cleanup.mockReset();
     mockStateStore.delete.mockReset();
@@ -154,7 +155,7 @@ describe("createOAuthPlugin()", () => {
   });
 
   it("uses an injected stateStore instead of the in-memory default", async () => {
-    const injected = { set: vi.fn(), get: vi.fn(), delete: vi.fn(), cleanup: vi.fn() };
+    const injected = { set: vi.fn(), get: vi.fn(), delete: vi.fn(), consume: vi.fn(), cleanup: vi.fn() };
     const router = makeRouter();
     const app = makeApp(makeEngine(), router);
     createOAuthPlugin("test", makeProvider(), { ...BASE_CONFIG, stateStore: injected })(app);
@@ -288,14 +289,15 @@ describe("createOAuthPlugin()", () => {
     });
 
     it("throws NotAuthenticated when state is invalid or expired", async () => {
-      mockStateStore.get.mockReturnValueOnce(undefined);
+      mockStateStore.consume.mockReturnValueOnce(undefined);
       const { next } = await invokeCallback();
       expect(next).toHaveBeenCalledWith(expect.any(NotAuthenticated));
     });
 
-    it("deletes state from store after reading it", async () => {
+    it("consumes state atomically (not a separate get()+delete()) so a replayed callback can't reuse it", async () => {
       await invokeCallback();
-      expect(mockStateStore.delete).toHaveBeenCalledWith("fixed-state");
+      expect(mockStateStore.consume).toHaveBeenCalledWith("fixed-state");
+      expect(mockStateStore.delete).not.toHaveBeenCalled();
     });
 
     it("exchanges code with codeVerifier from state store", async () => {
@@ -455,9 +457,9 @@ describe("createOAuthPlugin()", () => {
       expect(router.get).not.toHaveBeenCalledWith("/auth/test/callback", expect.any(Function));
     });
 
-    it("validates and deletes state, then issues a token pair from the form body", async () => {
+    it("validates and consumes state, then issues a token pair from the form body", async () => {
       const { res, engine } = await invokePostCallback();
-      expect(mockStateStore.delete).toHaveBeenCalledWith("fixed-state");
+      expect(mockStateStore.consume).toHaveBeenCalledWith("fixed-state");
       expect(engine.createTokenPair).toHaveBeenCalledWith("1");
       expect(res.json).toHaveBeenCalledWith({
         accessToken: "mantle.jwt.token",

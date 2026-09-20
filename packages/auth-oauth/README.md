@@ -48,7 +48,7 @@ Mantle JWT pair via `@mantlejs/auth`.
 
 ### State store
 
-Pending OAuth state is kept in an `OAuthStateStore` keyed on the OAuth `state` parameter. Entries expire after 10 minutes and are cleaned up lazily on each redirect request. The `codeVerifier` (PKCE only) is stored alongside the state and passed to the token exchange.
+Pending OAuth state is kept in an `OAuthStateStore` keyed on the OAuth `state` parameter. Entries expire after 10 minutes and are cleaned up lazily on each redirect request. The `codeVerifier` (PKCE only) is stored alongside the state and passed to the token exchange. The callback handler consumes the entry via `consume(state)` — an atomic read-and-remove, not a separate `get()` then `delete()` — so a double-fired network request or a replayed callback URL for the same `state` can't both pass the pending-state check before either removes it.
 
 The default store is an in-process, in-memory `Map` — fine for a single instance, **wrong for multi-instance deployments** (Cloud Run, horizontal scaling behind a load balancer), where the callback request can land on a different instance than the one that issued the state. Inject the Redis-backed store from [`@mantlejs/auth-redis`](../auth-redis/README.md) instead (store methods are sync-or-async, so any shared backend fits):
 

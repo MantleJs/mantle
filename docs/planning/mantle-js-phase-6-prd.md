@@ -211,6 +211,11 @@ show up at compile time):
 **Accept:** specs for each of the three bullets above, run against `@mantlejs/auth-redis` specifically (the
 multi-instance-relevant store); existing single-instance auth specs unchanged.
 
+**Done (2026-09-22):** all three verified against a real Redis container with genuinely concurrent
+connections, not just mocked `Promise.all`. Full detail — including a confirmed, fixed bug in the
+third claim (the OAuth callback handler's state-consumption wasn't atomic, shared by all seven
+strategies) — recorded in the [Phase 6 Checklist](./mantle-js-phase-6-checklist.md) item 3.
+
 ### 5–9. Promote experimental adapters to stable
 
 See [Adapter Promotion Plan](#adapter-promotion-plan) — large enough to warrant its own section.

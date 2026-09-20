@@ -72,4 +72,43 @@ describe("redisStateStore", () => {
 
     expect(await store.get("state-1")).toBeDefined();
   });
+
+  describe("consume — atomic read-and-remove (GETDEL)", () => {
+    it("returns the pending entry once, then undefined", async () => {
+      const store = redisStateStore(makeClient());
+      await store.set("state-1", { codeVerifier: "v" });
+
+      expect((await store.consume("state-1"))?.codeVerifier).toBe("v");
+      expect(await store.consume("state-1")).toBeUndefined();
+    });
+
+    it("returns undefined for an unknown state", async () => {
+      const store = redisStateStore(makeClient());
+      expect(await store.consume("nope")).toBeUndefined();
+    });
+
+    it("a state consumed on one instance cannot be consumed again on another (multi-instance)", async () => {
+      const client = makeClient();
+      const instanceA = redisStateStore(client);
+      const instanceB = redisStateStore(client);
+
+      await instanceA.set("state-1", { codeVerifier: "v" });
+      expect((await instanceB.consume("state-1"))?.codeVerifier).toBe("v");
+      expect(await instanceA.consume("state-1")).toBeUndefined();
+    });
+
+    it("is atomic under concurrent calls for the same state — exactly one caller sees the entry", async () => {
+      // The real guarantee here comes from Redis's GETDEL being a single atomic server-side
+      // command (verified against a live Redis container during development, matching the
+      // rotation-theft guarantee redisRefreshTokenStore's own consume() already relies on).
+      // This proves the store's own async wrapper doesn't reintroduce a race around that call.
+      const store = redisStateStore(makeClient());
+      await store.set("state-1", { codeVerifier: "v" });
+
+      const [first, second] = await Promise.all([store.consume("state-1"), store.consume("state-1")]);
+      const winners = [first, second].filter((r) => r !== undefined);
+      expect(winners).toHaveLength(1);
+      expect(winners[0]?.codeVerifier).toBe("v");
+    });
+  });
 });

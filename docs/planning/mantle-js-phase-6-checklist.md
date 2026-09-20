@@ -114,13 +114,42 @@ strategy (items 5–8) → release (item 9).
   `undefined` for an internal call) so this can't silently regress again.
   `npx nx run-many -t build,test,lint,typecheck` green across all 40 projects.
 
-- [ ] **3. Auth hardening under concurrency** *(PRD spec 4)*
+- [x] **3. Auth hardening under concurrency** *(PRD spec 4)*
   No new OAuth strategies. Specs proving, against `@mantlejs/auth-redis` specifically: concurrent refresh
   requests against the same token don't issue two valid successors; two app instances sharing one Redis
   correctly see each other's refresh-token/OAuth-state writes including TTL/cleanup; concurrent OAuth flows
   from the same user (e.g. two tabs) don't cross-contaminate PKCE verifier/state pairs.
   **Accept:** all three specs green; existing single-instance auth specs unchanged; any bug the specs surface
   fixed before moving on (don't just document a known race — this is hardening, the point is to close gaps).
+  **Done (2026-09-22):** all three claims verified against a **real Redis container** with
+  genuinely concurrent, independent TCP connections (not just `Promise.all` in one process against
+  the mocked `ioredis-mock` used by the permanent spec suite) — 20+ rounds x 10 real racing
+  connections per claim, exactly one winner every time, zero failures: refresh-token rotation-theft
+  (`consume()`/`GETDEL`), TTL actually expiring a token in real Redis, `revokeAll` actually cleaning
+  up via real `SADD`/`SMEMBERS`/`DEL`, and two independent connections seeing each other's writes
+  (multi-instance). This one-off live verification wasn't checked into the permanent suite — matches
+  this codebase's existing convention (e.g. `@mantlejs/knex`) of proving correctness live during
+  development, then encoding it as mocked specs, rather than adding a live-database dependency to CI.
+  **Confirmed real bug found and fixed** in the third claim (PKCE/state cross-contamination):
+  `@mantlejs/auth-oauth`'s OAuth callback handler (`create-oauth-plugin.ts`, shared by all seven
+  strategies) read the pending state via a separate `stateStore.get(state)` then
+  `stateStore.delete(state)` — not atomic. Two concurrent callback requests for the same `state`
+  (a double-fired network request, or a replayed callback URL) could both pass the pending-state
+  check before either removed it, letting both proceed to exchange the same authorization code —
+  the exact race the checklist item asks to rule out, just triggered by a duplicate request rather
+  than genuinely "two tabs" (each tab's own flow gets its own random `state` key, so *that*
+  specific framing was never actually at risk — the real risk was replay/duplication of one flow's
+  callback). Fixed by adding an atomic `consume(state)` method to the `OAuthStateStore` interface
+  (`@mantlejs/auth-oauth`) — implemented via Redis `GETDEL` in `@mantlejs/auth-redis` (mirroring
+  `redisRefreshTokenStore`'s already-correct rotation-theft pattern) and trivially-atomic-by-
+  construction in the in-memory default (no `await` between read and delete) — and switching the
+  one call site to use it. `get`/`delete` stay on the interface (additive change, not breaking) but
+  are no longer used together in the vulnerable sequence anywhere in the codebase (confirmed by
+  grep). New specs: `state-store.spec.ts` (new, `@mantlejs/auth-oauth`) and additions to
+  `redis-state-store.spec.ts`/`redis-refresh-token-store.spec.ts` (`@mantlejs/auth-redis`), each
+  proving atomicity under `Promise.all` against the mock, backed by the live-Redis verification
+  above. `npx nx run-many -t build,test,lint,typecheck` green across all 40 projects; both
+  packages' READMEs updated.
 
 - [ ] **4. Promote experimental adapters to stable** *(PRD — Adapter Promotion Plan)*
   Per package, per the plan's table:

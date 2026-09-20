@@ -37,6 +37,17 @@ export function redisStateStore(client: RedisClientLike, options: RedisStateStor
       await client.del(prefix + state);
     },
 
+    async consume(state): Promise<OAuthStateData | undefined> {
+      // GETDEL, not get() + delete(): two concurrent callback requests for the same state (a
+      // double-fired network request, or a replayed callback URL) would otherwise both pass the
+      // pending-state check before either removes it, letting both exchange the same
+      // authorization code. Same atomic-consume pattern as redisRefreshTokenStore's rotation-theft
+      // guard.
+      const raw = await client.getdel(prefix + state);
+      if (raw === null) return undefined;
+      return JSON.parse(raw) as OAuthStateData;
+    },
+
     cleanup(): void {
       // Redis expires keys itself — nothing to prune.
     },
