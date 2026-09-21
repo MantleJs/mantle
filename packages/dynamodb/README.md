@@ -285,13 +285,14 @@ AWS SDK errors are translated to typed `MantleError` subclasses by exception nam
 
 | DynamoDB exception name                | Error thrown  |
 | --------------------------------------- | ------------- |
+| Already a MantleError (e.g. thrown by a hook, or by a custom repository method) | passed through unchanged |
 | `ResourceNotFoundException`             | `NotFound`    |
 | `ConditionalCheckFailedException`       | `NotFound`    |
 | `ProvisionedThroughputExceededException`, `RequestLimitExceeded`, `ServiceUnavailable` | `Unavailable` |
 | `AccessDeniedException`, `UnauthorizedException` | `Forbidden`   |
 | `ValidationException`                   | `BadRequest`  |
 | `TransactionConflictException`, `TransactionCanceledException` | `Conflict`    |
-| other                                    | `GeneralError` |
+| other (including a non-`Error` throw)   | `GeneralError` |
 
 ---
 

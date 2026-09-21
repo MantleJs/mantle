@@ -53,6 +53,19 @@ describe("toMongoFilter", () => {
     expect(toMongoFilter({ id: "not-an-object-id" })).toEqual({ _id: "not-an-object-id" });
   });
 
+  it("maps a scalar id operator operand ($ne) to ObjectId, not just array operands", () => {
+    const hex = "665f1f77bcf86cd799439011";
+    const filter = toMongoFilter({ id: { $ne: hex } });
+    expect((filter["_id"] as { $ne: ObjectId }).$ne).toBeInstanceOf(ObjectId);
+  });
+
+  it("maps a scalar $contains operand on id to ObjectId (top-level scalar condition)", () => {
+    const hex = "665f1f77bcf86cd799439011";
+    const filter = toMongoFilter({ id: { $contains: hex } });
+    expect(filter["_id"]).toBeInstanceOf(ObjectId);
+    expect((filter["_id"] as ObjectId).toHexString()).toBe(hex);
+  });
+
   it("keeps comparison operators alongside $contains on the same field", () => {
     expect(toMongoFilter({ tags: { $contains: "hot", $ne: null } })).toEqual({
       tags: { $ne: null },

@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { ObjectId } from "mongodb";
 import type { MantleApplication } from "@mantlejs/mantle";
-import { NotFound } from "@mantlejs/mantle";
+import { GeneralError, NotFound } from "@mantlejs/mantle";
 import { MongoVectorRepository } from "./mongo-vector-repository.js";
 
 interface Doc extends Record<string, unknown> {
@@ -110,6 +110,12 @@ describe("MongoVectorRepository", () => {
       const pipeline = collection.aggregate.mock.calls[0]?.[0] as Array<Record<string, Record<string, unknown>>>;
       expect(pipeline[0]?.["$vectorSearch"]?.["numCandidates"]).toBe(10000);
     });
+
+    it("wraps a driver error", async () => {
+      const { app, collection } = makeSetup();
+      collection.aggregateCursor.toArray.mockRejectedValue(new Error("connection reset"));
+      await expect(new TestRepo(app).findSimilar([0.1], 5)).rejects.toThrow(GeneralError);
+    });
   });
 
   describe("upsertVector", () => {
@@ -161,6 +167,12 @@ describe("MongoVectorRepository", () => {
       expect(update["$setOnInsert"]?.["created_at"]).toBeInstanceOf(Date);
       expect(update["$set"]).not.toHaveProperty("updatedAt");
       expect(update["$setOnInsert"]).not.toHaveProperty("createdAt");
+    });
+
+    it("wraps a driver error", async () => {
+      const { app, collection } = makeSetup();
+      collection.findOneAndUpdate.mockRejectedValue(new Error("connection reset"));
+      await expect(new TestRepo(app).upsertVector(HEX_A, [0.1], { text: "x" })).rejects.toThrow(GeneralError);
     });
   });
 

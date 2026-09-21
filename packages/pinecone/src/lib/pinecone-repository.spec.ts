@@ -136,6 +136,19 @@ describe("PineconeRepository", () => {
       idx.query.mockRejectedValue(new Error("network error"));
       await expect(new TestRepo(app).findSimilar([0.1], 5)).rejects.toBeInstanceOf(GeneralError);
     });
+
+    it("treats a missing matches array as empty results", async () => {
+      const { idx, app } = makeSetup();
+      idx.query.mockResolvedValue({});
+      expect(await new TestRepo(app).findSimilar([0.1], 5)).toEqual([]);
+    });
+
+    it("treats a missing metadata object as empty", async () => {
+      const { idx, app } = makeSetup();
+      idx.query.mockResolvedValue({ matches: [{ id: "1", score: 0.5 }] });
+      const result = await new TestRepo(app).findSimilar([0.1], 5);
+      expect(result[0]).toEqual({ id: "1", _score: 0.5 });
+    });
   });
 
   describe("upsertVector", () => {
@@ -152,6 +165,14 @@ describe("PineconeRepository", () => {
       idx.upsert.mockResolvedValue(undefined);
       const result = await new TestRepo(app).upsertVector("1", [0.1], { title: "Doc", category: "tech" });
       expect(result).toEqual({ id: "1", title: "Doc", category: "tech" });
+    });
+
+    it("wraps errors as GeneralError", async () => {
+      const { idx, app } = makeSetup();
+      idx.upsert.mockRejectedValue(new Error("boom"));
+      await expect(
+        new TestRepo(app).upsertVector("1", [0.1], { title: "Doc" } as Partial<Article>),
+      ).rejects.toBeInstanceOf(GeneralError);
     });
   });
 
@@ -222,6 +243,62 @@ describe("PineconeRepository", () => {
       idx.listPaginated.mockResolvedValue({ vectors: [], pagination: undefined });
       expect(await new TestRepo(app).findAll()).toEqual([]);
     });
+
+    it("computes topK as skip + limit when both are provided alongside where", async () => {
+      const { idx, app } = makeSetup();
+      idx.query.mockResolvedValue({ matches: [] });
+      await new TestRepo(app).findAll({ where: { category: "tech" }, skip: 5, limit: 10 });
+      expect(idx.query).toHaveBeenCalledWith(expect.objectContaining({ topK: 15 }));
+    });
+
+    it("treats a missing matches array as empty results when filtered", async () => {
+      const { idx, app } = makeSetup();
+      idx.query.mockResolvedValue({});
+      expect(await new TestRepo(app).findAll({ where: { category: "tech" } })).toEqual([]);
+    });
+
+    it("treats a missing metadata object as empty when filtered", async () => {
+      const { idx, app } = makeSetup();
+      idx.query.mockResolvedValue({ matches: [{ id: "1" }] });
+      const result = await new TestRepo(app).findAll({ where: { category: "tech" } });
+      expect(result).toEqual([{ id: "1" }]);
+    });
+
+    it("treats a missing vectors array as an empty page during a full scan", async () => {
+      const { idx, app } = makeSetup();
+      idx.listPaginated.mockResolvedValue({});
+      expect(await new TestRepo(app).findAll()).toEqual([]);
+    });
+
+    it("skips list entries without an id during a full scan", async () => {
+      const { idx, app } = makeSetup();
+      idx.listPaginated.mockResolvedValue({ vectors: [{ id: "1" }, {}], pagination: undefined });
+      idx.fetch.mockResolvedValue({ records: { "1": { id: "1", metadata: {} } } });
+      await new TestRepo(app).findAll();
+      expect(idx.fetch).toHaveBeenCalledWith({ ids: ["1"] });
+    });
+
+    it("treats a missing metadata object as empty for a fetched record during a full scan", async () => {
+      const { idx, app } = makeSetup();
+      idx.listPaginated.mockResolvedValue({ vectors: [{ id: "1" }], pagination: undefined });
+      idx.fetch.mockResolvedValue({ records: { "1": { id: "1" } } });
+      const result = await new TestRepo(app).findAll();
+      expect(result).toEqual([{ id: "1" }]);
+    });
+
+    it("returns an empty array when skip pushes past the end of the id list", async () => {
+      const { idx, app } = makeSetup();
+      idx.listPaginated.mockResolvedValue({ vectors: [{ id: "1" }, { id: "2" }], pagination: undefined });
+      const result = await new TestRepo(app).findAll({ skip: 10 });
+      expect(result).toEqual([]);
+      expect(idx.fetch).not.toHaveBeenCalled();
+    });
+
+    it("wraps errors as GeneralError", async () => {
+      const { idx, app } = makeSetup();
+      idx.listPaginated.mockRejectedValue(new Error("boom"));
+      await expect(new TestRepo(app).findAll()).rejects.toBeInstanceOf(GeneralError);
+    });
   });
 
   describe("findById", () => {
@@ -238,6 +315,13 @@ describe("PineconeRepository", () => {
     it("returns null when the record is not found", async () => {
       const { app } = makeSetup();
       expect(await new TestRepo(app).findById("missing")).toBeNull();
+    });
+
+    it("treats a missing metadata object as empty", async () => {
+      const { idx, app } = makeSetup();
+      idx.fetch.mockResolvedValue({ records: { "1": { id: "1" } } });
+      const result = await new TestRepo(app).findById("1");
+      expect(result).toEqual({ id: "1" });
     });
   });
 
@@ -303,6 +387,34 @@ describe("PineconeRepository", () => {
       expect(records[0].metadata).not.toHaveProperty("createdAt");
       expect(records[0].metadata).not.toHaveProperty("updatedAt");
     });
+
+    it("wraps errors as GeneralError", async () => {
+      const { idx, app } = makeSetup();
+      idx.upsert.mockRejectedValue(new Error("boom"));
+      await expect(
+        new TestRepo(app).save({ id: "1", title: "Doc", category: "tech" } as Partial<Article>),
+      ).rejects.toBeInstanceOf(GeneralError);
+    });
+  });
+
+  describe("saveAll", () => {
+    it("saves every item and returns the results", async () => {
+      const { idx, app } = makeSetup();
+      const result = await new TestRepo(app).saveAll([
+        { id: "1", title: "A", category: "x" },
+        { id: "2", title: "B", category: "y" },
+      ] as Partial<Article>[]);
+      expect(result).toHaveLength(2);
+      expect(idx.upsert).toHaveBeenCalledTimes(2);
+    });
+
+    it("wraps a per-item error as GeneralError", async () => {
+      const { idx, app } = makeSetup();
+      idx.upsert.mockRejectedValue(new Error("boom"));
+      await expect(
+        new TestRepo(app).saveAll([{ id: "1", title: "A", category: "x" }] as Partial<Article>[]),
+      ).rejects.toBeInstanceOf(GeneralError);
+    });
   });
 
   describe("updateById", () => {
@@ -325,6 +437,42 @@ describe("PineconeRepository", () => {
       await expect(
         new TestRepo(app).updateById("missing", { title: "X", category: "y" } as Partial<Article>),
       ).rejects.toBeInstanceOf(NotFound);
+    });
+
+    it("adds updatedAt when timestamps is true", async () => {
+      const { idx, app } = makeSetup();
+      idx.fetch
+        .mockResolvedValueOnce({
+          records: { "1": { id: "1", values: [0.5, 0.6, 0.7], metadata: { title: "Old", category: "x" } } },
+        })
+        .mockResolvedValueOnce({ records: { "1": { id: "1", values: [0.5, 0.6, 0.7], metadata: {} } } });
+      await new TestRepoWithTimestamps(app).updateById("1", { title: "New", category: "y" } as Partial<Article>);
+      const [{ records }] = (idx.upsert as ReturnType<typeof vi.fn>).mock.calls[0] as [
+        { records: Array<{ metadata: Record<string, unknown> }> },
+      ];
+      expect(records[0].metadata).toHaveProperty("updatedAt");
+    });
+
+    it("falls back to a zero vector when the current record has no stored values", async () => {
+      const { idx, app } = makeSetup();
+      idx.fetch
+        .mockResolvedValueOnce({ records: { "1": { id: "1", metadata: { title: "Old", category: "x" } } } })
+        .mockResolvedValueOnce({ records: {} });
+      await new TestRepo(app).updateById("1", { title: "New", category: "y" } as Partial<Article>);
+      const [{ records }] = (idx.upsert as ReturnType<typeof vi.fn>).mock.calls[0] as [
+        { records: Array<{ values: number[] }> },
+      ];
+      expect(records[0].values).toEqual([0, 0, 0]);
+    });
+
+    it("wraps a driver error unrelated to NotFound", async () => {
+      const { idx, app } = makeSetup();
+      idx.fetch
+        .mockResolvedValueOnce({ records: { "1": { id: "1", metadata: { title: "Old", category: "x" } } } })
+        .mockRejectedValueOnce(new Error("boom"));
+      await expect(
+        new TestRepo(app).updateById("1", { title: "New", category: "y" } as Partial<Article>),
+      ).rejects.toBeInstanceOf(GeneralError);
     });
   });
 
@@ -349,6 +497,42 @@ describe("PineconeRepository", () => {
         NotFound,
       );
     });
+
+    it("adds updatedAt when timestamps is true", async () => {
+      const { idx, app } = makeSetup();
+      idx.fetch
+        .mockResolvedValueOnce({
+          records: { "1": { id: "1", values: [0.1], metadata: { title: "Old", category: "x" } } },
+        })
+        .mockResolvedValueOnce({ records: { "1": { id: "1", values: [0.1], metadata: {} } } });
+      await new TestRepoWithTimestamps(app).patchById("1", { title: "Patched" } as Partial<Article>);
+      const [{ records }] = (idx.upsert as ReturnType<typeof vi.fn>).mock.calls[0] as [
+        { records: Array<{ metadata: Record<string, unknown> }> },
+      ];
+      expect(records[0].metadata).toHaveProperty("updatedAt");
+    });
+
+    it("falls back to a zero vector when the current record has no stored values", async () => {
+      const { idx, app } = makeSetup();
+      idx.fetch
+        .mockResolvedValueOnce({ records: { "1": { id: "1", metadata: { title: "Old", category: "x" } } } })
+        .mockResolvedValueOnce({ records: {} });
+      await new TestRepo(app).patchById("1", { title: "Patched" } as Partial<Article>);
+      const [{ records }] = (idx.upsert as ReturnType<typeof vi.fn>).mock.calls[0] as [
+        { records: Array<{ values: number[] }> },
+      ];
+      expect(records[0].values).toEqual([0, 0, 0]);
+    });
+
+    it("wraps a driver error unrelated to NotFound", async () => {
+      const { idx, app } = makeSetup();
+      idx.fetch
+        .mockResolvedValueOnce({ records: { "1": { id: "1", metadata: { title: "Old", category: "x" } } } })
+        .mockRejectedValueOnce(new Error("boom"));
+      await expect(new TestRepo(app).patchById("1", { title: "Patched" } as Partial<Article>)).rejects.toBeInstanceOf(
+        GeneralError,
+      );
+    });
   });
 
   describe("deleteById", () => {
@@ -365,6 +549,13 @@ describe("PineconeRepository", () => {
     it("throws NotFound when the record does not exist", async () => {
       const { app } = makeSetup();
       await expect(new TestRepo(app).deleteById("missing")).rejects.toBeInstanceOf(NotFound);
+    });
+
+    it("wraps a driver error unrelated to NotFound", async () => {
+      const { idx, app } = makeSetup();
+      idx.fetch.mockResolvedValue({ records: { "1": { id: "1", metadata: { title: "Doc", category: "tech" } } } });
+      idx.deleteOne.mockRejectedValue(new Error("boom"));
+      await expect(new TestRepo(app).deleteById("1")).rejects.toBeInstanceOf(GeneralError);
     });
   });
 
@@ -394,6 +585,18 @@ describe("PineconeRepository", () => {
       });
       expect(await new TestRepo(app).count({ where: { category: "tech" } })).toBe(2);
     });
+
+    it("returns 0 when neither namespace record count nor total record count is available", async () => {
+      const { idx, app } = makeSetup();
+      idx.describeIndexStats.mockResolvedValue({ namespaces: {}, totalRecordCount: undefined });
+      expect(await new TestRepo(app).count()).toBe(0);
+    });
+
+    it("wraps a driver error", async () => {
+      const { idx, app } = makeSetup();
+      idx.describeIndexStats.mockRejectedValue(new Error("boom"));
+      await expect(new TestRepo(app).count()).rejects.toBeInstanceOf(GeneralError);
+    });
   });
 
   describe("wrapError", () => {
@@ -407,6 +610,13 @@ describe("PineconeRepository", () => {
       const { idx, app } = makeSetup();
       idx.fetch.mockRejectedValue("string error");
       await expect(new TestRepo(app).findById("1")).rejects.toBeInstanceOf(GeneralError);
+    });
+
+    it("passes an already-thrown MantleError through unchanged", () => {
+      const { app } = makeSetup();
+      const repo = new TestRepo(app) as unknown as { wrapError(err: unknown): Error };
+      const original = new BadRequest("already handled");
+      expect(repo.wrapError(original)).toBe(original);
     });
   });
 
@@ -455,6 +665,19 @@ describe("PineconeRepository", () => {
       const { idx, app } = makeSetup();
       await expect(new TestRepo(app).findPage({ sort: { title: "asc" } })).rejects.toBeInstanceOf(BadRequest);
       expect(idx.listPaginated).not.toHaveBeenCalled();
+    });
+
+    it("treats a missing vectors array as an empty page", async () => {
+      const { idx, app } = makeSetup();
+      idx.listPaginated.mockResolvedValue({});
+      const page = await new TestRepo(app).findPage();
+      expect(page).toEqual({ data: [], cursor: undefined });
+    });
+
+    it("wraps a driver error", async () => {
+      const { idx, app } = makeSetup();
+      idx.listPaginated.mockRejectedValue(new Error("boom"));
+      await expect(new TestRepo(app).findPage()).rejects.toBeInstanceOf(GeneralError);
     });
   });
 

@@ -301,15 +301,18 @@ because a coverage review found real defects in three of them. Re-checked during
 
 | Package | Phase 5 finding | Current state | Branch coverage today |
 | --- | --- | --- | --- |
-| `pinecone` | README described a constructor API that didn't exist in code | **Fixed** — README's `constructor(app: MantleApplication)` matches `pinecone-repository.ts` exactly | 80.37% |
-| `qdrant` | Flagship Quick Start used an unsupported operator | **Fixed** — Quick Start now uses only plain equality (`where: { category: "guide" }`), which every adapter supports | 85.21% |
-| `dynamodb` | Lowest branch coverage of the group, 62.8% | **Unchanged** — 63.19% today, essentially the same gap eight months later | 63.19% |
-| `neo4j` | Not separately called out | — | 89.1% |
-| `mongodb` | Not separately called out | — | 92.24% |
+| `pinecone` | README described a constructor API that didn't exist in code | **Fixed** — README's `constructor(app: MantleApplication)` matches `pinecone-repository.ts` exactly | 80.37% → **99.06%** |
+| `qdrant` | Flagship Quick Start used an unsupported operator | **Fixed** — Quick Start now uses only plain equality (`where: { category: "guide" }`), which every adapter supports | 85.21% → **100%** |
+| `dynamodb` | Lowest branch coverage of the group, 62.8% | **Fixed** — closed via targeted test additions (composite-key paths, transaction buffering, cursor/pagination edge cases, error-wrapping fallthroughs); a handful of provably-unreachable defensive branches remain (see below) | 63.19% → **97.56%** |
+| `neo4j` | Not separately called out | Reviewed this round — README-vs-code accurate, flagship example clean; one line (`withTransaction`'s inner-callback invocation) is a confirmed v8-coverage source-map artifact, not a real gap (verified via forced-failure debug instrumentation, then reverted) | 89.1% → **98.01%** |
+| `mongodb` | Not separately called out | Reviewed this round — README-vs-code accurate (one stale error-mapping row fixed); flagship example clean | 92.24% → **100%** |
 
 `openapi`'s promotion bar (Phase 5, item 9): 100% statement / 93.5% branch, zero defects found in a dedicated
-review. None of the five are quite there on branch coverage, though `mongodb` (92.24%) and `neo4j` (89.1%) are
-close; `dynamodb` remains the clear outlier.
+review. **All five packages now meet or exceed both halves of the bar.** Each package's remaining
+uncovered branches (where any exist) are defensive code provably unreachable through the public API —
+e.g. a `default:` arm in an operator-translation `switch` that can never fire because `assertOperators`
+already rejects any operator not handled by an earlier case — the same category of accepted gap that
+keeps `openapi` itself at 93.5% rather than 100%, not an overlooked test case.
 
 **Promotion work, per package:**
 
@@ -428,6 +431,7 @@ architectural dependency rules, only which `nx.json` release group and npm dist-
 | 5 | Cross-adapter write-consistency pattern is documented once the auto-embed hook gives a concrete case, not designed in the abstract first | Direct from `BAAS-READINESS.md`'s own suggested sequencing (§"Suggested sequencing", point 6) |
 | 6 | The auto-embed hook's scope is verified *before* any code is written | `BAAS-READINESS.md` is explicit that this might already be partially or fully done — building `@mantlejs/embeddings` without checking first risks duplicating capability that `MongoVectorRepository`, `pinecone`, or `qdrant` already has |
 | 7 | Add `@mantlejs/auth-twitter` to Phase 6, despite `BAAS-READINESS.md` §1.4 explicitly recommending against more OAuth strategies | Explicit scope addition (2026-09-17) — not derived from the readiness doc's own priorities, added directly. Follows the Phase 5 precedent for *new OAuth strategy* packages specifically (Phase 5 Decision, tiering section): a thin strategy over the already-battle-tested `auth-oauth` base ships stable despite being new, same as `auth-apple`/`auth-microsoft`/`auth-linkedin` did — this is a narrower, already-established exception to the general "new packages default to experimental" rule (Decision #3), not a second exception being invented here |
+| 8 | Remove the `experimental` release group from `nx.json` outright once all five of `dynamodb`/`pinecone`/`qdrant`/`neo4j`/`mongodb` promoted, rather than leaving it empty | All five cleared the promotion bar in the same pass (item 4), so nothing remained in the group. `@mantlejs/embeddings` hasn't been built yet (spec 12 is still pending) — if it ships experimental later, the group is trivially re-added at that point with a single package rather than kept around empty in the meantime |
 
 ---
 

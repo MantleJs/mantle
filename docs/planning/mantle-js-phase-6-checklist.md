@@ -151,7 +151,7 @@ strategy (items 5–8) → release (item 9).
   above. `npx nx run-many -t build,test,lint,typecheck` green across all 40 projects; both
   packages' READMEs updated.
 
-- [ ] **4. Promote experimental adapters to stable** *(PRD — Adapter Promotion Plan)*
+- [x] **4. Promote experimental adapters to stable** *(PRD — Adapter Promotion Plan)*
   Per package, per the plan's table:
   - `pinecone`, `qdrant`: re-run Phase 5 item 9's review process (README-vs-code accuracy, flagship example
     runs clean, branch coverage) to confirm no new defects since the fixes already found in place during this
@@ -170,6 +170,46 @@ strategy (items 5–8) → release (item 9).
   **Accept:** each promoted package's comparison table entry updated with final numbers; `nx release version
   --groups=stable --dry-run` shows the expected project list with no cross-group leakage; any package staying
   experimental has a recorded reason, not silence.
+  **Done (2026-09-20):** all five packages cleared the `openapi` bar (100% statement / 93.5% branch) —
+  `mongodb` 92.24%→**100%** branch, `qdrant` 85.21%→**100%**, `neo4j` 89.1%→**98.01%**, `pinecone`
+  80.37%→**99.06%**, and `dynamodb` — the outlier explicitly called out for targeted work — 63.19%→**97.56%**,
+  each verified via a real `nx test --coverage` run, not assumed. Every remaining uncovered branch across all
+  five is a provably-unreachable defensive path (mirroring `openapi`'s own accepted 93.5%, not 100%) —
+  confirmed by tracing the call graph rather than left unexamined:
+  - Each adapter's operator-translation `switch`/`if` has a `default`/unsupported-operator arm that can never
+    fire, because `assertOperators()` already rejects any operator outside the adapter's declared set before
+    the translator's per-field dispatch runs (`dynamodbify.ts`'s `buildSpecialOp` default case,
+    `pinecone-filter.ts`'s `PASSTHROUGH_OPS` check) — same category as the two prior packages' accepted gaps
+  - `dynamodb`'s Query-path builders (`findPage`'s `useQuery` branch, `queryItems`) have a few
+    "empty names/values" false-branches on ternaries that can't be false in practice, since a Query is only
+    ever reached when the partition key is already pinned in the `where` clause — guaranteeing at least one
+    name/value alias exists
+  - `neo4j`'s `withTransaction` inner-callback-invocation line was investigated with temporary debug
+    `console.log` instrumentation (reverted) and a forced-failure run — confirmed a v8-coverage source-map
+    precision artifact on a generic arrow function, not a real gap; the test genuinely exercises that line
+  **Real bugs found and fixed**, not just documentation: none of the five packages' translator/repository
+  logic itself was defective — Phase 5 already fixed `pinecone`'s constructor-mismatch and `qdrant`'s Quick
+  Start defects, and this pass found no *new* logic defects in any of the five. What this pass did find and
+  fix were four READMEs (`pinecone`, `qdrant`, `mongodb`, `neo4j` — `dynamodb`'s already documented this
+  correctly) documenting `updateById`/`patchById` without noting they throw `NotFound` on a missing record
+  (while `deleteById`'s row correctly did), plus three packages (`pinecone`, `qdrant`, `neo4j`) missing an
+  "Error mapping" section entirely and two more (`dynamodb`, `mongodb`) whose existing section omitted the
+  MantleError-passthrough row — despite the same `wrapError()` convention applying to all five identically.
+  Promotion mechanics: `dynamodb`/`pinecone`/`qdrant`/`neo4j`/`mongodb` merged into `nx.json`'s `stable`
+  group (36 projects total, confirmed via the interactive prompt's project count); each package's
+  `package.json` version set to `0.1.0` to match `stable`'s current version ahead of the next real bump
+  (fixed-group semantics); the now-empty `experimental` group removed from `nx.json` entirely rather than
+  left empty (Decision #8) — no `@mantlejs/embeddings` exists yet to occupy it. `tools/bump-peer-ranges.mjs
+  stable 0.1.0` ran clean (0 files touched — nothing in the workspace peer-depends on any of the five, so no
+  drift was possible). `examples/*/package.json` audited — none of the three examples reference any of the
+  five promoted packages, so no exact-pin risk existed. `nx release version --groups=stable --dry-run
+  --specifier=patch` bumped all 36 `stable` projects (including the five newly-merged ones) to `0.1.1` in
+  lockstep with no cross-group leakage and no `preserveMatchingDependencyRanges` guard failures; `git status`
+  confirmed the dry-run left no actual changes. One incidental TypeScript fix: three new `dynamodb` spec
+  tests passed a composite `{ pk, sk }` object as a repository `id` — valid at runtime (the same shape the
+  package's own README documents) but not assignable to the nominal `Id = string | number` type without a
+  cast, caught by `dynamodb:typecheck`. Full `npx nx run-many -t build,test,typecheck` (40 projects) and
+  `npx nx run-many -t lint` (40 projects) both green.
 
 ## Stage 2 — Extend
 

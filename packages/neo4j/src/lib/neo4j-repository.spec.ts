@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { Neo4jRepository } from "./neo4j-repository.js";
 import { NEO4J_OPERATORS } from "./neo4j-where.js";
-import { BadRequest, NotFound } from "@mantlejs/mantle";
+import { BadRequest, GeneralError, NotFound } from "@mantlejs/mantle";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -138,6 +138,11 @@ describe("Neo4jRepository", () => {
         expect.objectContaining({ props: expect.objectContaining({ id: "my-id" }) }),
       );
     });
+
+    it("throws GeneralError when the CREATE returns no record", async () => {
+      session.run.mockResolvedValueOnce({ records: [] });
+      await expect(repo.createNode({ name: "Bob", age: 25 })).rejects.toThrow(GeneralError);
+    });
   });
 
   describe("findNodes", () => {
@@ -201,6 +206,13 @@ describe("Neo4jRepository", () => {
       expect(result).toEqual(props);
       expect(session.run).toHaveBeenCalledWith(expect.stringContaining("DETACH DELETE"), expect.any(Object));
     });
+
+    it("wraps a driver error other than not-found", async () => {
+      session.run
+        .mockResolvedValueOnce({ records: [makeRecord({ id: "1", name: "Alice", age: 30 })] }) // findNodeById
+        .mockRejectedValueOnce(new Error("connection reset")); // DETACH DELETE
+      await expect(repo.deleteNode("1")).rejects.toThrow(GeneralError);
+    });
   });
 
   describe("createRelationship", () => {
@@ -212,6 +224,11 @@ describe("Neo4jRepository", () => {
         to: "2",
         props: { since: "2024" },
       });
+    });
+
+    it("wraps a driver error", async () => {
+      session.run.mockRejectedValueOnce(new Error("connection reset"));
+      await expect(repo.createRelationship("1", "2", "KNOWS")).rejects.toThrow(GeneralError);
     });
   });
 
@@ -226,6 +243,11 @@ describe("Neo4jRepository", () => {
       session.run.mockResolvedValueOnce({ records: [] });
       await repo.traverse("1", "KNOWS", 3);
       expect(session.run).toHaveBeenCalledWith(expect.stringContaining("[r:KNOWS*1..3]"), { id: "1" });
+    });
+
+    it("wraps a driver error", async () => {
+      session.run.mockRejectedValueOnce(new Error("connection reset"));
+      await expect(repo.traverse("1", "KNOWS")).rejects.toThrow(GeneralError);
     });
 
     it("returns nodes from the traversal result", async () => {
@@ -244,6 +266,77 @@ describe("Neo4jRepository", () => {
       });
       const result = await repo.raw<Person>("MATCH (n:Person) RETURN n");
       expect(result[0]).toEqual(node.properties);
+    });
+
+    it("returns a single-key scalar value as-is when it has no .properties (e.g. count())", async () => {
+      session.run.mockResolvedValueOnce({
+        records: [{ get: (k: string) => (k === "total" ? 42 : undefined), keys: ["total"] }],
+      });
+      const result = await repo.raw<number>("MATCH (n:Person) RETURN count(n) AS total");
+      expect(result[0]).toBe(42);
+    });
+
+    it("builds a plain object from a multi-key row", async () => {
+      const nProps = { id: "1", name: "Alice", age: 30 };
+      const mProps = { id: "2", name: "Bob", age: 25 };
+      session.run.mockResolvedValueOnce({
+        records: [
+          {
+            get: (k: string) => (k === "n" ? { properties: nProps } : { properties: mProps }),
+            keys: ["n", "m"],
+          },
+        ],
+      });
+      const result = await repo.raw("MATCH (n:Person)-[:KNOWS]->(m:Person) RETURN n, m");
+      expect(result[0]).toEqual({ n: { properties: nProps }, m: { properties: mProps } });
+    });
+
+    it("wraps a driver error", async () => {
+      session.run.mockRejectedValueOnce(new Error("connection reset"));
+      await expect(repo.raw("MATCH (n) RETURN n")).rejects.toThrow(GeneralError);
+    });
+  });
+
+  describe("withTransaction", () => {
+    it("runs repository calls against the transaction and returns the callback's result", async () => {
+      // executeWrite's mocked callback invokes tx.run directly (the session's internal runFn),
+      // not session.run itself — so the desired response has to be wired in at session
+      // construction, not via session.run.mockResolvedValueOnce on the shared beforeEach session.
+      const txSession = makeSession([makeRecord({ id: "1", name: "Alice", age: 30 })]);
+      const txRepoBase = new PersonRepository(makeApp(txSession) as never);
+      vi.spyOn(txRepoBase as unknown as { openSession(): unknown }, "openSession").mockReturnValue(txSession);
+
+      const result = await txRepoBase.withTransaction(async (txRepo) => {
+        return txRepo.findNodeById("1");
+      });
+      expect(result).toEqual({ id: "1", name: "Alice", age: 30 });
+      expect(txSession.executeWrite).toHaveBeenCalledOnce();
+    });
+
+    it("closes the session even when the callback throws", async () => {
+      await expect(
+        repo.withTransaction(async () => {
+          throw new Error("boom");
+        }),
+      ).rejects.toThrow("boom");
+      expect(session.close).toHaveBeenCalledOnce();
+    });
+  });
+
+  describe("wrapError", () => {
+    it("passes an already-typed MantleError through unchanged", async () => {
+      session.run.mockRejectedValueOnce(new BadRequest("already typed"));
+      await expect(repo.findNodeById("1")).rejects.toThrow(BadRequest);
+    });
+
+    it("wraps a generic Error as GeneralError", async () => {
+      session.run.mockRejectedValueOnce(new Error("driver exploded"));
+      await expect(repo.findNodeById("1")).rejects.toThrow(GeneralError);
+    });
+
+    it("wraps a non-Error throw as GeneralError", async () => {
+      session.run.mockRejectedValueOnce("a string, not an Error");
+      await expect(repo.findNodeById("1")).rejects.toThrow(GeneralError);
     });
   });
 
@@ -292,6 +385,20 @@ describe("Neo4jRepository", () => {
       expect(new Set(caps.operators)).toEqual(NEO4J_OPERATORS);
       expect(caps.pagination).toBe("offset");
       expect(caps.fullTextSearch).toBe(false);
+    });
+  });
+
+  describe("openSession", () => {
+    it("opens a session against the configured database via the real (unmocked) driver call", () => {
+      const fakeSession = { real: true };
+      const driver = { session: vi.fn().mockReturnValue(fakeSession) };
+      const app = {
+        get: (key: string) => (key === "neo4j" ? driver : "custom-db"),
+      };
+      const realRepo = new PersonRepository(app as never);
+      const opened = (realRepo as unknown as { openSession(): unknown }).openSession();
+      expect(driver.session).toHaveBeenCalledWith({ database: "custom-db" });
+      expect(opened).toBe(fakeSession);
     });
   });
 });

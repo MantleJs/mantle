@@ -128,10 +128,21 @@ distance, where lower is more similar.
 | `findById(id)`         | Fetch a single record by ID; returns `null` if not found |
 | `save(data)`           | Insert with a zero-vector placeholder                    |
 | `saveAll(data[])`      | Batch insert (single Qdrant upsert call)                 |
-| `updateById(id, data)` | Replace the full payload, preserving the stored vector   |
-| `patchById(id, data)`  | Merge partial fields, preserving the stored vector       |
+| `updateById(id, data)` | Replace the full payload, preserving the stored vector; throws `NotFound` if absent |
+| `patchById(id, data)`  | Merge partial fields, preserving the stored vector; throws `NotFound` if absent |
 | `deleteById(id)`       | Delete a record; throws `NotFound` if absent             |
 | `count(params?)`       | Exact count of records matching optional `QueryParams`   |
+
+#### Error mapping
+
+Qdrant's client doesn't expose a rich exception taxonomy the way DynamoDB or MongoDB do, so
+`wrapError()` is intentionally simple:
+
+| Thrown value                                                                    | Error thrown              |
+| -------------------------------------------------------------------------------- | -------------------------- |
+| Already a MantleError (e.g. `NotFound` from a missing record, or thrown by a hook or custom repository method) | passed through unchanged |
+| Any other `Error`                                                                | `GeneralError`              |
+| A non-`Error` throw                                                              | `GeneralError`              |
 
 #### Instance properties
 

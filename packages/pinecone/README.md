@@ -143,10 +143,21 @@ Every `findSimilar` result carries the Pinecone match score as `_score` — **hi
 | `findById(id)`         | Fetch a single record by ID; returns `null` if not found |
 | `save(data)`           | Insert a new record with a **zero-vector placeholder** (sized to `vectorDimension`) — does not generate a real embedding; call `upsertVector()` for that |
 | `saveAll(data[])`      | Batch insert multiple records, each with a zero-vector placeholder |
-| `updateById(id, data)` | Replace all metadata for a record                        |
-| `patchById(id, data)`  | Update individual metadata fields for a record           |
+| `updateById(id, data)` | Replace all metadata for a record; throws `NotFound` if absent |
+| `patchById(id, data)`  | Update individual metadata fields for a record; throws `NotFound` if absent |
 | `deleteById(id)`       | Delete a record; throws `NotFound` if absent             |
 | `count(params?)`       | Count records matching optional `QueryParams`            |
+
+#### Error mapping
+
+Pinecone's SDK doesn't expose a rich exception taxonomy the way DynamoDB or MongoDB do, so
+`wrapError()` is intentionally simple:
+
+| Thrown value                                                                    | Error thrown              |
+| -------------------------------------------------------------------------------- | -------------------------- |
+| Already a MantleError (e.g. `NotFound` from a missing record, or thrown by a hook or custom repository method) | passed through unchanged |
+| Any other `Error`                                                                | `GeneralError`              |
+| A non-`Error` throw                                                              | `GeneralError`              |
 
 ---
 

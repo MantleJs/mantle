@@ -142,8 +142,8 @@ Implements `Repository<T, D>` for MongoDB. Subclasses must declare `collectionNa
 | `findById(id)`         | Fetch a single record by id; returns `null` if not found                |
 | `save(data)`           | Insert a document (`_id` auto-generated unless `data.id` is given)      |
 | `saveAll(data[])`      | Batch insert (single `insertMany` call)                                 |
-| `updateById(id, data)` | Replace the full document (`findOneAndReplace`)                         |
-| `patchById(id, data)`  | Merge partial fields (`$set`); `undefined` values are dropped           |
+| `updateById(id, data)` | Replace the full document (`findOneAndReplace`); throws `NotFound` if absent |
+| `patchById(id, data)`  | Merge partial fields (`$set`); `undefined` values are dropped; throws `NotFound` if absent |
 | `deleteById(id)`       | Delete a record and return it; throws `NotFound` if absent              |
 | `count(params?)`       | Count documents matching optional `QueryParams`                         |
 | `withTransaction(fn)`  | Run repository calls in one MongoDB transaction (replica set required)  |
@@ -167,9 +167,10 @@ Driver errors are translated to typed `MantleError` subclasses:
 
 | Condition                                                | Error thrown  |
 | ---------------------------------------------------------- | ------------- |
+| Already a `MantleError` (e.g. thrown by a hook, or by a custom repository method) | passed through unchanged |
 | Duplicate key (`code` `11000` or `11001`)                 | `Conflict`    |
 | `MongoNetworkError`, `MongoServerSelectionError`           | `Unavailable` |
-| anything else                                              | `GeneralError` |
+| anything else (including a non-`Error` throw)              | `GeneralError` |
 
 ---
 

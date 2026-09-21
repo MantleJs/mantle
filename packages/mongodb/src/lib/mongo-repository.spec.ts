@@ -228,6 +228,12 @@ describe("MongoRepository", () => {
       );
       expect(result.map((r) => r.id)).toEqual([HEX_A, HEX_B]);
     });
+
+    it("wraps a driver error", async () => {
+      const { app, collection } = makeSetup();
+      collection.insertMany.mockRejectedValue(new Error("connection reset"));
+      await expect(new TestRepo(app).saveAll([{ title: "A", views: 1 }])).rejects.toThrow(GeneralError);
+    });
   });
 
   describe("updateById", () => {
@@ -255,6 +261,21 @@ describe("MongoRepository", () => {
     it("throws NotFound when no document matches", async () => {
       const { app } = makeSetup();
       await expect(new TestRepo(app).updateById(HEX_A, { title: "x", views: 0 })).rejects.toThrow(NotFound);
+    });
+
+    it("wraps a driver error other than not-found", async () => {
+      const { app, collection } = makeSetup();
+      collection.findOneAndReplace.mockRejectedValue(new Error("connection reset"));
+      await expect(new TestRepo(app).updateById(HEX_A, { title: "x", views: 0 })).rejects.toThrow(GeneralError);
+    });
+
+    it("sets updatedAt but not createdAt when timestamps are on (replace, not create)", async () => {
+      const { app, collection } = makeSetup();
+      collection.findOneAndReplace.mockResolvedValue({ _id: new ObjectId(HEX_A), title: "x", views: 0 });
+      await new TimestampedRepo(app).updateById(HEX_A, { title: "x", views: 0 });
+      const replacement = collection.findOneAndReplace.mock.calls[0]?.[1] as Record<string, unknown>;
+      expect(replacement["updatedAt"]).toBeInstanceOf(Date);
+      expect(replacement).not.toHaveProperty("createdAt");
     });
   });
 
@@ -295,6 +316,17 @@ describe("MongoRepository", () => {
       const { app } = makeSetup();
       await expect(new TestRepo(app).patchById(HEX_A, { title: "x" })).rejects.toThrow(NotFound);
     });
+
+    it("throws NotFound for an empty patch against a record that doesn't exist", async () => {
+      const { app } = makeSetup();
+      await expect(new TestRepo(app).patchById(HEX_A, {})).rejects.toThrow(NotFound);
+    });
+
+    it("wraps a driver error other than not-found", async () => {
+      const { app, collection } = makeSetup();
+      collection.findOneAndUpdate.mockRejectedValue(new Error("connection reset"));
+      await expect(new TestRepo(app).patchById(HEX_A, { title: "x" })).rejects.toThrow(GeneralError);
+    });
   });
 
   describe("deleteById", () => {
@@ -310,6 +342,12 @@ describe("MongoRepository", () => {
       const { app } = makeSetup();
       await expect(new TestRepo(app).deleteById(HEX_A)).rejects.toThrow(NotFound);
     });
+
+    it("wraps a driver error other than not-found", async () => {
+      const { app, collection } = makeSetup();
+      collection.findOneAndDelete.mockRejectedValue(new Error("connection reset"));
+      await expect(new TestRepo(app).deleteById(HEX_A)).rejects.toThrow(GeneralError);
+    });
   });
 
   describe("count", () => {
@@ -319,6 +357,20 @@ describe("MongoRepository", () => {
       const result = await new TestRepo(app).count({ where: { views: { $gte: 1 } } });
       expect(collection.countDocuments).toHaveBeenCalledWith({ views: { $gte: 1 } }, {});
       expect(result).toBe(7);
+    });
+
+    it("counts everything when no where clause is given", async () => {
+      const { app, collection } = makeSetup();
+      collection.countDocuments.mockResolvedValue(3);
+      const result = await new TestRepo(app).count();
+      expect(collection.countDocuments).toHaveBeenCalledWith({}, {});
+      expect(result).toBe(3);
+    });
+
+    it("wraps a driver error", async () => {
+      const { app, collection } = makeSetup();
+      collection.countDocuments.mockRejectedValue(new Error("connection reset"));
+      await expect(new TestRepo(app).count()).rejects.toThrow(GeneralError);
     });
   });
 
@@ -415,6 +467,27 @@ describe("MongoRepository", () => {
       const { app, collection } = makeSetup();
       collection.findOne.mockRejectedValue(new Error("boom"));
       await expect(new TestRepo(app).findById(HEX_A)).rejects.toThrow(GeneralError);
+    });
+
+    it("passes an already-typed MantleError through unchanged instead of re-wrapping it", async () => {
+      const { app, collection } = makeSetup();
+      collection.findOne.mockRejectedValue(new BadRequest("already typed"));
+      await expect(new TestRepo(app).findById(HEX_A)).rejects.toThrow(BadRequest);
+    });
+
+    it("wraps a non-Error throw (e.g. a rejected string) as GeneralError", async () => {
+      const { app, collection } = makeSetup();
+      collection.findOne.mockRejectedValue("a string, not an Error");
+      await expect(new TestRepo(app).findById(HEX_A)).rejects.toThrow(GeneralError);
+    });
+  });
+
+  describe("fromDocument", () => {
+    it("stringifies a non-ObjectId _id instead of assuming it's always an ObjectId", async () => {
+      const { app, collection } = makeSetup();
+      collection.findOne.mockResolvedValue({ _id: "custom-string-id", title: "x", views: 0 });
+      const result = await new TestRepo(app).findById(HEX_A);
+      expect(result?.id).toBe("custom-string-id");
     });
   });
 });

@@ -134,9 +134,22 @@ describe("QdrantRepository", () => {
       client.search.mockRejectedValue(new Error("network error"));
       await expect(new TestRepo(app).findSimilar([0.1], 5)).rejects.toBeInstanceOf(GeneralError);
     });
+
+    it("treats a missing payload as an empty object", async () => {
+      const { client, app } = makeSetup();
+      client.search.mockResolvedValue([{ id: "1", score: 0.5 }]);
+      const result = await new TestRepo(app).findSimilar([0.1], 5);
+      expect(result).toEqual([{ id: "1", _score: 0.5 }]);
+    });
   });
 
   describe("upsertVector", () => {
+    it("wraps a driver error", async () => {
+      const { client, app } = makeSetup();
+      client.upsert.mockRejectedValue(new Error("connection reset"));
+      await expect(new TestRepo(app).upsertVector("1", [0.1], { title: "x" })).rejects.toBeInstanceOf(GeneralError);
+    });
+
     it("upserts the point with the given vector and payload", async () => {
       const { client, app } = makeSetup();
       await new TestRepo(app).upsertVector("1", [0.1, 0.2, 0.3], { title: "Doc", category: "tech" });
@@ -231,6 +244,63 @@ describe("QdrantRepository", () => {
       const { app } = makeSetup();
       expect(await new TestRepo(app).findAll()).toEqual([]);
     });
+
+    it("applies order_by from params.sort", async () => {
+      const { client, app } = makeSetup();
+      client.scroll.mockResolvedValue({ points: [], next_page_offset: null });
+      await new TestRepo(app).findAll({ sort: { title: "asc" }, limit: 5 });
+      expect(client.scroll).toHaveBeenCalledWith(
+        "articles",
+        expect.objectContaining({ order_by: { key: "title", direction: "asc" } }),
+      );
+    });
+
+    it("ignores an empty sort object (no order_by)", async () => {
+      const { client, app } = makeSetup();
+      client.scroll.mockResolvedValue({ points: [], next_page_offset: null });
+      await new TestRepo(app).findAll({ sort: {}, limit: 5 });
+      expect(client.scroll).toHaveBeenCalledWith("articles", expect.not.objectContaining({ order_by: expect.anything() }));
+    });
+
+    it("applies filter, order_by, and the payload fallback during a full scan (no limit)", async () => {
+      const { client, app } = makeSetup();
+      client.scroll.mockResolvedValueOnce({ points: [{ id: "1" }], next_page_offset: null });
+      const result = await new TestRepo(app).findAll({ where: { category: "tech" }, sort: { title: "asc" } });
+      expect(client.scroll).toHaveBeenCalledWith(
+        "articles",
+        expect.objectContaining({
+          filter: { must: [{ key: "category", match: { value: "tech" } }] },
+          order_by: { key: "title", direction: "asc" },
+        }),
+      );
+      expect(result).toEqual([{ id: "1" }]);
+    });
+
+    it("slices off the skip amount after a full scan with no limit", async () => {
+      const { client, app } = makeSetup();
+      client.scroll.mockResolvedValueOnce({
+        points: [
+          { id: "1", payload: { title: "A", category: "x" } },
+          { id: "2", payload: { title: "B", category: "y" } },
+        ],
+        next_page_offset: null,
+      });
+      const result = await new TestRepo(app).findAll({ skip: 1 });
+      expect(result).toEqual([{ id: "2", title: "B", category: "y" }]);
+    });
+
+    it("treats a missing payload as an empty object", async () => {
+      const { client, app } = makeSetup();
+      client.scroll.mockResolvedValue({ points: [{ id: "1" }], next_page_offset: null });
+      const result = await new TestRepo(app).findAll({ limit: 5 });
+      expect(result).toEqual([{ id: "1" }]);
+    });
+
+    it("wraps a driver error", async () => {
+      const { client, app } = makeSetup();
+      client.scroll.mockRejectedValue(new Error("connection reset"));
+      await expect(new TestRepo(app).findAll()).rejects.toBeInstanceOf(GeneralError);
+    });
   });
 
   describe("findById", () => {
@@ -245,6 +315,12 @@ describe("QdrantRepository", () => {
     it("returns null when the record is not found", async () => {
       const { app } = makeSetup();
       expect(await new TestRepo(app).findById("missing")).toBeNull();
+    });
+
+    it("treats a missing payload as an empty object", async () => {
+      const { client, app } = makeSetup();
+      client.retrieve.mockResolvedValue([{ id: "42" }]);
+      expect(await new TestRepo(app).findById("42")).toEqual({ id: "42" });
     });
   });
 
@@ -315,6 +391,14 @@ describe("QdrantRepository", () => {
       expect(points[0].payload).not.toHaveProperty("createdAt");
       expect(points[0].payload).not.toHaveProperty("updatedAt");
     });
+
+    it("wraps a driver error", async () => {
+      const { client, app } = makeSetup();
+      client.upsert.mockRejectedValue(new Error("connection reset"));
+      await expect(
+        new TestRepo(app).save({ id: "1", title: "Doc", category: "tech" } as Partial<Article>),
+      ).rejects.toBeInstanceOf(GeneralError);
+    });
   });
 
   describe("saveAll", () => {
@@ -330,6 +414,35 @@ describe("QdrantRepository", () => {
         { points: unknown[] },
       ];
       expect(points).toHaveLength(2);
+    });
+
+    it("generates a UUID when no id is provided", async () => {
+      const { client, app } = makeSetup();
+      await new TestRepo(app).saveAll([{ title: "A", category: "x" } as Partial<Article>]);
+      const [, { points }] = (client.upsert as ReturnType<typeof vi.fn>).mock.calls[0] as [
+        string,
+        { points: Array<{ id: string }> },
+      ];
+      expect(points[0].id).toMatch(/^[0-9a-f-]{36}$/);
+    });
+
+    it("adds createdAt/updatedAt to every entity when timestamps is true", async () => {
+      const { client, app } = makeSetup();
+      await new TestRepoWithTimestamps(app).saveAll([{ id: "1", title: "A", category: "x" } as Partial<Article>]);
+      const [, { points }] = (client.upsert as ReturnType<typeof vi.fn>).mock.calls[0] as [
+        string,
+        { points: Array<{ payload: Record<string, unknown> }> },
+      ];
+      expect(points[0].payload).toHaveProperty("createdAt");
+      expect(points[0].payload).toHaveProperty("updatedAt");
+    });
+
+    it("wraps a driver error", async () => {
+      const { client, app } = makeSetup();
+      client.upsert.mockRejectedValue(new Error("connection reset"));
+      await expect(new TestRepo(app).saveAll([{ title: "A", category: "x" } as Partial<Article>])).rejects.toBeInstanceOf(
+        GeneralError,
+      );
     });
   });
 
@@ -353,6 +466,41 @@ describe("QdrantRepository", () => {
         new TestRepo(app).updateById("missing", { title: "X", category: "y" } as Partial<Article>),
       ).rejects.toBeInstanceOf(NotFound);
     });
+
+    it("falls back to a zero vector when the existing point has none", async () => {
+      const { client, app } = makeSetup();
+      client.retrieve
+        .mockResolvedValueOnce([{ id: "1", payload: { title: "Old", category: "x" } }])
+        .mockResolvedValueOnce([{ id: "1" }]);
+      await new TestRepo(app).updateById("1", { title: "New", category: "y" } as Partial<Article>);
+      const [, { points }] = (client.upsert as ReturnType<typeof vi.fn>).mock.calls[0] as [
+        string,
+        { points: Array<{ vector: number[] }> },
+      ];
+      expect(points[0].vector).toEqual([0, 0, 0]);
+    });
+
+    it("wraps a driver error other than not-found", async () => {
+      const { client, app } = makeSetup();
+      client.retrieve.mockResolvedValueOnce([{ id: "1", payload: { title: "Old", category: "x" } }]);
+      client.upsert.mockRejectedValue(new Error("connection reset"));
+      await expect(
+        new TestRepo(app).updateById("1", { title: "New", category: "y" } as Partial<Article>),
+      ).rejects.toBeInstanceOf(GeneralError);
+    });
+
+    it("bumps updatedAt when timestamps is true", async () => {
+      const { client, app } = makeSetup();
+      client.retrieve
+        .mockResolvedValueOnce([{ id: "1", payload: { title: "Old", category: "x" } }])
+        .mockResolvedValueOnce([{ id: "1", vector: [0.1, 0.2, 0.3] }]);
+      await new TestRepoWithTimestamps(app).updateById("1", { title: "New", category: "y" } as Partial<Article>);
+      const [, { points }] = (client.upsert as ReturnType<typeof vi.fn>).mock.calls[0] as [
+        string,
+        { points: Array<{ payload: Record<string, unknown> }> },
+      ];
+      expect(points[0].payload).toHaveProperty("updatedAt");
+    });
   });
 
   describe("patchById", () => {
@@ -375,6 +523,41 @@ describe("QdrantRepository", () => {
         NotFound,
       );
     });
+
+    it("falls back to a zero vector when the existing point has none", async () => {
+      const { client, app } = makeSetup();
+      client.retrieve
+        .mockResolvedValueOnce([{ id: "1", payload: { title: "Old", category: "x" } }])
+        .mockResolvedValueOnce([{ id: "1" }]);
+      await new TestRepo(app).patchById("1", { title: "Patched" } as Partial<Article>);
+      const [, { points }] = (client.upsert as ReturnType<typeof vi.fn>).mock.calls[0] as [
+        string,
+        { points: Array<{ vector: number[] }> },
+      ];
+      expect(points[0].vector).toEqual([0, 0, 0]);
+    });
+
+    it("bumps updatedAt when timestamps is true", async () => {
+      const { client, app } = makeSetup();
+      client.retrieve
+        .mockResolvedValueOnce([{ id: "1", payload: { title: "Old", category: "x" } }])
+        .mockResolvedValueOnce([{ id: "1", vector: [0.1, 0.2, 0.3] }]);
+      await new TestRepoWithTimestamps(app).patchById("1", { title: "Patched" } as Partial<Article>);
+      const [, { points }] = (client.upsert as ReturnType<typeof vi.fn>).mock.calls[0] as [
+        string,
+        { points: Array<{ payload: Record<string, unknown> }> },
+      ];
+      expect(points[0].payload).toHaveProperty("updatedAt");
+    });
+
+    it("wraps a driver error other than not-found", async () => {
+      const { client, app } = makeSetup();
+      client.retrieve.mockResolvedValueOnce([{ id: "1", payload: { title: "Old", category: "x" } }]);
+      client.upsert.mockRejectedValue(new Error("connection reset"));
+      await expect(new TestRepo(app).patchById("1", { title: "Patched" } as Partial<Article>)).rejects.toBeInstanceOf(
+        GeneralError,
+      );
+    });
   });
 
   describe("deleteById", () => {
@@ -389,6 +572,13 @@ describe("QdrantRepository", () => {
     it("throws NotFound when the record does not exist", async () => {
       const { app } = makeSetup();
       await expect(new TestRepo(app).deleteById("missing")).rejects.toBeInstanceOf(NotFound);
+    });
+
+    it("wraps a driver error other than not-found", async () => {
+      const { client, app } = makeSetup();
+      client.retrieve.mockResolvedValueOnce([{ id: "1", payload: { title: "Doc", category: "tech" } }]);
+      client.delete.mockRejectedValue(new Error("connection reset"));
+      await expect(new TestRepo(app).deleteById("1")).rejects.toBeInstanceOf(GeneralError);
     });
   });
 
@@ -411,9 +601,21 @@ describe("QdrantRepository", () => {
         }),
       );
     });
+
+    it("wraps a driver error", async () => {
+      const { client, app } = makeSetup();
+      client.count.mockRejectedValue(new Error("connection reset"));
+      await expect(new TestRepo(app).count()).rejects.toBeInstanceOf(GeneralError);
+    });
   });
 
   describe("wrapError", () => {
+    it("passes an already-typed MantleError through unchanged", async () => {
+      const { client, app } = makeSetup();
+      client.retrieve.mockRejectedValue(new BadRequest("already typed"));
+      await expect(new TestRepo(app).findById("1")).rejects.toBeInstanceOf(BadRequest);
+    });
+
     it("wraps Error instances as GeneralError", async () => {
       const { client, app } = makeSetup();
       client.retrieve.mockRejectedValue(new Error("timeout"));
@@ -479,6 +681,26 @@ describe("QdrantRepository", () => {
       const { client, app } = makeSetup();
       await expect(new TestRepo(app).findPage({ cursor: "garbage!!" })).rejects.toBeInstanceOf(BadRequest);
       expect(client.scroll).not.toHaveBeenCalled();
+    });
+
+    it("rejects a cursor that decodes to valid JSON of the wrong type", async () => {
+      const { client, app } = makeSetup();
+      const wrongTypeCursor = Buffer.from(JSON.stringify({ not: "a point offset" }), "utf8").toString("base64url");
+      await expect(new TestRepo(app).findPage({ cursor: wrongTypeCursor })).rejects.toBeInstanceOf(BadRequest);
+      expect(client.scroll).not.toHaveBeenCalled();
+    });
+
+    it("treats a missing payload as an empty object", async () => {
+      const { client, app } = makeSetup();
+      client.scroll.mockResolvedValueOnce({ points: [{ id: "1" }], next_page_offset: null });
+      const page = await new TestRepo(app).findPage();
+      expect(page.data).toEqual([{ id: "1" }]);
+    });
+
+    it("wraps a driver error", async () => {
+      const { client, app } = makeSetup();
+      client.scroll.mockRejectedValue(new Error("connection reset"));
+      await expect(new TestRepo(app).findPage()).rejects.toBeInstanceOf(GeneralError);
     });
   });
 

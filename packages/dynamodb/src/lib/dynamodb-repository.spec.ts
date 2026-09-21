@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import type { MantleApplication } from "@mantlejs/mantle";
+import type { Id, MantleApplication } from "@mantlejs/mantle";
 import { BadRequest, Conflict, Forbidden, GeneralError, NotFound, Unavailable } from "@mantlejs/mantle";
 import { DynamoDbRepository } from "./dynamodb-repository.js";
 import { DYNAMODB_OPERATORS } from "./dynamodbify.js";
@@ -53,6 +53,19 @@ class AccountRepoFieldMap extends DynamoDbRepository<Account> {
   readonly tableName = "accounts";
   override readonly timestamps = false;
   override readonly fieldMap = { userName: "user_name" };
+}
+
+interface Order extends Record<string, unknown> {
+  pk: string;
+  sk: string;
+  status: string;
+}
+
+class OrderRepo extends DynamoDbRepository<Order> {
+  readonly tableName = "orders";
+  override readonly partitionKey = "pk";
+  override readonly sortKey = "sk";
+  override readonly timestamps = false;
 }
 
 function makeApp(): MantleApplication {
@@ -128,6 +141,46 @@ describe("DynamoDbRepository", () => {
       const result = await new UserRepo(app).findAll({ skip: 1, limit: 2 });
       expect(result).toHaveLength(2);
       expect(result[0].id).toBe("2");
+    });
+
+    it("treats a missing Items field as an empty page", async () => {
+      mockSend.mockResolvedValue({});
+      const result = await new UserRepo(app).findAll();
+      expect(result).toEqual([]);
+    });
+
+    it("continues scanning across multiple pages until the limit is reached", async () => {
+      mockSend
+        .mockResolvedValueOnce({
+          Items: [{ id: { S: "1" }, name: { S: "Alice" }, email: { S: "a@a.com" } }],
+          LastEvaluatedKey: { id: { S: "1" } },
+        })
+        .mockResolvedValueOnce({
+          Items: [
+            { id: { S: "2" }, name: { S: "Bob" }, email: { S: "b@b.com" } },
+            { id: { S: "3" }, name: { S: "Carol" }, email: { S: "c@c.com" } },
+          ],
+        });
+      const result = await new UserRepo(app).findAll({ limit: 3 });
+      expect(result).toHaveLength(3);
+      expect(mockSend).toHaveBeenCalledTimes(2);
+      expect(mockSend.mock.calls[1][0].input.ExclusiveStartKey).toEqual({ id: { S: "1" } });
+    });
+
+    it("treats an empty where clause as no FilterExpression", async () => {
+      mockSend.mockResolvedValue({ Items: [] });
+      await new UserRepo(app).findAll({ where: {} });
+      const input = mockSend.mock.calls[0][0].input;
+      expect(input.FilterExpression).toBeUndefined();
+    });
+
+    it("builds a non-empty expression with no name/value aliases for an empty $or (vacuous logical clause)", async () => {
+      mockSend.mockResolvedValue({ Items: [] });
+      await new UserRepo(app).findAll({ where: { $or: [] } });
+      const input = mockSend.mock.calls[0][0].input;
+      expect(input.FilterExpression).toBe("()");
+      expect(input.ExpressionAttributeNames).toBeUndefined();
+      expect(input.ExpressionAttributeValues).toBeUndefined();
     });
 
     it("uses _startKey as ExclusiveStartKey for cursor pagination", async () => {
@@ -592,6 +645,388 @@ describe("DynamoDbRepository", () => {
         ExpressionAttributeNames: Record<string, string>;
       };
       expect(Object.values(input.ExpressionAttributeNames)).toContain("user_name");
+    });
+  });
+
+  describe("composite partition+sort key support", () => {
+    it("buildKey marshals a composite {pk, sk} id for findById", async () => {
+      mockSend.mockResolvedValue({ Item: { pk: { S: "user#1" }, sk: { S: "profile" }, status: { S: "active" } } });
+      await new OrderRepo(app).findById({ pk: "user#1", sk: "profile" } as unknown as Id);
+      const key = mockSend.mock.calls[0][0].input.Key;
+      expect(key).toEqual({ pk: { S: "user#1" }, sk: { S: "profile" } });
+    });
+
+    it("findAll routes to Query when a where clause pins the partition key", async () => {
+      mockSend.mockResolvedValue({ Items: [{ pk: { S: "user#1" }, sk: { S: "a" }, status: { S: "x" } }] });
+      const result = await new OrderRepo(app).findAll({ where: { pk: "user#1" } });
+      expect(mockSend.mock.calls[0][0].constructor.name).toBe("QueryCommand");
+      expect(result).toHaveLength(1);
+    });
+
+    it("findAll falls back to Scan when the where clause doesn't pin the partition key", async () => {
+      mockSend.mockResolvedValue({ Items: [] });
+      await new OrderRepo(app).findAll({ where: { status: "active" } });
+      expect(mockSend.mock.calls[0][0].constructor.name).toBe("ScanCommand");
+    });
+
+    it("queryItems applies sort and skip to Query results", async () => {
+      mockSend.mockResolvedValue({
+        Items: [
+          { pk: { S: "user#1" }, sk: { S: "b" }, status: { S: "y" } },
+          { pk: { S: "user#1" }, sk: { S: "a" }, status: { S: "x" } },
+        ],
+      });
+      const result = await new OrderRepo(app).findAll({ where: { pk: "user#1" }, sort: { sk: "asc" }, skip: 1 });
+      expect(result).toHaveLength(1);
+      expect(result[0].sk).toBe("b");
+    });
+
+    it("queryItems treats a missing Items field as an empty result", async () => {
+      mockSend.mockResolvedValue({});
+      const result = await new OrderRepo(app).findAll({ where: { pk: "user#1" } });
+      expect(result).toEqual([]);
+    });
+
+    it("patchById filters both the partition key and the sort key out of the update expression", async () => {
+      mockSend.mockResolvedValue({ Attributes: { pk: { S: "user#1" }, sk: { S: "profile" }, status: { S: "y" } } });
+      await new OrderRepo(app).patchById({ pk: "user#1", sk: "profile" } as unknown as Id, { status: "y" } as Partial<Order>);
+      const input = mockSend.mock.calls[0][0].input as { ExpressionAttributeNames: Record<string, string> };
+      expect(Object.values(input.ExpressionAttributeNames)).toEqual(["status"]);
+    });
+  });
+
+  describe("applySort — null-value ordering and ties", () => {
+    it("sorts null/undefined field values ahead of defined values", async () => {
+      mockSend.mockResolvedValue({
+        Items: [
+          { id: { S: "1" }, name: { S: "Bob" }, email: { S: "b@b.com" } },
+          { id: { S: "2" }, name: { NULL: true }, email: { S: "a@a.com" } },
+          { id: { S: "3" }, name: { S: "Carol" }, email: { S: "c@c.com" } },
+        ],
+      });
+      const result = await new UserRepo(app).findAll({ sort: { name: "asc" } });
+      expect(result[0].name).toBeNull();
+      expect(result.map((u) => u.id)).toEqual(["2", "1", "3"]);
+    });
+
+    it("preserves relative order for equal field values (stable tie-break)", async () => {
+      mockSend.mockResolvedValue({
+        Items: [
+          { id: { S: "1" }, name: { S: "Same" }, email: { S: "a@a.com" } },
+          { id: { S: "2" }, name: { S: "Same" }, email: { S: "b@b.com" } },
+        ],
+      });
+      const result = await new UserRepo(app).findAll({ sort: { name: "asc" } });
+      expect(result.map((u) => u.id)).toEqual(["1", "2"]);
+    });
+
+    it("orders a later, alphabetically-earlier value ahead of an already-placed one", async () => {
+      mockSend.mockResolvedValue({
+        Items: [
+          { id: { S: "1" }, name: { S: "Alice" }, email: { S: "a@a.com" } },
+          { id: { S: "2" }, name: { S: "Carol" }, email: { S: "c@c.com" } },
+          { id: { S: "3" }, name: { S: "Bob" }, email: { S: "b@b.com" } },
+        ],
+      });
+      const result = await new UserRepo(app).findAll({ sort: { name: "asc" } });
+      expect(result.map((u) => u.name)).toEqual(["Alice", "Bob", "Carol"]);
+    });
+
+    it("leaves an already-ascending pair in place (av > bv comparison)", async () => {
+      mockSend.mockResolvedValue({
+        Items: [
+          { id: { S: "1" }, name: { S: "Alice" }, email: { S: "a@a.com" } },
+          { id: { S: "2" }, name: { S: "Bob" }, email: { S: "b@b.com" } },
+        ],
+      });
+      const result = await new UserRepo(app).findAll({ sort: { name: "asc" } });
+      expect(result.map((u) => u.name)).toEqual(["Alice", "Bob"]);
+    });
+
+    it("negates the comparison for a descending sort", async () => {
+      mockSend.mockResolvedValue({
+        Items: [
+          { id: { S: "1" }, name: { S: "Alice" }, email: { S: "a@a.com" } },
+          { id: { S: "2" }, name: { S: "Bob" }, email: { S: "b@b.com" } },
+        ],
+      });
+      const result = await new UserRepo(app).findAll({ sort: { name: "desc" } });
+      expect(result.map((u) => u.name)).toEqual(["Bob", "Alice"]);
+    });
+  });
+
+  describe("scanItems select/projection", () => {
+    it("builds a ProjectionExpression when select is provided", async () => {
+      mockSend.mockResolvedValue({ Items: [] });
+      await new UserRepo(app).findAll({ select: ["name", "email"] });
+      const input = mockSend.mock.calls[0][0].input as {
+        ProjectionExpression: string;
+        ExpressionAttributeNames: Record<string, string>;
+      };
+      expect(input.ProjectionExpression).toMatch(/#sel_name/);
+      expect(input.ExpressionAttributeNames).toMatchObject({ "#sel_name": "name", "#sel_email": "email" });
+    });
+  });
+
+  describe("findPage — select, errors, and cursor edge cases", () => {
+    it("builds a ProjectionExpression when select is provided", async () => {
+      mockSend.mockResolvedValue({ Items: [] });
+      await new UserRepo(app).findPage({ select: ["name"] });
+      const input = mockSend.mock.calls[0][0].input as { ProjectionExpression: string };
+      expect(input.ProjectionExpression).toBe("#sel_name");
+    });
+
+    it("wraps a driver error", async () => {
+      mockSend.mockRejectedValue(new Error("boom"));
+      await expect(new UserRepo(app).findPage()).rejects.toBeInstanceOf(GeneralError);
+    });
+
+    it("rejects a cursor that decodes to valid JSON but isn't a plain object", async () => {
+      const badCursor = Buffer.from(JSON.stringify([1, 2, 3]), "utf8").toString("base64url");
+      await expect(new UserRepo(app).findPage({ cursor: badCursor })).rejects.toBeInstanceOf(BadRequest);
+    });
+
+    it("treats an empty where clause as no FilterExpression during a scan", async () => {
+      mockSend.mockResolvedValue({ Items: [] });
+      await new UserRepo(app).findPage({ where: {} });
+      const input = mockSend.mock.calls[0][0].input as { FilterExpression?: string };
+      expect(input.FilterExpression).toBeUndefined();
+    });
+
+    it("builds a non-empty expression with no name/value aliases for an empty $or during a scan", async () => {
+      mockSend.mockResolvedValue({ Items: [] });
+      await new UserRepo(app).findPage({ where: { $or: [] } });
+      const input = mockSend.mock.calls[0][0].input as {
+        FilterExpression?: string;
+        ExpressionAttributeNames?: unknown;
+        ExpressionAttributeValues?: unknown;
+      };
+      expect(input.FilterExpression).toBe("()");
+      expect(input.ExpressionAttributeNames).toBeUndefined();
+      expect(input.ExpressionAttributeValues).toBeUndefined();
+    });
+
+    it("treats a missing Items field as an empty page", async () => {
+      mockSend.mockResolvedValue({});
+      const page = await new UserRepo(app).findPage();
+      expect(page.data).toEqual([]);
+    });
+  });
+
+  describe("save — error handling", () => {
+    it("wraps a driver error", async () => {
+      mockSend.mockRejectedValue(new Error("boom"));
+      await expect(new UserRepo(app).save({ id: "1", name: "A", email: "a@a.com" })).rejects.toBeInstanceOf(
+        GeneralError,
+      );
+    });
+  });
+
+  describe("saveAll — transaction handling and error handling", () => {
+    it("buffers Put operations inside withTransaction instead of calling BatchWriteItem", async () => {
+      mockSend.mockResolvedValue({});
+      const repo = new UserRepo(app);
+      await repo.withTransaction(async (tx) => {
+        await tx.saveAll([
+          { id: "1", name: "Alice", email: "a@a.com" },
+          { id: "2", name: "Bob", email: "b@b.com" },
+        ]);
+      });
+      expect(mockSend).toHaveBeenCalledTimes(1);
+      const call = mockSend.mock.calls[0][0];
+      expect(call.input.TransactItems).toHaveLength(2);
+      expect(call.input.TransactItems[0]).toHaveProperty("Put");
+    });
+
+    it("wraps a driver error", async () => {
+      mockSend.mockRejectedValue(new Error("boom"));
+      await expect(new UserRepo(app).saveAll([{ id: "1", name: "A", email: "a@a.com" }])).rejects.toBeInstanceOf(
+        GeneralError,
+      );
+    });
+  });
+
+  describe("updateById — timestamps, no-op update, and transaction handling", () => {
+    it("bumps updatedAt (not createdAt) when timestamps is true", async () => {
+      mockSend.mockResolvedValue({ Attributes: { id: { S: "1" }, name: { S: "A" }, email: { S: "a@a.com" } } });
+      await new UserRepoWithTimestamps(app).updateById("1", { id: "1", name: "A", email: "a@a.com" });
+      const input = mockSend.mock.calls[0][0].input as { ExpressionAttributeNames: Record<string, string> };
+      expect(Object.values(input.ExpressionAttributeNames)).toContain("updatedAt");
+      expect(Object.values(input.ExpressionAttributeNames)).not.toContain("createdAt");
+    });
+
+    it("returns the existing item without calling UpdateItem when the patch touches only the key", async () => {
+      mockSend.mockResolvedValue({ Item: { id: { S: "1" }, name: { S: "Alice" }, email: { S: "a@a.com" } } });
+      const result = await new UserRepo(app).updateById("1", { id: "1" } as Partial<User>);
+      expect(result).toMatchObject({ id: "1", name: "Alice" });
+      expect(mockSend.mock.calls[0][0].constructor.name).toBe("GetItemCommand");
+    });
+
+    it("throws NotFound when the patch touches only the key and no item exists", async () => {
+      mockSend.mockResolvedValue({ Item: undefined });
+      await expect(new UserRepo(app).updateById("999", { id: "999" } as Partial<User>)).rejects.toBeInstanceOf(
+        NotFound,
+      );
+    });
+
+    it("buffers an Update operation inside withTransaction", async () => {
+      mockSend.mockResolvedValue({});
+      const repo = new UserRepo(app);
+      await repo.withTransaction(async (tx) => {
+        await tx.updateById("1", { id: "1", name: "A", email: "a@a.com" });
+      });
+      const call = mockSend.mock.calls[0][0];
+      expect(call.input.TransactItems[0]).toHaveProperty("Update");
+    });
+
+    it("extractId pulls the partition value from a composite id for the replacement item", async () => {
+      mockSend.mockResolvedValue({ Attributes: { pk: { S: "user#1" }, sk: { S: "profile" }, status: { S: "done" } } });
+      await new OrderRepo(app).updateById({ pk: "user#1", sk: "profile" } as unknown as Id, { status: "done" } as Partial<Order>);
+      const input = mockSend.mock.calls[0][0].input as { ExpressionAttributeValues: Record<string, unknown> };
+      expect(input.ExpressionAttributeValues[":u0"]).toEqual({ S: "done" });
+    });
+
+    it("wraps a driver error unrelated to a conditional-check failure", async () => {
+      mockSend.mockRejectedValue(new Error("throttled"));
+      await expect(
+        new UserRepo(app).updateById("1", { id: "1", name: "A", email: "a@a.com" }),
+      ).rejects.toBeInstanceOf(GeneralError);
+    });
+  });
+
+  describe("patchById — no-op patch and transaction handling", () => {
+    it("returns the existing item without calling UpdateItem when the patch is empty after filtering undefined", async () => {
+      mockSend.mockResolvedValue({ Item: { id: { S: "1" }, name: { S: "Alice" }, email: { S: "a@a.com" } } });
+      const result = await new UserRepo(app).patchById("1", { name: undefined } as unknown as Partial<User>);
+      expect(result).toMatchObject({ id: "1", name: "Alice" });
+      expect(mockSend.mock.calls[0][0].constructor.name).toBe("GetItemCommand");
+    });
+
+    it("throws NotFound when the patch is empty and no item exists", async () => {
+      mockSend.mockResolvedValue({ Item: undefined });
+      await expect(
+        new UserRepo(app).patchById("999", { name: undefined } as unknown as Partial<User>),
+      ).rejects.toBeInstanceOf(NotFound);
+    });
+
+    it("buffers an Update operation inside withTransaction", async () => {
+      mockSend.mockResolvedValue({});
+      const repo = new UserRepo(app);
+      await repo.withTransaction(async (tx) => {
+        await tx.patchById("1", { name: "Patched" } as Partial<User>);
+      });
+      const call = mockSend.mock.calls[0][0];
+      expect(call.input.TransactItems[0]).toHaveProperty("Update");
+    });
+
+    it("wraps a driver error unrelated to a conditional-check failure", async () => {
+      mockSend.mockRejectedValue(new Error("throttled"));
+      await expect(new UserRepo(app).patchById("1", { name: "X" } as Partial<User>)).rejects.toBeInstanceOf(
+        GeneralError,
+      );
+    });
+  });
+
+  describe("deleteById — transaction handling and missing-Attributes response", () => {
+    it("fetches the item first and buffers a Delete inside withTransaction", async () => {
+      mockSend.mockResolvedValue({ Item: { id: { S: "1" }, name: { S: "Alice" }, email: { S: "a@a.com" } } });
+      const repo = new UserRepo(app);
+      const result = await repo.withTransaction(async (tx) => tx.deleteById("1"));
+      expect(result).toMatchObject({ id: "1", name: "Alice" });
+      const call = mockSend.mock.calls[mockSend.mock.calls.length - 1][0];
+      expect(call.input.TransactItems[0]).toHaveProperty("Delete");
+    });
+
+    it("throws NotFound inside withTransaction when the item doesn't exist", async () => {
+      mockSend.mockResolvedValue({ Item: undefined });
+      const repo = new UserRepo(app);
+      await expect(repo.withTransaction(async (tx) => tx.deleteById("999"))).rejects.toBeInstanceOf(NotFound);
+    });
+
+    it("throws NotFound when DeleteItem succeeds but returns no Attributes", async () => {
+      mockSend.mockResolvedValue({});
+      await expect(new UserRepo(app).deleteById("1")).rejects.toBeInstanceOf(NotFound);
+    });
+
+    it("wraps a driver error unrelated to a conditional-check failure", async () => {
+      mockSend.mockRejectedValue(new Error("throttled"));
+      await expect(new UserRepo(app).deleteById("1")).rejects.toBeInstanceOf(GeneralError);
+    });
+  });
+
+  describe("count — where clause and error handling", () => {
+    it("applies a where clause as a FilterExpression", async () => {
+      mockSend.mockResolvedValue({ Count: 3 });
+      await new UserRepo(app).count({ where: { name: "Alice" } });
+      const input = mockSend.mock.calls[0][0].input as { FilterExpression?: string };
+      expect(input.FilterExpression).toBeDefined();
+    });
+
+    it("treats an empty where clause as no FilterExpression", async () => {
+      mockSend.mockResolvedValue({ Count: 0 });
+      await new UserRepo(app).count({ where: {} });
+      const input = mockSend.mock.calls[0][0].input as { FilterExpression?: string };
+      expect(input.FilterExpression).toBeUndefined();
+    });
+
+    it("builds a non-empty expression with no name/value aliases for an empty $or", async () => {
+      mockSend.mockResolvedValue({ Count: 0 });
+      await new UserRepo(app).count({ where: { $or: [] } });
+      const input = mockSend.mock.calls[0][0].input as {
+        FilterExpression?: string;
+        ExpressionAttributeNames?: unknown;
+        ExpressionAttributeValues?: unknown;
+      };
+      expect(input.FilterExpression).toBe("()");
+      expect(input.ExpressionAttributeNames).toBeUndefined();
+      expect(input.ExpressionAttributeValues).toBeUndefined();
+    });
+
+    it("wraps a driver error", async () => {
+      mockSend.mockRejectedValue(new Error("boom"));
+      await expect(new UserRepo(app).count()).rejects.toBeInstanceOf(GeneralError);
+    });
+  });
+
+  describe("withTransaction — commit failure", () => {
+    it("wraps a TransactWriteItems failure", async () => {
+      mockSend.mockRejectedValue(new Error("transaction failed"));
+      const repo = new UserRepo(app);
+      await expect(
+        repo.withTransaction(async (tx) => {
+          await tx.save({ id: "1", name: "A", email: "a@a.com" });
+        }),
+      ).rejects.toBeInstanceOf(GeneralError);
+    });
+  });
+
+  describe("wrapError — additional edge cases", () => {
+    it("passes an already-thrown MantleError through unchanged", () => {
+      const repo = new UserRepo(app) as unknown as { wrapError(err: unknown): Error };
+      const original = new Conflict("already handled");
+      expect(repo.wrapError(original)).toBe(original);
+    });
+
+    it("falls back to an empty name/code when the thrown value has neither", async () => {
+      mockSend.mockRejectedValue({ message: "boom" });
+      await expect(new UserRepo(app).findAll()).rejects.toBeInstanceOf(GeneralError);
+    });
+
+    it("treats an explicit undefined name as unmapped", async () => {
+      mockSend.mockRejectedValue(Object.assign(new Error("db error"), { name: undefined }));
+      await expect(new UserRepo(app).findAll()).rejects.toBeInstanceOf(GeneralError);
+    });
+
+    it("maps ConditionalCheckFailedException to NotFound even outside a mutation method", async () => {
+      mockSend.mockRejectedValue(Object.assign(new Error("db error"), { name: "ConditionalCheckFailedException" }));
+      await expect(new UserRepo(app).findAll()).rejects.toBeInstanceOf(NotFound);
+    });
+
+    it("isConditionalCheckFailed tolerates a thrown value with neither name nor code", async () => {
+      mockSend.mockRejectedValue({ message: "boom" });
+      await expect(
+        new UserRepo(app).updateById("1", { id: "1", name: "A", email: "a@a.com" }),
+      ).rejects.toBeInstanceOf(GeneralError);
     });
   });
 });

@@ -131,8 +131,19 @@ Subclasses must declare `label`. All `GraphRepository<T>` methods are provided a
 | `findNodes(params?)`                                | `MATCH (n:Label) WHERE … RETURN n ORDER BY … SKIP … LIMIT …` |
 | `createRelationship(fromId, toId, type, props?)`    | `MATCH (a:Label {id: $from}), (b:Label {id: $to}) CREATE (a)-[r:TYPE $props]->(b)` |
 | `traverse(startId, relation, depth?)`               | `MATCH (start)-[r:TYPE*1..depth]->(n) RETURN n`           |
-| `deleteNode(id)`                                    | `MATCH (n:Label {id: $id}) DETACH DELETE n`               |
+| `deleteNode(id)`                                    | `MATCH (n:Label {id: $id}) DETACH DELETE n` — throws `NotFound` if absent |
 | `raw<R>(query, params?)`                            | Raw Cypher passthrough (the `GraphRepository` escape hatch) |
+
+#### Error mapping
+
+The Neo4j driver doesn't expose a rich exception taxonomy the way DynamoDB or MongoDB do, so
+`wrapError()` is intentionally simple:
+
+| Thrown value                                                                    | Error thrown              |
+| -------------------------------------------------------------------------------- | -------------------------- |
+| Already a MantleError (e.g. `NotFound` from a missing node, or thrown by a hook or custom repository method) | passed through unchanged |
+| Any other `Error`                                                                | `GeneralError`              |
+| A non-`Error` throw                                                              | `GeneralError`              |
 
 #### `withTransaction(fn)`
 

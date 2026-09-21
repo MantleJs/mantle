@@ -116,6 +116,12 @@ describe("toNeo4jWhere", () => {
       expect(clause).toBe("n.name STARTS WITH $_w_0");
       expect(params["_w_0"]).toBe("foo");
     });
+
+    it("maps a pattern with no wildcards to CONTAINS (falls back to substring match)", () => {
+      const { clause, params } = toNeo4jWhere({ name: { $like: "exact" } });
+      expect(clause).toBe("n.name CONTAINS $_w_0");
+      expect(params["_w_0"]).toBe("exact");
+    });
   });
 
   describe("$ilike operator", () => {

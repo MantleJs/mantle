@@ -107,12 +107,7 @@
           "client",
           "react",
           "cli",
-          "create-mantlejs"
-        ]
-      },
-      "experimental": {
-        "projectsRelationship": "fixed",
-        "projects": [
+          "create-mantlejs",
           "dynamodb",
           "pinecone",
           "qdrant",

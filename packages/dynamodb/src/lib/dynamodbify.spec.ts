@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { unmarshall } from "@aws-sdk/util-dynamodb";
 import type { AttributeValue } from "@aws-sdk/client-dynamodb";
 import { BadRequest, NESTED_QUERY_CASES } from "@mantlejs/mantle";
-import { dynamodbify, buildKeyCondition, type FilterExpression, type WhereClause } from "./dynamodbify.js";
+import { dynamodbify, buildKeyCondition, toConditionMap, type FilterExpression, type WhereClause } from "./dynamodbify.js";
 
 /**
  * Expand a FilterExpression's `#nN`/`:vN` aliases back into their literal names/values, so
@@ -181,6 +181,16 @@ describe("dynamodbify", () => {
       const result = dynamodbify({ "metadata.owner.name": "alice" }, (field) => field);
       expect(resolveExpression(result)).toBe('metadata.owner.name = "alice"');
     });
+
+    it("flattens a nested array inside a $contains object operand (recurses into flattenContainsConditions)", () => {
+      const result = dynamodbify({ metadata: { $contains: { tags: ["a", "b"] } } });
+      expect(resolveExpression(result)).toBe('(contains(metadata.tags, "a") AND contains(metadata.tags, "b"))');
+    });
+
+    it("falls back to attribute_exists for an empty-object $contains operand (no leaf conditions)", () => {
+      const result = dynamodbify({ metadata: { $contains: {} } });
+      expect(result.expression).toMatch(/^attribute_exists\(#n\d+\)$/);
+    });
   });
 });
 
@@ -202,6 +212,58 @@ describe("buildKeyCondition", () => {
     const result = buildKeyCondition("pk", "sk", { status: "active" });
     expect(result.keyCondition).toBe("");
     expect(result.filterCondition).toMatch(/= :v\d+/);
+  });
+
+  it("treats a null sort-key value as a filter condition, not a key condition", () => {
+    const result = buildKeyCondition("pk", "sk", { pk: "USER#1", sk: null });
+    expect(result.keyCondition).toMatch(/= :v\d+/);
+    expect(result.filterCondition).toMatch(/attribute_not_exists/);
+  });
+
+  it("treats an array sort-key value (IN shorthand) as a filter condition, not a key condition", () => {
+    const result = buildKeyCondition("pk", "sk", { pk: "USER#1", sk: ["a", "b"] });
+    expect(result.filterCondition).toMatch(/IN \(/);
+  });
+
+  it("routes sort-key operators into the key condition", () => {
+    const result = buildKeyCondition("pk", "sk", { pk: "USER#1", sk: { $gt: 5 } });
+    expect(result.filterCondition).toBeUndefined();
+    expect(result.keyCondition).toMatch(/>/);
+  });
+
+  it("routes a top-level $or clause into the filter condition", () => {
+    const result = buildKeyCondition("pk", "sk", {
+      pk: "USER#1",
+      $or: [{ status: "active" }, { status: "pending" }],
+    });
+    expect(result.filterCondition).toMatch(/ OR /);
+  });
+
+  it("routes a top-level $and clause into the filter condition", () => {
+    const result = buildKeyCondition("pk", "sk", {
+      pk: "USER#1",
+      $and: [{ status: "active" }, { age: { $gt: 18 } }],
+    });
+    expect(result.filterCondition).toMatch(/ AND /);
+  });
+});
+
+describe("toConditionMap", () => {
+  it("includes only scalar-valued fields, mapped as EQ conditions", () => {
+    const result = toConditionMap({
+      status: "active",
+      deletedAt: null,
+      tags: ["a", "b"],
+      metadata: { nested: 1 },
+      age: 42,
+    });
+    expect(Object.keys(result).sort()).toEqual(["age", "status"]);
+    expect(result["status"]).toEqual({ ComparisonOperator: "EQ", AttributeValueList: [{ S: "active" }] });
+    expect(result["age"]).toEqual({ ComparisonOperator: "EQ", AttributeValueList: [{ N: "42" }] });
+  });
+
+  it("returns an empty map for a where clause with no scalar fields", () => {
+    expect(toConditionMap({ deletedAt: null, tags: ["a"] })).toEqual({});
   });
 });
 
