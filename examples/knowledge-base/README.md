@@ -83,19 +83,28 @@ at boot, so an already-running server won't pick up a `.env` edit.
 
 The `articles` service is the multi-repository showcase from the root README's "Services with
 multiple repositories" section: one hand-written `Service<Article>` composing an article
-repository, an activity-log repository, and a vector repository over the same table — a plain
-`RepositoryService` can only wrap one.
+repository with an activity-log repository — a plain `RepositoryService` can only wrap one. The
+article's vector embedding is *not* one of `ArticlesService`'s own repositories: it's
+`@mantlejs/embeddings`'s `embed()` hook, attached in [`src/app.ts`](./api/src/app.ts) to
+`after.create`/`after.update`/`after.patch` on the `articles` service, upserting into the same
+`ArticleVectorRepository` the `search` service reads from.
 
 ## Embeddings
 
-`src/embedder.ts` defines a pluggable `Embedder` interface with a zero-key local default (a
-deterministic hash-based bag-of-words vector — demo-quality by design, good enough to prove
-semantic search end-to-end without an API key). Set `EMBEDDER_URL` to point at a real embedding
-endpoint (`POST { text } -> { vector }`) instead. The web app's search box mirrors the same local
-algorithm client-side (see [`web/src/lib/local-embed.ts`](./web/src/lib/local-embed.ts)) since
-`/search/similar` takes a raw vector — that mirror only matches the *local* embedder; swapping in
-`EMBEDDER_URL` server-side means the frontend needs the same swap (call the real embedding API,
-or add a small `/embed` proxy route) to keep queries and stored vectors comparable.
+`src/embedder.ts` defines a pluggable `Embedder` (a thin, dimensions-required alias of
+`@mantlejs/embeddings`'s `EmbeddingProvider`) with a zero-key local default (a deterministic
+hash-based bag-of-words vector — demo-quality by design, good enough to prove semantic search
+end-to-end without an API key). Set `EMBEDDER_URL` to point at a real embedding endpoint
+(`POST { text } -> { vector }`) instead. `app.ts` wires whichever one `createEmbedder()` returns
+into `@mantlejs/embeddings`'s `embed({ vectors, provider, field })` — the hook that actually calls
+it and upserts the result — rather than the service calling it directly: this is the cross-adapter
+write-consistency pattern's reference implementation (idempotent upsert keyed on the article's id,
+non-fatal on a provider or vector-store failure — see the root README). The web app's search box
+mirrors the same local algorithm client-side (see
+[`web/src/lib/local-embed.ts`](./web/src/lib/local-embed.ts)) since `/search/similar` takes a raw
+vector — that mirror only matches the *local* embedder; swapping in `EMBEDDER_URL` server-side
+means the frontend needs the same swap (call the real embedding API, or add a small `/embed` proxy
+route) to keep queries and stored vectors comparable.
 
 ## Verifying the MCP server
 

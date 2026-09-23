@@ -1,22 +1,23 @@
-import type { Id, QueryParams, Repository, Service, ServiceParams, VectorRepository } from "@mantlejs/mantle";
+import type { Id, QueryParams, Repository, Service, ServiceParams } from "@mantlejs/mantle";
 import { BadRequest, NotFound } from "@mantlejs/mantle";
 import type { Article } from "../entities/article.js";
 import type { ActivityLog } from "../entities/activity-log.js";
-import type { Embedder } from "../embedder.js";
 
 /**
  * The multi-repository showcase (see "Services with multiple repositories" in the root
- * README): composes the article table with an activity-log repository and a vector
- * repository over that same table, instead of forcing three collections through one
- * `RepositoryService`. Writes are not atomic — an activity-log or embedding failure after
- * a successful article write is not rolled back, same as `app.batch()`.
+ * README): composes the article table with an activity-log repository, instead of forcing
+ * two collections through one `RepositoryService`. Writes are not atomic — an activity-log
+ * failure after a successful article write is not rolled back, same as `app.batch()`.
+ *
+ * The article's embedding is *not* handled here — it's `@mantlejs/embeddings`'s `embed()`
+ * hook, attached to `after.create`/`after.update`/`after.patch` in `app.ts`. That hook is the
+ * cross-adapter write-consistency pattern's reference implementation (idempotent upsert on the
+ * article's id, non-fatal on failure) — this service doesn't need to know embeddings exist.
  */
 export class ArticlesService implements Service<Article> {
   constructor(
     private readonly articles: Repository<Article>,
     private readonly activity: Repository<ActivityLog>,
-    private readonly vectors: VectorRepository<Article>,
-    private readonly embedder: Embedder,
   ) {}
 
   async find(params?: ServiceParams): Promise<Article[]> {
@@ -32,21 +33,18 @@ export class ArticlesService implements Service<Article> {
   async create(data: Partial<Article>, params?: ServiceParams): Promise<Article> {
     const article = await this.articles.save(data);
     await this.logActivity(article.id, "created", params);
-    await this.reembed(article);
     return article;
   }
 
   async update(id: Id, data: Partial<Article>, params?: ServiceParams): Promise<Article> {
     const article = await this.articles.updateById(id, data);
     await this.logActivity(article.id, "updated", params);
-    await this.reembed(article);
     return article;
   }
 
   async patch(id: Id, data: Partial<Article>, params?: ServiceParams): Promise<Article> {
     const article = await this.articles.patchById(id, data);
     await this.logActivity(article.id, "updated", params);
-    await this.reembed(article);
     return article;
   }
 
@@ -59,11 +57,6 @@ export class ArticlesService implements Service<Article> {
   private async logActivity(articleId: Id, action: string, params?: ServiceParams): Promise<void> {
     const actorId = (params?.user as { id?: number } | undefined)?.id ?? null;
     await this.activity.save({ entityType: "article", entityId: articleId, action, actorId });
-  }
-
-  private async reembed(article: Article): Promise<void> {
-    const vector = await this.embedder.embed(`${article.title}\n${article.body}`);
-    await this.vectors.upsertVector(article.id, vector, {});
   }
 }
 

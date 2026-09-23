@@ -72,6 +72,7 @@ mantle/
 │   ├── storage-gcs/     @mantlejs/storage-gcs  Google Cloud Storage adapter for @mantlejs/storage
 │   ├── logger/          @mantlejs/logger       Structured logging (pino)
 │   ├── audit/           @mantlejs/audit        Audit-trail hook — who did what, as which identity, to a Repository<T> sink
+│   ├── embeddings/      @mantlejs/embeddings   Auto-embed-on-write hook — pluggable provider, upserts into a VectorRepository<T>
 │   ├── schema/          @mantlejs/schema       TypeBox schema validation + field resolution
 │   ├── memory/          @mantlejs/memory       In-memory Repository<T> for testing/prototyping
 │   ├── config/          @mantlejs/config       Environment-aware configuration loading
@@ -121,6 +122,7 @@ mantle/
 | @mantlejs/storage-gcs    | @mantlejs/mantle, @mantlejs/storage                                                         |
 | @mantlejs/logger         | @mantlejs/mantle                                                                            |
 | @mantlejs/audit          | @mantlejs/mantle                                                                            |
+| @mantlejs/embeddings     | @mantlejs/mantle                                                                            |
 | @mantlejs/schema         | @mantlejs/mantle                                                                            |
 | @mantlejs/memory         | @mantlejs/mantle                                                                            |
 | @mantlejs/config         | @mantlejs/mantle                                                                            |
@@ -331,6 +333,16 @@ await repo.withTransaction(async (txRepo) => {
   await txRepo.save({ userId: user.id, role: "admin" }); // hypothetical
 });
 ```
+
+### Services with multiple repositories
+
+See the root [README's "Services with multiple repositories"](./README.md#services-with-multiple-repositories)
+section for the full pattern (compose repositories behind a hand-written `Service<T>` rather than
+forcing a second repository through `RepositoryService`) and the formalized cross-adapter
+write-consistency rule: **a secondary write is an idempotent upsert keyed on the source record's
+id, safe to retry, and non-fatal on failure** — never rethrown into the primary caller.
+[`@mantlejs/embeddings`'s `embed()` hook](./packages/embeddings/README.md) is the reference
+implementation of this pattern.
 
 ---
 

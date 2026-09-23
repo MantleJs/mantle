@@ -177,6 +177,29 @@ batch-atomicity notes). Whether that matters depends on the repositories involve
   treat its failure as non-fatal and reconcile out of band — rather than assuming both writes
   succeed or fail together.
 
+### The cross-adapter write-consistency pattern
+
+Formalized once, so every cross-adapter secondary write follows the same shape instead of each
+service inventing its own: **an idempotent upsert keyed on the source record's id, safe to retry,
+and non-fatal on failure** (logged, never rolled back, never rethrown into the caller). Concretely:
+
+1. **Idempotent, keyed on the source id.** The secondary write is an upsert addressed by the
+   primary record's id, not an append — running it again for the same id replaces rather than
+   duplicates.
+2. **Safe to retry.** Because step 1 is an upsert, retrying after a transient failure (yours or the
+   secondary system's) is always safe — there's no "already ran once" bookkeeping to get wrong.
+3. **Non-fatal on failure.** A secondary-write failure is caught where it happens and never
+   propagates to fail the primary operation the caller is waiting on — the primary write already
+   committed, and a degraded secondary system must never turn that into an error response.
+
+[`@mantlejs/embeddings`'s `embed()` hook](./packages/embeddings/README.md) is the reference
+implementation: it upserts a vector into a `VectorRepository<T>` keyed on the just-written record's
+id (property 1 — and idempotency here comes for free from `upsertVector`'s own upsert contract, not
+from anything the hook does), and catches an embedding-provider or vector-store failure internally
+rather than rethrowing it (property 3). Reach for the same shape for any other cross-adapter
+secondary write (an activity log in a different store, a search-index sync, a cache invalidation) —
+it doesn't need to be embeddings-specific.
+
 ## Development
 
 This monorepo is managed with [Nx](https://nx.dev).

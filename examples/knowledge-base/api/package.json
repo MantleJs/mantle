@@ -49,6 +49,7 @@
     "@mantlejs/config": "^0.1.0",
     "@mantlejs/openapi": "^0.1.0",
     "@mantlejs/mcp": "^0.1.0",
+    "@mantlejs/embeddings": "^0.0.1",
     "knex": "^3.2.10",
     "pg": "^8.21.0",
     "ioredis": "^5.11.1",

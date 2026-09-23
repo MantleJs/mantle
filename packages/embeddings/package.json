@@ -1,0 +1,47 @@
+{
+  "name": "@mantlejs/embeddings",
+  "version": "0.0.1",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    "./package.json": "./package.json",
+    ".": {
+      "@mantle/source": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "!**/*.tsbuildinfo"
+  ],
+  "nx": {
+    "name": "embeddings"
+  },
+  "dependencies": {
+    "tslib": "^2.3.0"
+  },
+  "description": "Auto-embed-on-write hook for Mantle JS — calls a pluggable embedding provider and upserts into a VectorRepository<T>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MantleJs/mantle.git",
+    "directory": "packages/embeddings"
+  },
+  "homepage": "https://github.com/MantleJs/mantle/tree/main/packages/embeddings#readme",
+  "publishConfig": {
+    "access": "public"
+  },
+  "keywords": [
+    "mantle",
+    "embeddings",
+    "vector-search",
+    "ai"
+  ],
+  "peerDependencies": {
+    "@mantlejs/mantle": "^0.1.0"
+  }
+}

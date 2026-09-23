@@ -1,9 +1,8 @@
 import { GeneralError } from "@mantlejs/mantle";
+import type { EmbeddingProvider } from "@mantlejs/embeddings";
 
-export interface Embedder {
-  readonly dimensions: number;
-  embed(text: string): Promise<number[]>;
-}
+/** This example's local alias for `@mantlejs/embeddings`'s provider contract — kept so call sites read `Embedder` rather than the more generic package name. */
+export type Embedder = EmbeddingProvider & { readonly dimensions: number };
 
 /** FNV-1a — deterministic, dependency-free, good enough to bucket words into a fixed-width vector. */
 function hashWord(word: string): number {

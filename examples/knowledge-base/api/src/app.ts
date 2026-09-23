@@ -4,6 +4,7 @@ import {
   GeneralError,
   RepositoryService,
   VectorRepositoryService,
+  type HookFunction,
   type HttpRouterLike,
   type Logger,
   type MantleApplication,
@@ -26,6 +27,7 @@ import { validate } from "@mantlejs/schema";
 import { logRequest, logError } from "@mantlejs/logger";
 import { openapi } from "@mantlejs/openapi";
 import { mcp } from "@mantlejs/mcp";
+import { embed } from "@mantlejs/embeddings";
 import { UserRepository } from "./repositories/user-repository.js";
 import { ArticleRepository, ArticleVectorRepository } from "./repositories/article-repository.js";
 import { ActivityLogRepository } from "./repositories/activity-log-repository.js";
@@ -148,10 +150,22 @@ export function createApp(config: AppConfig = {}): MantleApplication {
 
   const embedder = createEmbedder();
   const articlesVectorRepo = new ArticleVectorRepository(app);
+  // @mantlejs/embeddings' auto-embed-on-write hook — the cross-adapter write-consistency
+  // pattern's reference implementation (see CLAUDE.md / root README). Registered on
+  // create/update/patch, never find/get/remove: there's no freshly-written article to embed there.
+  // Cast to the untyped `HookFunction` every other hook on this service already uses —
+  // `app.service("articles")` isn't parameterized by `Article` (same as every other service
+  // registration in this file), but `embed<Article>`'s `field` callback needs the real entity
+  // shape, so the narrower type is inferred here and widened once, at the boundary.
+  const embedArticle = embed<Article>({
+    vectors: articlesVectorRepo,
+    provider: embedder,
+    field: (article) => `${article.title}\n${article.body}`,
+  }) as HookFunction;
 
   app.use(
     "articles",
-    new ArticlesService(new ArticleRepository(app), new ActivityLogRepository(app), articlesVectorRepo, embedder),
+    new ArticlesService(new ArticleRepository(app), new ActivityLogRepository(app)),
     { methods: ["find", "get", "create", "update", "patch", "remove"] },
   );
   app.service("articles").hooks({
@@ -162,7 +176,12 @@ export function createApp(config: AppConfig = {}): MantleApplication {
       patch: [requireUser],
       remove: [requireUser],
     },
-    after: { all: [requestLogger] },
+    after: {
+      all: [requestLogger],
+      create: [embedArticle],
+      update: [embedArticle],
+      patch: [embedArticle],
+    },
     error: { all: [requestLogger, errorLogger] },
   });
 

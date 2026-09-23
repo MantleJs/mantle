@@ -328,7 +328,7 @@ strategy (items 5–8) → release (item 9).
     generator's placeholder version, same as any new package mid-cycle.
   `npx nx run-many -t build,test,lint,typecheck` green across all 41 projects.
 
-- [ ] **7. Auto-embed-on-write hook + cross-adapter write-consistency pattern** *(PRD specs 2 and 12)*
+- [x] **7. Auto-embed-on-write hook + cross-adapter write-consistency pattern** *(PRD specs 2 and 12)*
   **First:** spike whether `pinecone`, `qdrant`, or `MongoVectorRepository` already generate embeddings from
   source text, or whether the caller always supplies a ready-made vector. Record the finding in the PRD's
   Decisions table before writing any hook code — if adapters differ on this, that's itself a new entry for
@@ -345,6 +345,75 @@ strategy (items 5–8) → release (item 9).
   `examples/knowledge-base`'s existing manual embed-on-create call in `articles-service.ts` reviewed against
   the new hook — replaced with it if the hook is a strict improvement, left alone with a documented reason if
   not.
+  **Done (2026-09-22):** spike findings recorded in the PRD's Decisions table (#9) before any hook
+  code was written, as required — a background research pass read `upsertVector`/`findSimilar` in
+  `pinecone-repository.ts`, `qdrant-repository.ts`, and `mongo-vector-repository.ts` directly:
+  **all three require the caller to supply an already-computed `number[]` vector; none generates an
+  embedding from source text.** Each package's own README already states this explicitly
+  ("model-agnostic" / "embedding generation intentionally decoupled"), and `pinecone`/`qdrant`'s
+  `save()`/`saveAll()` write an explicit zero-vector placeholder rather than a real embedding — no
+  adapter disagreement, so no new item-1 conformance-matrix entry. `examples/knowledge-base` already
+  hand-rolled the gap itself (`api/src/embedder.ts`'s `Embedder` interface, called manually from
+  `ArticlesService.reembed()`) — confirmed net-new capability, not a duplicate.
+  - **New package `@mantlejs/embeddings`**, depending only on `@mantlejs/mantle` (`VectorRepository<T>`
+    is already there). Single export: `embed(options): HookFunction<T>`
+    (`packages/embeddings/src/lib/embed.ts`), attached to `after.create`/`after.update`/`after.patch`.
+    Extracts text via `options.field` (a field name, a list of field names joined with `"\n"`, or a
+    function), calls `options.provider.embed(text)` (a one-method `EmbeddingProvider` contract — no
+    embedding-model SDK bundled, matching every vector adapter's own model-agnostic stance), and
+    upserts via `options.vectors.upsertVector(id, vector, {})`. Skips (no-op) when `ctx.result` is an
+    array or a paginated page — nothing embeddable on a `find`. Errors from text extraction, the
+    provider, or the upsert are caught and never rethrown (default: logged via
+    `app.get<Logger>("logger")`; overridable via `onError`).
+  - **Idempotency comes from the adapter contract, not extra hook logic**: `upsertVector` is already
+    an upsert keyed by id on every adapter (`pinecone`, `qdrant`, `mongodb`'s
+    `MongoVectorRepository`, `knex`'s `KnexVectorRepository`), so re-running `embed()` for the same
+    id replaces rather than duplicates — proven by a spec that runs the hook three times for one id
+    (as if create, then update, then patch) and asserts exactly one stored record at that id despite
+    three upsert calls having happened.
+  - **Specs** (`packages/embeddings/src/lib/embed.spec.ts`, 13 cases): field-extraction variants
+    (single field, joined list, function), the idempotency proof above, failure-injection for both a
+    throwing provider and a throwing vector store (primary operation/context untouched either way),
+    `onError` override, the default-logger fallback, the array/paginated-result skip, a
+    missing-record-id skip (reported via `onError`, falls back to `ctx.id` first), and the
+    context-passthrough-on-success case.
+  - **Cross-adapter write-consistency pattern formalized**: expanded the root `README.md`'s existing
+    "Services with multiple repositories" section (this pattern already existed there in an earlier,
+    example-specific form — `CLAUDE.md` itself had no such section yet) with an explicit named
+    subsection stating the three properties (idempotent-keyed-on-source-id, safe-to-retry,
+    non-fatal-on-failure) and naming `embed()` as the reference implementation. `CLAUDE.md` gained a
+    short pointer subsection (`### Services with multiple repositories`, under "Typical Usage
+    Pattern") linking to both, since the PRD names `CLAUDE.md` as the documentation target
+    specifically.
+  - **`examples/knowledge-base` reviewed and replaced** — the hook is a strict improvement, not just
+    a lateral move: `ArticlesService.create()`/`update()`/`patch()` called `this.reembed(article)`
+    with **no try/catch around it**, so an embedding-provider or vector-store failure propagated
+    straight out of the service method and failed the whole request with a 500 — **even though the
+    article write had already committed** — directly contradicting spec 2's non-fatal-on-failure
+    requirement, and a real, previously-undocumented defect in the example (the class's own doc
+    comment claimed the primary write "is not rolled back" without noting the client-facing call
+    still failed). Fixed by removing `vectors`/`embedder`/`reembed()` from `ArticlesService` entirely
+    (it now only composes `articles`+`activity`, plain multi-repository composition, no embedding
+    knowledge) and wiring `@mantlejs/embeddings`'s `embed()` as an `after` hook on the `articles`
+    service in `app.ts` instead — non-fatal by construction. `embedder.ts`'s local `Embedder`
+    interface was replaced with a thin alias of `@mantlejs/embeddings`'s own `EmbeddingProvider`
+    (`type Embedder = EmbeddingProvider & { readonly dimensions: number }`) rather than kept as an
+    independently-defined lookalike; `localEmbedder`/`httpEmbedder`/`createEmbedder()` needed no
+    changes since they already matched the shape structurally. `articles-service.spec.ts` updated to
+    drop the now-removed vector/embedder test scaffolding — the embedding behavior itself is fully
+    covered by `@mantlejs/embeddings`'s own 13-case spec suite, so nothing was lost, not just moved
+    untested. One real TypeScript variance issue surfaced and fixed while wiring this: `embed<Article>()`'s
+    return type (`HookFunction<Article>`) isn't assignable into `app.service("articles")`'s untyped
+    `.hooks()` config (`HookFunction<unknown>[]`) — same as every other hook on that service, none of
+    which are typed to a specific entity — resolved with a single documented `as HookFunction` cast at
+    the boundary rather than parameterizing the whole `.service("articles")` call (which would have
+    broken every *other* already-correct untyped hook on that service via the same variance issue in
+    reverse). `examples/knowledge-base/api/package.json` and its own README updated; the
+    `@mantlejs/embeddings` dependency there is pinned `^0.0.1` (the generator's placeholder version,
+    matching what's actually installed right now) — **flagged for item 9** to correct once tiering
+    sets the package's real version (a plain `^0.1.0` range would not satisfy an eventual
+    `0.1.0-experimental` release under semver's prerelease-matching rules).
+  `npx nx run-many -t build,test,lint,typecheck` green across all 42 projects.
 
 - [ ] **8. Implement `@mantlejs/auth-twitter`** *(PRD spec 13)*
   New package over `@mantlejs/auth-oauth` + Arctic's `Twitter` provider class. PKCE on (Arctic's
