@@ -2,13 +2,25 @@ import { randomUUID } from "node:crypto";
 import jwt from "jsonwebtoken";
 import type { MantleApplication, MantlePlugin, ServiceParams } from "@mantlejs/mantle";
 import { BadRequest, NotAuthenticated } from "@mantlejs/mantle";
-import type { AuthConfig, AuthEngine, AuthResult, AuthStrategy, JwtPayload, TokenPair } from "./types.js";
+import type { CapabilityScope } from "@mantlejs/mantle";
+import type {
+  AgentTokenOptions,
+  AuthConfig,
+  AuthEngine,
+  AuthResult,
+  AuthStrategy,
+  IssuedAgentToken,
+  JwtPayload,
+  TokenPair,
+} from "./types.js";
 import { memoryRefreshTokenStore } from "./refresh-token-store.js";
+import { memoryAgentTokenStore } from "./agent-token-store.js";
 
 export function auth(config: AuthConfig): MantlePlugin {
   return (app: MantleApplication): void => {
     const strategies = new Map<string, AuthStrategy>();
     const refreshStore = config.refreshTokenStore ?? memoryRefreshTokenStore();
+    const agentTokenStore = config.agentTokenStore ?? memoryAgentTokenStore();
 
     const engine: AuthEngine = {
       config,
@@ -45,6 +57,28 @@ export function auth(config: AuthConfig): MantlePlugin {
 
       registerStrategy(strategy: AuthStrategy): void {
         strategies.set(strategy.name, strategy);
+      },
+
+      async issueAgentToken(
+        scope: CapabilityScope,
+        delegatingUserId: string,
+        options?: AgentTokenOptions,
+      ): Promise<IssuedAgentToken> {
+        const id = randomUUID();
+        const expiresIn = options?.expiresIn ?? "15m";
+        const accessToken = engine.createJwt({ sub: id, type: "agent", scope, delegatingUserId }, { expiresIn });
+        const decoded = jwt.decode(accessToken) as JwtPayload | null;
+        const expiresAt = decoded?.exp ?? Math.floor(Date.now() / 1000);
+        await agentTokenStore.add(id, expiresAt);
+        return { accessToken, id, expiresAt };
+      },
+
+      async revokeAgentToken(id: string): Promise<void> {
+        await agentTokenStore.revoke(id);
+      },
+
+      async isAgentTokenValid(id: string): Promise<boolean> {
+        return agentTokenStore.isValid(id);
       },
 
       async authenticate(

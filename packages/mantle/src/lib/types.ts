@@ -1,3 +1,5 @@
+import type { CapabilityScope } from "./capability-scope.js";
+
 export type Id = string | number;
 
 export interface MantleChannel {
@@ -222,6 +224,17 @@ export interface CorsOptions {
   maxAge?: number;
 }
 
+/**
+ * Identity of an agent-originated call — an `AgentPrincipal` (see `@mantlejs/auth`) that passed
+ * `authorizeAgent()`'s capability check. `id` is the agent's own id (distinct from
+ * `delegatingUserId`, the user who minted the token).
+ */
+export interface AgentContext {
+  id: string;
+  scope: CapabilityScope;
+  delegatingUserId: string;
+}
+
 export interface HookContext<T = unknown> {
   app: MantleApplication;
   service: Partial<Service<T>>;
@@ -234,6 +247,12 @@ export interface HookContext<T = unknown> {
   result?: T | T[] | Paginated<T>;
   error?: Error;
   statusCode?: number;
+  /**
+   * Set by an `authorizeAgent()`-style hook (see `@mantlejs/auth`) when the call was authorized
+   * via a capability-scoped agent token rather than a user credential. Additive — never replaces
+   * `params.user`, and absent entirely for ordinary user/internal calls.
+   */
+  agent?: AgentContext;
 }
 
 export type HookFunction<T = unknown> = (context: HookContext<T>) => Promise<HookContext<T>> | HookContext<T>;

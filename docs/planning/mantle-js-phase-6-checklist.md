@@ -213,7 +213,7 @@ strategy (items 5–8) → release (item 9).
 
 ## Stage 2 — Extend
 
-- [ ] **5. Agent identity + capability scopes** *(PRD spec 10)*
+- [x] **5. Agent identity + capability scopes** *(PRD spec 10)*
   `AgentPrincipal` (short-lived, capability-scoped by `path`+`method`, revocable, carrying a
   `delegatingUserId`) minted by a new token-issuance flow in `@mantlejs/auth`. `authorizeAgent()` hook checking
   the capability list against `HookContext.path`+`HookContext.method`, deny-by-default, reusing
@@ -225,6 +225,52 @@ strategy (items 5–8) → release (item 9).
   `HookContext.agent` populated correctly through `@mantlejs/mcp`'s existing dispatch path end-to-end; a spec
   proving an agent token is rejected on any route with no `authorizeAgent()` hook attached (opt-in per route,
   never a silent global bypass of `authenticate()`).
+  **Done (2026-09-22):** the deny-by-default grant shape (`Record<string, string[] | true>`) that
+  `@mantlejs/mcp`'s `services` expose map already used was pulled up into `@mantlejs/mantle` as a
+  named, exported type — `CapabilityScope` — plus its matcher, `matchesCapabilityScope(scope, path,
+  method)` (`packages/mantle/src/lib/capability-scope.ts`). `@mantlejs/mcp`'s `McpOptions.services`
+  now types against this shared `CapabilityScope` instead of an independently-written
+  structurally-identical type, and `@mantlejs/auth`'s new `authorizeAgent()` hook calls the same
+  matcher — one deny-by-default implementation used by both packages, per PRD Decision #4, not two
+  that could drift (neither package may depend on the other per `CLAUDE.md`'s dependency matrix, so
+  `@mantlejs/mantle` — which both already depend on — is the only place this could live without
+  a boundary violation).
+  - `@mantlejs/mantle`: `HookContext` gains `agent?: AgentContext` (`{ id, scope, delegatingUserId
+    }`), additive, `params.user` untouched — `types.ts`.
+  - `@mantlejs/auth`: `AuthEngine` gains `issueAgentToken(scope, delegatingUserId, options?)` →
+    `{ accessToken, id, expiresAt }` (default `expiresIn: "15m"`), `revokeAgentToken(id)`, and
+    `isAgentTokenValid(id)`, backed by a new `AgentTokenStore` (`add`/`isValid`/`revoke`) with an
+    in-memory default (`memoryAgentTokenStore`) — same multi-instance-must-inject-a-shared-store
+    caveat as the existing `RefreshTokenStore`. The agent JWT payload is `{ sub: <agent id>,
+    type: "agent", scope, delegatingUserId }`. New `authorizeAgent()` hook
+    (`packages/auth/src/lib/agent.ts`): skips internal calls (no `provider`, same convention as
+    `authenticate("jwt")`), verifies the bearer token, requires `type === "agent"`, checks
+    `isAgentTokenValid()` (revocation), matches `scope` against `path`+`method` via
+    `matchesCapabilityScope` → `Forbidden` if out-of-scope, else sets `context.agent`.
+    `authenticate("jwt")` was hardened to reject `type: "agent"` payloads outright — this is what
+    makes `authorizeAgent()` opt-in per route: without it attached, an agent token cannot
+    authenticate anywhere, regardless of the scope it carries, because the only hook that accepts
+    `type: "agent"` is the one that also enforces the scope check. Header-parsing duplicated
+    between `authenticate.ts` and the new `agent.ts` was factored into a shared
+    `extractBearerToken()` (`bearer-token.ts`) rather than copied a third time.
+  - Specs: `capability-scope.spec.ts` (mantle, matcher unit tests); `agent-token-store.spec.ts` and
+    `agent.spec.ts` (auth — issuance round-trip incl. `scope`/`delegatingUserId`/expiry, revocation,
+    in-scope/out-of-scope/wildcard-scope `authorizeAgent()` outcomes, and the opt-in-per-route proof
+    that `authenticate("jwt")` rejects a verifiably-valid agent JWT); `agent-authorization.spec.ts`
+    (mcp — a real `auth()` + `authorizeAgent()` + `RepositoryService` app, called once over REST and
+    once over MCP `tools/call` with the same agent bearer token, proving identical 403 on
+    out-of-scope and identical 200 + identical `HookContext.agent` on in-scope, mirroring item 2's
+    hook-pipeline-equivalence spec — no MCP-specific code was needed for this, since MCP already
+    forwards `Authorization` through `params.headers` into the same hook chain REST uses). One
+    self-caught bug while writing the MCP spec (not shipped): `ServiceHandle.hooks()` *replaces*
+    the whole hook config rather than merging, so a second `.hooks()` call on the same service
+    silently dropped the first `authorizeAgent()` registration, spuriously letting an unscoped call
+    through — fixed by threading test observers through the single `buildApp()` call instead of a
+    second `.hooks()` call; this is existing, correct, documented `hooks()` semantics (call it once
+    per service, per `CLAUDE.md`'s usage pattern), not a framework defect.
+  `CLAUDE.md`'s `HookContext<T>` snippet and a new `CapabilityScope` entry added; `@mantlejs/auth`'s
+  README gained an "Agent tokens" section plus `authorizeAgent()`/`AuthConfig.agentTokenStore`/Types
+  entries. `npx nx run-many -t build,test,lint,typecheck` green across all 40 projects.
 
 - [ ] **6. Audit hook — `@mantlejs/audit`** *(PRD spec 11)*
   New package. Hook attachable to `before`/`after`/`error`, recording `{ principal, agentId?, path, method,

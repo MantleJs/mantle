@@ -1,4 +1,4 @@
-import type { MantleApplication, ServiceParams } from "@mantlejs/mantle";
+import type { CapabilityScope, MantleApplication, ServiceParams } from "@mantlejs/mantle";
 
 /**
  * Context handed to app-authored tool handlers. Dispatch inner service calls with
@@ -72,9 +72,11 @@ export interface McpOptions {
    * exposed as tools: an explicit method list, or `true` for every method the service
    * registered in `app.use()`. `"*"` exposes all methods of all services registered after
    * `mcp()` — a deliberate escape hatch for prototyping. An unknown path or method throws
-   * `BadRequest` when the server is built (at `listen()`/`startMcp()`).
+   * `BadRequest` when the server is built (at `listen()`/`startMcp()`). Same `CapabilityScope`
+   * shape `@mantlejs/auth`'s `authorizeAgent()` uses for agent-token scopes — one deny-by-default
+   * grant shape shared across the framework rather than two independently-typed lookalikes.
    */
-  services: Record<string, string[] | true> | "*";
+  services: CapabilityScope | "*";
   /** `"stdio"` runs a standalone MCP server via `startMcp(app)`; `"http"` mounts the endpoint on the app's HTTP transport. */
   transport: "stdio" | "http";
   /** HTTP transport only: mount path. @default "/mcp" */

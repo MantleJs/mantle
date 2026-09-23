@@ -238,6 +238,7 @@ interface HookContext<T = any> {
   id?: Id;
   result?: T | T[] | Paginated<T>;
   error?: Error;
+  agent?: { id: string; scope: CapabilityScope; delegatingUserId: string }; // set by @mantlejs/auth's authorizeAgent()
 }
 ```
 
@@ -248,6 +249,17 @@ All hooks are pure functions — no class-based hooks.
 ```typescript
 type HookFunction<T = any> = (context: HookContext<T>) => Promise<HookContext<T>> | HookContext<T>;
 ```
+
+### CapabilityScope
+
+```typescript
+type CapabilityScope = Record<string, string[] | true>; // path -> allowed methods, or `true` for all
+```
+
+Deny-by-default grant shape defined once in `@mantlejs/mantle` and shared by every consumer that
+needs "is this path+method allowed" semantics, rather than each one inventing its own: `@mantlejs/mcp`'s
+`services` expose map and `@mantlejs/auth`'s agent-token scopes (`authorizeAgent()`, `HookContext.agent`)
+both use it. Matched via the exported `matchesCapabilityScope(scope, path, method)`.
 
 ### Error Classes
 

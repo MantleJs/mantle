@@ -26,6 +26,8 @@ A strategy is an object with a `name` and an `authenticate(data, params)` method
 
 `authenticate('jwt')` is a `before` hook that reads `Authorization: Bearer <token>` from the request headers, verifies the token, and writes the decoded payload to `params.user`.
 
+`authorizeAgent()` is a `before` hook for capability-scoped agent tokens (see [Agent tokens](#agent-tokens) below) — opt-in per route, and never a substitute for `authenticate('jwt')`.
+
 `sanitizeUser()` is an `after` hook that strips sensitive fields (password, passwordHash) from service results before they leave the server.
 
 ### Internal calls
@@ -135,6 +137,7 @@ Side effects:
 | `audience`          | `string \| string[]` | —           | Sets and verifies the `aud` claim                                                                                                                                                                                                                                           |
 | `refreshExpiresIn`  | `string \| number`   | `"30d"`     | Refresh-token lifetime                                                                                                                                                                                                                                                      |
 | `refreshTokenStore` | `RefreshTokenStore`  | in-memory   | Storage for outstanding refresh tokens. **Multi-instance deployments (Cloud Run) must inject a shared store** — the in-memory default cannot revoke tokens issued by another instance. Use [`redisRefreshTokenStore` from `@mantlejs/auth-redis`](../auth-redis/README.md). |
+| `agentTokenStore`   | `AgentTokenStore`    | in-memory   | Storage for outstanding agent tokens, enabling `revokeAgentToken()` before JWT expiry. Same multi-instance caveat as `refreshTokenStore`. |
 
 ---
 
@@ -178,6 +181,32 @@ resolves to a user (e.g. deleted after the token was issued), the hook throws
 **`authenticate("custom")`**
 
 For non-JWT strategies: delegates to `engine.authenticate(strategyName, context.data, context.params)` and writes the result to `params.user`. Skips for internal calls.
+
+---
+
+### `authorizeAgent()`
+
+A `before` hook factory. Returns a hook that authorizes a capability-scoped agent token — see
+[Agent tokens](#agent-tokens) for issuance and revocation.
+
+```typescript
+app.service("articles").hooks({
+  before: { all: [authorizeAgent()] },
+});
+```
+
+Reads `Authorization: Bearer <token>` from `params.headers`, verifies it, and checks it's an
+unrevoked `type: "agent"` token whose `scope` covers `HookContext.path`+`HookContext.method`
+(`@mantlejs/mantle`'s `matchesCapabilityScope` — the same deny-by-default matcher `@mantlejs/mcp`'s
+expose map uses). On success sets `HookContext.agent = { id, scope, delegatingUserId }`, additive
+to `params.user`. Throws `Forbidden` for an out-of-scope call, `NotAuthenticated` for anything else
+(missing/expired/malformed/non-agent/revoked token, or auth not configured).
+
+Silently skips (passes through) when `params.provider` is undefined — internal service calls are
+trusted, same convention as `authenticate("jwt")`.
+
+Opt-in per route: `authenticate("jwt")` rejects a `type: "agent"` payload outright, so a route with
+no `authorizeAgent()` hook attached can never be reached with an agent token.
 
 ---
 
@@ -282,14 +311,62 @@ Custom strategies should issue tokens through `engine.createTokenPair(sub, acces
 
 ---
 
+### Agent tokens
+
+Short-lived, capability-scoped tokens for AI-agent callers, delegated from a user rather than
+representing one. Distinct from user JWTs and refresh tokens — `authenticate("jwt")` rejects an
+agent token outright, and `authorizeAgent()` rejects anything that isn't one.
+
+**Issuing a token** — typically from your own route/service, after checking the delegating user is
+allowed to grant the requested scope:
+
+```typescript
+const engine = app.get<AuthEngine>("auth");
+const issued = await engine.issueAgentToken(
+  { articles: ["find", "get"], comments: true }, // CapabilityScope: methods per path, or `true` for all
+  user.id, // delegatingUserId
+  { expiresIn: "15m" }, // optional, default "15m"
+);
+// issued: { accessToken, id, expiresAt }
+```
+
+**Authorizing agent calls** — attach `authorizeAgent()` to any route an agent may call. It's opt-in
+per route: a route with no `authorizeAgent()` hook can never be reached with an agent token, no
+matter its scope, because `authenticate("jwt")` refuses `type: "agent"` payloads.
+
+```typescript
+app.service("articles").hooks({
+  before: { all: [authorizeAgent()] },
+});
+```
+
+On success it sets `HookContext.agent = { id, scope, delegatingUserId }` — additive, `params.user`
+is untouched. On an out-of-scope `path`+`method` it throws `Forbidden`; on a missing, expired,
+malformed, non-agent, or revoked token it throws `NotAuthenticated`.
+
+**Revoking a token** before its natural expiry:
+
+```typescript
+await engine.revokeAgentToken(issued.id);
+```
+
+Revocation is tracked in the `AgentTokenStore` (default: in-memory). **Multi-instance deployments
+must inject a shared store** — same rationale as `refreshTokenStore` above.
+
+---
+
 ## Types
 
 ```typescript
 import type {
+  AgentPrincipal,
+  AgentTokenOptions,
+  AgentTokenStore,
   AuthConfig,
   AuthEngine,
   AuthResult,
   AuthStrategy,
+  IssuedAgentToken,
   JwtPayload,
   RefreshTokenStore,
   TokenPair,
@@ -305,6 +382,10 @@ import type {
 | `JwtPayload`        | Decoded JWT payload shape                                                                                                                              |
 | `RefreshTokenStore` | `add(jti, sub, exp)` / `consume(jti)` / `revokeAll(sub)` — inject a shared implementation (e.g. `@mantlejs/auth-redis`) for multi-instance deployments |
 | `TokenPair`         | `{ accessToken, refreshToken }` — returned by `engine.createTokenPair()`                                                                               |
+| `AgentPrincipal`    | `{ id, scope: CapabilityScope, delegatingUserId }` — an agent token's decoded shape, and `HookContext.agent`'s type once `authorizeAgent()` accepts it |
+| `AgentTokenOptions` | `{ expiresIn? }` — passed to `engine.issueAgentToken()`                                                                                                |
+| `AgentTokenStore`   | `add(id, exp)` / `isValid(id)` / `revoke(id)` — inject a shared implementation for multi-instance deployments                                          |
+| `IssuedAgentToken`  | `{ accessToken, id, expiresAt }` — returned by `engine.issueAgentToken()`                                                                              |
 
 ---
 

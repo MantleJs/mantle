@@ -1,5 +1,6 @@
 import type { HookContext, HookFunction } from "@mantlejs/mantle";
 import { NotAuthenticated, NotFound } from "@mantlejs/mantle";
+import { extractBearerToken } from "./bearer-token.js";
 import type { AuthEngine, JwtPayload } from "./types.js";
 
 export interface AuthenticateOptions {
@@ -40,20 +41,9 @@ async function authenticateJwt(context: HookContext, options: AuthenticateOption
     throw new NotAuthenticated("Auth plugin is not configured");
   }
 
-  const authorization =
-    (context.params.headers?.["authorization"] as string | undefined) ??
-    (context.params.headers?.["Authorization"] as string | undefined);
-
-  if (!authorization) {
-    throw new NotAuthenticated("No authorization header provided");
-  }
-
-  const spaceIndex = authorization.indexOf(" ");
-  const scheme = spaceIndex >= 0 ? authorization.slice(0, spaceIndex) : authorization;
-  const token = spaceIndex >= 0 ? authorization.slice(spaceIndex + 1) : "";
-
-  if (scheme.toLowerCase() !== "bearer" || !token) {
-    throw new NotAuthenticated("Invalid authorization header format. Expected: Bearer <token>");
+  const token = extractBearerToken(context.params.headers);
+  if (!token) {
+    throw new NotAuthenticated("No valid Bearer token provided. Expected: Authorization: Bearer <token>");
   }
 
   let payload: JwtPayload;
@@ -61,6 +51,10 @@ async function authenticateJwt(context: HookContext, options: AuthenticateOption
     payload = engine.verifyJwt(token);
   } catch {
     throw new NotAuthenticated("Invalid or expired token");
+  }
+
+  if (payload["type"] === "agent") {
+    throw new NotAuthenticated("Agent tokens must be authorized via authorizeAgent(), not authenticate('jwt')");
   }
 
   if (options.entity !== undefined) {
