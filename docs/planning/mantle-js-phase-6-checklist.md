@@ -272,7 +272,7 @@ strategy (items 5–8) → release (item 9).
   README gained an "Agent tokens" section plus `authorizeAgent()`/`AuthConfig.agentTokenStore`/Types
   entries. `npx nx run-many -t build,test,lint,typecheck` green across all 40 projects.
 
-- [ ] **6. Audit hook — `@mantlejs/audit`** *(PRD spec 11)*
+- [x] **6. Audit hook — `@mantlejs/audit`** *(PRD spec 11)*
   New package. Hook attachable to `before`/`after`/`error`, recording `{ principal, agentId?, path, method,
   params, result summary, timestamp }` to a pluggable sink — the sink is a `Repository<T>` the deployment
   already has, no new storage concept. When the call is agent-originated (item 5), the entry additionally
@@ -282,6 +282,51 @@ strategy (items 5–8) → release (item 9).
   write failure doesn't fail the primary operation (matches spec 7's non-fatal-on-failure rule, applied here
   even though this isn't a cross-adapter *write* per se — same failure-isolation principle); README with a
   quick start.
+  **Done (2026-09-22):** new package, generated via the standard `@nx/js:library` generator
+  (`packages/audit`), depending only on `@mantlejs/mantle` per the dependency matrix — no coupling
+  to `@mantlejs/auth` needed, since `HookContext.agent`'s shape (`AgentContext`) already lives in
+  `@mantlejs/mantle` from item 5. Single export: `auditLog(options): HookFunction`
+  (`packages/audit/src/lib/audit.ts`).
+  - **Design**: one hook, registered identically in `after.all` and `error.all` (no `before.all`
+    registration needed — unlike `@mantlejs/logger`'s `logRequest`, `auditLog()` doesn't measure
+    duration, so there's nothing to capture on the way in; the dispatch pipeline guarantees a call
+    reaches exactly one of the two phases, never both, so no double-recording risk). Builds an
+    `AuditRecord` — `{ principal, agentId?, agentScope?, delegatingUserId?, path, method, params?,
+    status, resultSummary, timestamp }` — from the `HookContext` and calls `sink.save(record)`.
+    `agentId`/`agentScope`/`delegatingUserId` are populated only when `HookContext.agent` is set
+    (i.e. the call passed `@mantlejs/auth`'s `authorizeAgent()` from item 5). `resultSummary` is a
+    short description (record count / id / `ClassName: message` for a thrown `MantleError`), never
+    the full result payload. `params` is deliberately `ctx.params.query` only — never
+    `ctx.params.headers` (bearer tokens) or the raw `ctx.params.user` object (identity already has
+    its own `principal` field) — a scoping decision recorded in the README, not left implicit.
+  - **Failure isolation**: `sink.save()` is wrapped in try/catch; a throw never propagates past
+    `auditLog()`, satisfying "a sink write failure does not fail the primary operation" the same
+    way spec 2's cross-adapter-write principle requires it elsewhere. Default failure handling
+    logs via `app.get<Logger>("logger")` when `@mantlejs/logger` is configured (silent otherwise);
+    `onSinkError` lets the app override that.
+  - **Specs**: `audit.spec.ts` — plain-user entry (no agent fields), agent-originated entry (all
+    three extra fields present), the `params` scoping proof (headers/full user object never
+    appear in the stored record even when present on `ctx.params`), summary formatting for
+    array/paginated/single-object/error results, and sink-failure isolation (default logger
+    fallback, custom `onSinkError`, and fully silent when neither applies) — all against
+    `@mantlejs/memory`. `audit-real-adapter.spec.ts` — the same unmodified `auditLog()` hook
+    writing real rows to a real, no-external-service SQL database (in-memory `better-sqlite3` via
+    a real `@mantlejs/knex` `KnexRepository` subclass), for both a success and an error call,
+    proving the JSON-shaped fields (`params`, `agentScope`) round-trip correctly once a SQL sink
+    does its own serialization (the hook itself stays storage-agnostic — serialization is the
+    sink's job, not the hook's) — plus a real-table-missing case proving a genuine SQL failure
+    still doesn't propagate. One structural fix found while wiring the real-adapter spec:
+    `AuditRecord` needed an explicit index signature to satisfy `Repository<T extends Record<string,
+    unknown>>`-constrained adapters (`MemoryRepository`, `KnexRepository`) — caught by `tsc`'s
+    dedicated `typecheck` target (not `build`, which doesn't type-check spec files), not a runtime
+    bug.
+  - README added with Concepts (sink-as-`Repository<T>`, the two-registration pattern, the record
+    shape and its redaction rationale, failure isolation) and a quick start wiring `auditLog()`
+    alongside `authorizeAgent()` from item 5. `CLAUDE.md`'s package list and dependency matrix
+    updated. Release-group/version tiering (Decision #3: `0.1.0-experimental` by default) is left
+    to item 9 per this checklist's own stage boundaries — this item ships the package at the
+    generator's placeholder version, same as any new package mid-cycle.
+  `npx nx run-many -t build,test,lint,typecheck` green across all 41 projects.
 
 - [ ] **7. Auto-embed-on-write hook + cross-adapter write-consistency pattern** *(PRD specs 2 and 12)*
   **First:** spike whether `pinecone`, `qdrant`, or `MongoVectorRepository` already generate embeddings from

@@ -122,6 +122,9 @@
     },
     {
       "path": "./examples/knowledge-base/web"
+    },
+    {
+      "path": "./packages/audit"
     }
   ]
 }

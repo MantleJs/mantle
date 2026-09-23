@@ -71,6 +71,7 @@ mantle/
 │   ├── storage-s3/      @mantlejs/storage-s3   AWS S3 storage adapter for @mantlejs/storage
 │   ├── storage-gcs/     @mantlejs/storage-gcs  Google Cloud Storage adapter for @mantlejs/storage
 │   ├── logger/          @mantlejs/logger       Structured logging (pino)
+│   ├── audit/           @mantlejs/audit        Audit-trail hook — who did what, as which identity, to a Repository<T> sink
 │   ├── schema/          @mantlejs/schema       TypeBox schema validation + field resolution
 │   ├── memory/          @mantlejs/memory       In-memory Repository<T> for testing/prototyping
 │   ├── config/          @mantlejs/config       Environment-aware configuration loading
@@ -119,6 +120,7 @@ mantle/
 | @mantlejs/storage-s3     | @mantlejs/mantle, @mantlejs/storage                                                         |
 | @mantlejs/storage-gcs    | @mantlejs/mantle, @mantlejs/storage                                                         |
 | @mantlejs/logger         | @mantlejs/mantle                                                                            |
+| @mantlejs/audit          | @mantlejs/mantle                                                                            |
 | @mantlejs/schema         | @mantlejs/mantle                                                                            |
 | @mantlejs/memory         | @mantlejs/mantle                                                                            |
 | @mantlejs/config         | @mantlejs/mantle                                                                            |

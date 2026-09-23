@@ -1,0 +1,47 @@
+{
+  "name": "@mantlejs/audit",
+  "version": "0.0.1",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    "./package.json": "./package.json",
+    ".": {
+      "@mantle/source": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "!**/*.tsbuildinfo"
+  ],
+  "nx": {
+    "name": "audit"
+  },
+  "dependencies": {
+    "tslib": "^2.3.0"
+  },
+  "description": "Audit-trail hook for Mantle JS — records who did what, as which identity, to a Repository<T> sink you already have",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MantleJs/mantle.git",
+    "directory": "packages/audit"
+  },
+  "homepage": "https://github.com/MantleJs/mantle/tree/main/packages/audit#readme",
+  "publishConfig": {
+    "access": "public"
+  },
+  "keywords": [
+    "mantle",
+    "audit",
+    "audit-log",
+    "compliance"
+  ],
+  "peerDependencies": {
+    "@mantlejs/mantle": "^0.1.0"
+  }
+}
