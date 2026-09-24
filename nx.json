@@ -91,6 +91,7 @@
           "auth-apple",
           "auth-microsoft",
           "auth-linkedin",
+          "auth-twitter",
           "auth-redis",
           "storage",
           "storage-s3",
@@ -113,6 +114,13 @@
           "qdrant",
           "neo4j",
           "mongodb"
+        ]
+      },
+      "experimental": {
+        "projectsRelationship": "fixed",
+        "projects": [
+          "audit",
+          "embeddings"
         ]
       }
     }

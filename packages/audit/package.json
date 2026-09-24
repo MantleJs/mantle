@@ -42,6 +42,6 @@
     "compliance"
   ],
   "peerDependencies": {
-    "@mantlejs/mantle": "^0.1.0"
+    "@mantlejs/mantle": "^0.2.0"
   }
 }

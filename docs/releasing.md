@@ -14,8 +14,15 @@ Publishing is handled by [`nx release`](https://nx.dev/features/manage-releases)
 
 | Group          | Projects                                                                | Version              | npm dist-tag   |
 | -------------- | ------------------------------------------------------------------------ | --------------------- | -------------- |
-| `stable`       | 31 packages — everything except the five below                          | `0.1.0` (first release) | `latest`       |
-| `experimental` | `dynamodb`, `pinecone`, `qdrant`, `neo4j`, `mongodb`                     | `0.1.0-experimental`  | `experimental` |
+| `stable`       | 37 packages (as of Phase 6) — everything except `audit`/`embeddings`   | `0.2.0`               | `latest`       |
+| `experimental` | `audit`, `embeddings`                                                   | `0.1.0-experimental`  | `experimental` |
+
+The `experimental` group's membership isn't fixed across releases — Phase 5's `experimental` group
+(`dynamodb`/`pinecone`/`qdrant`/`neo4j`/`mongodb`) promoted into `stable` and the group was removed
+entirely once empty (Phase 6 item 4); Phase 6 re-added it from scratch for `audit`/`embeddings`
+(item 9), each starting its own `0.1.0-experimental` first release independent of what any prior
+occupant's version happened to be. Check `nx.json`'s `release.groups` for the current membership
+rather than assuming this table stays in sync — it's a snapshot, not the source of truth.
 
 "Fixed" means every project within a group always shares the same version number — bumping one
 bumps all of them together. The two groups are otherwise independent: releasing `stable` never
@@ -165,12 +172,17 @@ something a tool should silently widen. `tools/bump-peer-ranges.mjs` (see
 [Versioning](#versioning-local-before-every-real-release) above) exists to make satisfying this
 guard a single safe command instead of hand-editing 30+ `package.json` files.
 
-When bumping to a new minor/major (e.g. `0.1.0` → `0.2.0`), check whether existing `^0.1.0` ranges
-still cover it (they do, under normal caret semantics, since both share the same major and neither
-is `0.x` in a way that breaks caret behavior once past `0.1.0` — `0.0.x` is the special case that
-doesn't compose with caret ranges the way `0.1.x`+ does). If `nx release version` stops with a
-`preserveMatchingDependencyRanges` error, it's telling you a peer range needs a bump before the
-release can proceed — run `bump-peer-ranges.mjs` for the group in question and re-run.
+**Any minor or major bump needs `bump-peer-ranges.mjs` first — don't assume an existing `^0.1.0`
+range already covers it.** Under npm's caret semantics, a `0.x.y` version is special: `^0.1.0` means
+`>=0.1.0 <0.2.0`, i.e. patch-level updates only within `0.1.x` — it does **not** cover `0.2.0`.
+Confirmed live (Phase 6 item 9): dry-running `nx release version --specifier=minor --groups=stable`
+without bumping peer ranges first fails immediately with `preserveMatchingDependencyRanges` on the
+very first cross-package peer range it checks. This only stops mattering once a group's major is
+`1` or higher (`^1.1.0` *does* cover `1.2.0`) — every `@mantlejs/*` package is still `0.x`, so treat
+every bump, patch included, as needing the peer-range step; the patch case is simply already
+satisfied by an existing `^0.1.0` range, not exempt from the check. If `nx release version` stops
+with a `preserveMatchingDependencyRanges` error, it's telling you a peer range needs a bump before
+the release can proceed — run `bump-peer-ranges.mjs` for the group in question and re-run.
 
 ### Postmortem: premature peer-range bump
 
