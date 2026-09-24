@@ -15,14 +15,24 @@ Publishing is handled by [`nx release`](https://nx.dev/features/manage-releases)
 | Group          | Projects                                                                | Version              | npm dist-tag   |
 | -------------- | ------------------------------------------------------------------------ | --------------------- | -------------- |
 | `stable`       | 37 packages (as of Phase 6) — everything except `audit`/`embeddings`   | `0.2.0`               | `latest`       |
-| `experimental` | `audit`, `embeddings`                                                   | `0.1.0-experimental`  | `experimental` |
+| `experimental` | `audit`, `embeddings`                                                   | `0.2.0-experimental`  | `experimental` |
 
 The `experimental` group's membership isn't fixed across releases — Phase 5's `experimental` group
 (`dynamodb`/`pinecone`/`qdrant`/`neo4j`/`mongodb`) promoted into `stable` and the group was removed
 entirely once empty (Phase 6 item 4); Phase 6 re-added it from scratch for `audit`/`embeddings`
-(item 9), each starting its own `0.1.0-experimental` first release independent of what any prior
-occupant's version happened to be. Check `nx.json`'s `release.groups` for the current membership
-rather than assuming this table stays in sync — it's a snapshot, not the source of truth.
+(item 9). Check `nx.json`'s `release.groups` for the current membership rather than assuming this
+table stays in sync — it's a snapshot, not the source of truth.
+
+**A new experimental package's first release is versioned `<current stable version>-experimental`,
+not a hardcoded `0.1.0-experimental`.** `releaseTagPattern` is `v{version}`, which isn't group-aware
+— two different, unrelated groups both landing on the literal string `0.1.0-experimental` at
+different points in the project's history produces a real git tag collision (this happened: Phase
+6 item 9 first tried `0.1.0-experimental` for `audit`/`embeddings`, following the PRD's original
+Decision #3 literally, and hit `git tag v0.1.0-experimental` already taken by Phase 5's group).
+Tying a new experimental package's version to the stable group's *current* version instead avoids
+this structurally — `stable`'s version only ever climbs, so it can't repeat a prior tag the way a
+hardcoded literal can whenever `experimental` empties out and refills with a different, unrelated
+package set.
 
 "Fixed" means every project within a group always shares the same version number — bumping one
 bumps all of them together. The two groups are otherwise independent: releasing `stable` never
@@ -85,7 +95,7 @@ npx nx run @mantle/source:local-registry
 
 # Terminal 2 — version + publish against it
 npx nx release version 0.1.0 --groups=stable --first-release
-npx nx release version 0.1.0-experimental --groups=experimental --first-release
+npx nx release version <stable-version>-experimental --groups=experimental --first-release
 npx nx release publish --groups=stable --tag=latest --registry=http://localhost:4873 --first-release
 npx nx release publish --groups=experimental --tag=experimental --registry=http://localhost:4873 --first-release
 ```
