@@ -65,6 +65,15 @@ const OAUTH_STRATEGIES: OAuthStrategyDef[] = [
       "clientSecret: process.env.LINKEDIN_CLIENT_SECRET!",
     ],
   },
+  {
+    packageName: "@mantlejs/auth-twitter",
+    importName: "twitterStrategy",
+    envPrefix: "TWITTER",
+    configFields: [
+      "clientId: process.env.TWITTER_CLIENT_ID!",
+      "clientSecret: process.env.TWITTER_CLIENT_SECRET!",
+    ],
+  },
 ];
 
 interface AuthPackages {

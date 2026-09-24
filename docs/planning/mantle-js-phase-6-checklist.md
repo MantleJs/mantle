@@ -415,7 +415,7 @@ strategy (items 5–8) → release (item 9).
     `0.1.0-experimental` release under semver's prerelease-matching rules).
   `npx nx run-many -t build,test,lint,typecheck` green across all 42 projects.
 
-- [ ] **8. Implement `@mantlejs/auth-twitter`** *(PRD spec 13)*
+- [x] **8. Implement `@mantlejs/auth-twitter`** *(PRD spec 13)*
   New package over `@mantlejs/auth-oauth` + Arctic's `Twitter` provider class. PKCE on (Arctic's
   `createAuthorizationURL` takes a `codeVerifier`) — same posture as `auth-google`/`auth-microsoft`, unlike
   the no-PKCE strategies. Standard GET callback. Profile from X's API v2 `users/me` endpoint — confirm the
@@ -427,6 +427,60 @@ strategy (items 5–8) → release (item 9).
   **Accept:** specs mirroring `google-strategy.spec.ts` (PKCE URL construction with `codeVerifier`; exchange
   failure; userinfo normalization with/without optional fields; missing user-id field → `GeneralError`);
   `create-mantlejs` e2e-scaffold smoke test still green with `--auth twitter` added as a choice.
+  **Done (2026-09-22):** new package `packages/auth-twitter`, generated via the standard `@nx/js:library`
+  generator, depending only on `@mantlejs/mantle` + `@mantlejs/auth-oauth` per the dependency matrix — same
+  shape as `auth-google`/`auth-microsoft`. Single export: `twitterStrategy(config): MantlePlugin`
+  (`packages/auth-twitter/src/lib/twitter-strategy.ts`), delegating URL construction and code exchange to
+  Arctic's `Twitter` class (confirmed live: `constructor(clientId, clientSecret, redirectURI)`,
+  `createAuthorizationURL(state, codeVerifier, scopes)`, `validateAuthorizationCode(code, codeVerifier)` —
+  a PKCE-shaped API, confirming the PRD's expectation) and hand-writing only profile normalization, matching
+  every other Arctic-backed strategy's division of labor.
+  - **Endpoint/scope/shape confirmed against X's current live docs, not assumed from the PRD** (`docs.x.com`,
+    fetched during implementation): `GET https://api.x.com/2/users/me`, response wrapped in a top-level
+    `data` object (`{ data: { id, name, username } }` by default — no `user.fields` param needed for these
+    three). Either `users.read` or `tweet.read` is documented as sufficient alone, but X's own developer
+    community has repeatedly reported `403`s from this endpoint with `users.read` alone in practice — default
+    scope is `["users.read", "tweet.read"]`, both, matching what's actually been confirmed working rather
+    than just what the reference lists as alternatives (documented in the package README, not left as an
+    unexplained default).
+  - **No email, by design, not by omission**: `/2/users/me` only returns an email via `confirmed_email`,
+    gated behind an app-level email access grant most apps don't have, and never returns it by default.
+    Rather than requesting `user.fields=confirmed_email` speculatively (an unapproved field risks the whole
+    call failing, not just being silently dropped — unconfirmed either way in X's docs), `fetchProfile()`
+    always normalizes `email: undefined`. Recorded as a documented limitation in the README's "No email"
+    subsection, the same treatment item 1 gave other adapters' documented capability gaps, not left implicit.
+  - `entityIdField` defaults to `"twitterId"`, config is a plain `OAuthPluginConfig` (no strategy-specific
+    fields — X needs no `tenant`-equivalent).
+  - **Specs** (`twitter-strategy.spec.ts`, 17 cases, mirroring `google-strategy.spec.ts`'s structure exactly
+    per the acceptance criteria): `createOAuthPlugin` delegation + `entityIdField`/`scope` defaults and
+    overrides; `buildAuthUrl` (PKCE `code_challenge`/`code_challenge_method=S256` derived from a given
+    `codeVerifier`, space-separated `scope` encoding, `usePkce: true`); `exchangeCode` (posts to Arctic's
+    documented `https://api.twitter.com/2/oauth2/token`, returns `access_token`, `GeneralError` on a non-OK
+    response or a missing token); `fetchProfile` (normalizes `{ data: { id, name } }` correctly, handles a
+    missing `name`, always normalizes `email` to `undefined`, `GeneralError` on non-OK response, on a missing
+    `id`, and on a response with no `data` object at all — one case beyond `google-strategy.spec.ts`'s set,
+    added because X's wrapped-response shape has a failure mode OIDC's flat `sub` claim doesn't).
+  - **CLI wiring** — found four touchpoints requiring updates, not the one file
+    (`packages/cli/src/lib/versions.ts`) the checklist item names; that file only holds third-party version
+    pins and has no auth-choice list — the actual choice list is spread across `bin/mantle.ts` (help text),
+    `lib/new.ts` (`Auth` type, `OAUTH_AUTH_VALUES`, the interactive prompt, `OAUTH_STRATEGY_TEMPLATES` for
+    `mantle new`), `lib/wiring.ts` (`PACKAGE_WIRINGS`, for `mantle add @mantlejs/auth-twitter` on an existing
+    app), and `lib/generators/authentication.ts` (`OAUTH_STRATEGIES`, for `mantle generate authentication`).
+    All four updated with `twitter`/`twitterStrategy`/`TWITTER_CLIENT_ID`/`TWITTER_CLIENT_SECRET` alongside
+    the existing seven; `new.spec.ts`'s parametrized OAuth-wiring test and
+    `generators/authentication.spec.ts`'s detection test both extended to cover `twitter`. `create-mantlejs`
+    needed no changes — it re-exports `@mantlejs/cli`'s own `Auth` type and forwards flags verbatim, so it
+    picked up the new choice automatically.
+  - `CLAUDE.md`'s package list + dependency matrix and the root `README.md`'s package table both gained an
+    `@mantlejs/auth-twitter` row.
+  - Package ships at the generator's placeholder version (`0.0.1`), **not** added to `nx.json`'s `stable`
+    group yet — per this checklist's own stage boundaries (see item 6/7's precedent) and per item 9's own
+    text, which explicitly claims "`@mantlejs/auth-twitter` joins `stable` directly (PRD Decision #7)" as
+    release-stage work; doing it here would duplicate/preempt that.
+  `npx nx run-many -t build,test,lint,typecheck` green across all 43 projects (up from 42); the
+  `create-mantlejs` `e2e-scaffold` target (real scaffold → `npm install` against workspace-linked packages →
+  build → test → boot → CRUD round-trip → `SIGTERM` → clean exit) re-run and still green, confirming the new
+  `--auth twitter` choice didn't disturb the existing `--auth none` path the smoke test exercises.
 
 ## Stage 3 — Release
 

@@ -81,6 +81,12 @@ export const PACKAGE_WIRINGS: Record<string, PackageWiring> = {
       "linkedinStrategy({ clientId: process.env.LINKEDIN_CLIENT_ID!, clientSecret: process.env.LINKEDIN_CLIENT_SECRET! })",
     envVars: ["LINKEDIN_CLIENT_ID=your-linkedin-client-id", "LINKEDIN_CLIENT_SECRET=your-linkedin-client-secret"],
   },
+  "@mantlejs/auth-twitter": {
+    imports: [{ names: ["twitterStrategy"], path: "@mantlejs/auth-twitter" }],
+    configureCall:
+      "twitterStrategy({ clientId: process.env.TWITTER_CLIENT_ID!, clientSecret: process.env.TWITTER_CLIENT_SECRET! })",
+    envVars: ["TWITTER_CLIENT_ID=your-twitter-client-id", "TWITTER_CLIENT_SECRET=your-twitter-client-secret"],
+  },
   "@mantlejs/mongodb": {
     imports: [{ names: ["mongodb"], path: "@mantlejs/mongodb" }],
     configureCall: 'mongodb({ uri: process.env.MONGODB_URI!, dbName: process.env.MONGODB_DB_NAME ?? "app" })',

@@ -1,0 +1,50 @@
+{
+  "name": "@mantlejs/auth-twitter",
+  "version": "0.0.1",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    "./package.json": "./package.json",
+    ".": {
+      "@mantle/source": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "!**/*.tsbuildinfo"
+  ],
+  "nx": {
+    "name": "auth-twitter"
+  },
+  "description": "Sign in with X (Twitter) strategy for Mantle JS",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MantleJs/mantle.git",
+    "directory": "packages/auth-twitter"
+  },
+  "homepage": "https://github.com/MantleJs/mantle/tree/main/packages/auth-twitter#readme",
+  "publishConfig": {
+    "access": "public"
+  },
+  "keywords": [
+    "mantle",
+    "auth",
+    "twitter",
+    "x",
+    "oauth2"
+  ],
+  "dependencies": {
+    "arctic": "^3.7.0",
+    "tslib": "^2.3.0"
+  },
+  "peerDependencies": {
+    "@mantlejs/auth-oauth": "^0.1.0",
+    "@mantlejs/mantle": "^0.1.0"
+  }
+}

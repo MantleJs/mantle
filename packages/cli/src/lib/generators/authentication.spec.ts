@@ -18,12 +18,13 @@ afterEach(async () => {
 });
 
 describe("generateAuthentication", () => {
-  it("wires apple, microsoft, and linkedin strategies when detected", async () => {
+  it("wires apple, microsoft, linkedin, and twitter strategies when detected", async () => {
     const dir = await withPackageJson({
       "@mantlejs/auth": "^0.0.1",
       "@mantlejs/auth-apple": "^0.0.1",
       "@mantlejs/auth-microsoft": "^0.0.1",
       "@mantlejs/auth-linkedin": "^0.0.1",
+      "@mantlejs/auth-twitter": "^0.0.1",
     });
 
     await generateAuthentication({ cwd: dir });
@@ -34,6 +35,7 @@ describe("generateAuthentication", () => {
     expect(content).toContain('import { microsoftStrategy } from "@mantlejs/auth-microsoft";');
     expect(content).toContain('tenant: process.env.MICROSOFT_TENANT ?? "common"');
     expect(content).toContain('import { linkedinStrategy } from "@mantlejs/auth-linkedin";');
+    expect(content).toContain('import { twitterStrategy } from "@mantlejs/auth-twitter";');
   });
 
   it("falls back to a helpful comment when no auth packages are installed", async () => {

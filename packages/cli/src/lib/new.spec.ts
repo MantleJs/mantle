@@ -65,7 +65,7 @@ describe("newProject", () => {
     expect(appTs).toContain(".configure(express())");
   });
 
-  for (const auth of ["facebook", "apple", "microsoft", "linkedin"] as const) {
+  for (const auth of ["facebook", "apple", "microsoft", "linkedin", "twitter"] as const) {
     it(`wires the ${auth} auth strategy`, async () => {
       const dir = await scaffold({ database: "none", auth, packageManager: "npm" });
       const appTs = await readFile(join(dir, "src/app.ts"), "utf-8");

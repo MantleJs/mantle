@@ -19,7 +19,7 @@ program
   .option("--database <db>", "Database adapter (pg, sqlite, mongodb, none)")
   .option(
     "--auth <auth>",
-    "Auth strategy (local, google, github, facebook, apple, microsoft, linkedin, none)",
+    "Auth strategy (local, google, github, facebook, apple, microsoft, linkedin, twitter, none)",
   )
   .option("--cors", "Enable CORS on the transport", false)
   .option("--redis", "Wire @mantlejs/auth-redis state/refresh-token stores", false)

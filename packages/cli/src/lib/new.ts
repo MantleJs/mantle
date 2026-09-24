@@ -7,10 +7,18 @@ import { MANTLE_VERSION, THIRD_PARTY_VERSIONS } from "./versions.js";
 
 export type Transport = "express";
 export type Database = "pg" | "sqlite" | "mongodb" | "none";
-export type Auth = "local" | "google" | "github" | "facebook" | "apple" | "microsoft" | "linkedin" | "none";
+export type Auth = "local" | "google" | "github" | "facebook" | "apple" | "microsoft" | "linkedin" | "twitter" | "none";
 export type PackageManager = "npm" | "yarn" | "pnpm";
 
-const OAUTH_AUTH_VALUES = new Set<Auth>(["google", "github", "facebook", "apple", "microsoft", "linkedin"]);
+const OAUTH_AUTH_VALUES = new Set<Auth>([
+  "google",
+  "github",
+  "facebook",
+  "apple",
+  "microsoft",
+  "linkedin",
+  "twitter",
+]);
 
 export interface NewProjectOptions {
   transport?: Transport;
@@ -95,6 +103,7 @@ async function resolveOptions(raw: NewProjectOptions): Promise<ResolvedOptions> 
         { title: "Sign in with Apple", value: "apple" },
         { title: "Microsoft Entra ID", value: "microsoft" },
         { title: "Sign In with LinkedIn", value: "linkedin" },
+        { title: "Sign in with X (Twitter)", value: "twitter" },
         { title: "None", value: "none" },
       ],
       initial: 0,
@@ -231,6 +240,16 @@ const OAUTH_STRATEGY_TEMPLATES: Record<string, OAuthStrategyTemplate> = {
       "clientSecret: process.env.LINKEDIN_CLIENT_SECRET!",
     ],
     envVars: ["LINKEDIN_CLIENT_ID=your-linkedin-client-id", "LINKEDIN_CLIENT_SECRET=your-linkedin-client-secret"],
+  },
+  twitter: {
+    auth: "twitter",
+    packageName: "@mantlejs/auth-twitter",
+    importName: "twitterStrategy",
+    configFields: [
+      "clientId: process.env.TWITTER_CLIENT_ID!",
+      "clientSecret: process.env.TWITTER_CLIENT_SECRET!",
+    ],
+    envVars: ["TWITTER_CLIENT_ID=your-twitter-client-id", "TWITTER_CLIENT_SECRET=your-twitter-client-secret"],
   },
 };
 
