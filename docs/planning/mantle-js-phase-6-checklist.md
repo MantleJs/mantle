@@ -498,6 +498,74 @@ strategy (items 5–8) → release (item 9).
   **Accept:** every package from this phase resolvable and importable from the public registry at its correct
   tier; `nx run-many -t build,test,lint,typecheck` green across the workspace including all new packages;
   GitHub release notes published for whichever tags this phase's version bump produces.
+  **In progress (2026-09-23/24):** local prep + Verdaccio rehearsal done and green; real push/publish/GitHub
+  release intentionally not yet done — this touches a real, live public npm org (`@mantlejs`, confirmed
+  already live at `0.1.0`) and a real public GitHub repo (`MantleJs/mantle`), so the remaining steps wait on
+  explicit go-ahead rather than running unattended. Done so far:
+  - **Tier review** (the "dedicated review, not a rubber stamp" the PRD asks for, mirroring Phase 5's
+    `openapi` process): `@mantlejs/audit` measured 95.83%/84.61% stmt/branch, `@mantlejs/embeddings`
+    100%/92.59% — both below the `openapi` bar (100%/93.5%). No exception found; both ship experimental per
+    the standing default (PRD Decision #3).
+  - **`nx.json`**: re-added the `experimental` group (removed empty in item 4) for `audit`/`embeddings`;
+    added `auth-twitter` to `stable` (PRD Decision #7). Dry-run-verified both groups independently — 37
+    stable / 2 experimental projects, zero cross-leakage.
+  - **Version chosen: `stable` → `0.2.0` (minor, user's call)**, not patch — Phase 6 added new packages, a
+    new optional `HookContext.agent` field, new `@mantlejs/auth` exports, and one technically-breaking
+    interface addition (`OAuthStateStore` gained a required `consume()` method, item 3). Confirmed live that
+    a minor bump needs `bump-peer-ranges.mjs` first (existing `^0.1.0` ranges don't cover `0.2.0` — a patch
+    bump would have been silently fine without it, which is itself worth knowing).
+  - **Real, previously-undiscovered bug found and fixed in `docs/releasing.md`**: its peer-dependency-ranges
+    section claimed `^0.1.0` ranges "still cover" a minor bump to `0.2.0` under normal caret semantics for
+    0.x versions. Confirmed false by reproducing live — `nx release version --specifier=minor --dry-run`
+    without a peer-range bump first fails immediately on `preserveMatchingDependencyRanges`. Fixed the doc to
+    state every bump (patch included) needs the peer-range step; patch just happens to already be satisfied.
+  - **Real tag collision found and fixed**: following PRD Decision #3 literally (`audit`/`embeddings` start
+    at `0.1.0-experimental`) collided with the git tag Phase 5's now-removed `experimental` group already
+    used for its own first release — confirmed by attempting `git tag v0.1.0-experimental` (already taken).
+    Root cause: `releaseTagPattern` (`v{version}`) isn't group-aware, and a hardcoded `0.1.0-experimental`
+    default will collide again any time `experimental` empties out and refills with an unrelated package set
+    (exactly what just happened). Fixed by retargeting to the *current stable release cycle's* version
+    instead — `audit`/`embeddings` ship `0.2.0-experimental`, tagged `v0.2.0-experimental` (no collision,
+    and structurally can't recur the way the hardcoded literal did, since `stable`'s version only ever
+    climbs). PRD Decision #3 and `docs/releasing.md` both updated to record this and explain why.
+  - **Real, previously-undiscovered environment bug found and fixed**: `examples/todo-minimal`,
+    `examples/knowledge-base/api`, and `examples/knowledge-base/web` each had a stray, un-hoisted, gitignored
+    `node_modules/@mantlejs/*` copy shadowing the npm workspace's top-level symlink — invisible until the
+    version bump made those stale nested copies actually version-invalid, at which point `@nx/dependency-
+    checks` started failing with a misleading "package is not used" (not a version-mismatch message). Fixed
+    by deleting the stray directories and letting `npm install` re-hoist correctly, plus `nx reset` to drop
+    the project graph cache computed while they still existed.
+  - **`bump-peer-ranges.mjs stable 0.2.0`** (35 files, including `audit`/`embeddings`'s peer dep on `mantle`
+    — confirmed the tool's own workspace-wide, cross-group scan works as documented) and
+    **`bump-peer-ranges.mjs experimental 0.2.0-experimental`** (0 files — nothing peer-depends on
+    `audit`/`embeddings` yet).
+  - **`packages/cli/src/lib/versions.ts`'s `MANTLE_VERSION`**: `^0.1.0` → `^0.2.0`, so newly-scaffolded apps
+    request the version actually being released — the exact fix Phase 5 item 12 made once already, now
+    needed again for the same reason.
+  - **Every `examples/*/package.json`'s `@mantlejs/*` ranges** bumped to match (`^0.2.0`; `@mantlejs/
+    embeddings` to `^0.2.0-experimental`) — discovered the hard way that this has to happen strictly *after*
+    the real version lands on disk (bumping first breaks `@nx/dependency-checks`; bumping the lockfile-update
+    step before fixing a never-before-published package's example pin 404s against the real registry with
+    nowhere to fall back to).
+  - **Real `nx release version`** run for both groups (not dry-run) — confirmed it stages but does **not**
+    auto-commit/tag in this workspace's config (no `release.version.git` block in `nx.json`), contrary to
+    `docs/releasing.md`'s "commits, and tags... by default" — committed and tagged manually instead. Commits:
+    `837ea9a` (tiering + peer-range prep), `8a9a204` (`stable` → `0.2.0`, tag `v0.2.0`), `257b479` (superseded
+    — see below), `8757f17` (retarget to `0.2.0-experimental`, tag `v0.2.0-experimental`), `03ba2ed` (docs).
+  - **Verdaccio rehearsal** (`@mantle/source:local-registry`): real `nx release publish` for both groups
+    against `http://localhost:4873` — 37 + 2 packages published clean. Verified: fresh `npm install` of
+    `mantle`/`memory`/`audit@experimental`/`embeddings@experimental` from an empty project resolves the
+    correct versions; a real `Service<T>` CRUD round-trip against the installed packages passes;
+    `create-mantlejs`'s own `e2e-scaffold` target re-run with `MANTLE_REGISTRY=http://localhost:4873` —
+    scaffold → `npm install` from the rehearsal registry → build → test → boot → CRUD → `SIGTERM` → clean
+    exit, all green. Rehearsal registry storage discarded and the local npm registry config restored to
+    `https://registry.npmjs.org/` afterward, per the runbook.
+  - Full `npx nx run-many -t build,test,lint,typecheck` green across all 43 projects and
+    `tools/check-publish-fields.mjs` green across all 39 publishable packages, confirmed after every
+    consequential step above, not just once at the end.
+  **Remaining, waiting on explicit go-ahead**: `git push && git push --tags`; trigger
+  `release-publish.yml` for real (`dry_run: false`) for both groups; post-release verification against the
+  *live* registry (not just Verdaccio); `gh release create` for `v0.2.0` and `v0.2.0-experimental`.
 
 ---
 
