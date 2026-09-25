@@ -563,9 +563,30 @@ strategy (items 5–8) → release (item 9).
   - Full `npx nx run-many -t build,test,lint,typecheck` green across all 43 projects and
     `tools/check-publish-fields.mjs` green across all 39 publishable packages, confirmed after every
     consequential step above, not just once at the end.
-  **Remaining, waiting on explicit go-ahead**: `git push && git push --tags`; trigger
-  `release-publish.yml` for real (`dry_run: false`) for both groups; post-release verification against the
-  *live* registry (not just Verdaccio); `gh release create` for `v0.2.0` and `v0.2.0-experimental`.
+  **Update (2026-09-25):** pushed `main` + both tags; user triggered `release-publish.yml` for real
+  (`dry_run: false`) — **failed** on `Build, test, lint, typecheck`, before either publish step could run
+  (confirmed nothing published: `npm view @mantlejs/mantle` still `0.1.0`, `@mantlejs/audit`/`embeddings`
+  still 404). **Real, previously-undiscovered bugs found, reproduced locally, and fixed**: three `tsc`
+  errors in committed `main`, present since items 1 and 5 landed, that no local `nx run-many -t
+  build,test,lint,typecheck` run this session had caught — including several full-green runs. Root cause:
+  `npx nx reset` clears Nx's own task cache but not each package's `dist/`/`.tsbuildinfo` incremental `tsc`
+  state, which a long local session apparently accumulates enough of to mask an error CI's `npm ci` +
+  fresh-checkout build can't avoid catching. Reproduced by deleting every package's `dist`/`out-tsc`/
+  `.tsbuildinfo` and re-running typecheck clean — same three failures CI reported. Fixed: `auth-oauth`'s
+  and `auth-local`'s spec files each hand-roll an `AuthEngine` mock that predated item 5's
+  `issueAgentToken`/`revokeAgentToken`/`isAgentTokenValid` (all required) — added the three missing
+  `vi.fn()` stubs to each; `openapi`'s spec had one `RepositoryCapabilities` literal predating item 1's
+  required `nestedPaths` field — added `nestedPaths: true`. Checked every other `RepositoryCapabilities`/
+  `AuthEngine` literal in the repo for the same staleness — found none. Re-verified via a second genuinely
+  clean rebuild (not just `nx reset`) — green. `docs/releasing.md` gained a new section (with a
+  copy-pasteable clean-rebuild snippet) plus a Troubleshooting row so this can't silently recur. Fix
+  pushed (`c715842`, `af145aa`).
+  **Still remaining, waiting on the user to re-trigger** (the workflow-trigger and GitHub-release steps
+  are both real, public actions Claude Code's own permission classifier won't let an agent take even with
+  explicit chat approval — see `docs/releasing.md`'s note under "Publishing (CI)"): re-run
+  `release-publish.yml` with `dry_run: false`; post-release verification against the *live* registry (not
+  just Verdaccio) once it succeeds; `gh release create` for `v0.2.0` and `v0.2.0-experimental` (notes
+  drafted, ready to use).
 
 ---
 
