@@ -87,25 +87,88 @@ mid-release.
 
 ## Local rehearsal (Verdaccio)
 
-Before publishing to the real npm registry, rehearse against a local registry:
+Before publishing to the real npm registry, rehearse the entire publish against a local one. Do
+this **after** the real `nx release version` for both groups has already run locally (see
+[Versioning](#versioning-local-before-every-real-release) below) — the rehearsal publishes whatever
+version is currently on disk, so it should be exercising the actual version about to go out, not a
+throwaway one.
+
+### 1. Start Verdaccio
 
 ```bash
-# Terminal 1 — start Verdaccio
 npx nx run @mantle/source:local-registry
+```
 
-# Terminal 2 — version + publish against it
-npx nx release version 0.1.0 --groups=stable --first-release
-npx nx release version <stable-version>-experimental --groups=experimental --first-release
+Run this in the background or a separate terminal — it stays up for the rest of the rehearsal.
+**This command also runs `npm config set registry http://localhost:4873/` and the yarn equivalent
+against your *global* npm config**, not just this shell session — every `npm install`/`npm view`
+you run afterward (in this repo or anywhere else on the machine) silently talks to the local
+registry until you undo it. Don't skip the cleanup step at the end.
+
+### 2. Publish both groups to it
+
+```bash
 npx nx release publish --groups=stable --tag=latest --registry=http://localhost:4873 --first-release
 npx nx release publish --groups=experimental --tag=experimental --registry=http://localhost:4873 --first-release
 ```
 
-Then verify: `npm install @mantlejs/mantle --registry http://localhost:4873` in a scratch
-directory, and re-run the CLI smoke test / `todo-minimal` example against the rehearsal registry
-(checklist item 12).
+`--first-release` here only matters for whichever group is genuinely publishing for the first time
+(harmless no-op otherwise, since a not-yet-published version never trips the "does this already
+exist" check regardless of the flag) — pass it for both if either one needs it, there's no per-group
+toggle downstream in CI either (see [Publishing (CI)](#publishing-ci)).
 
-Discard the rehearsal registry's state (`tmp/local-registry/storage`) before the real run — it's
-git-ignored and safe to delete.
+### 3. Verify
+
+Fresh install in an empty scratch directory (not this repo — you want to prove registry resolution,
+not workspace-symlink resolution):
+
+```bash
+mkdir /tmp/verdaccio-check && cd /tmp/verdaccio-check && npm init -y
+npm install @mantlejs/mantle @mantlejs/memory --registry http://localhost:4873
+npm install @mantlejs/audit@experimental @mantlejs/embeddings@experimental --registry http://localhost:4873
+```
+
+Confirm the installed versions are what you expect (`cat node_modules/@mantlejs/mantle/package.json`),
+then prove the installed packages actually work — a real CRUD round-trip, not just "it resolved":
+
+```js
+// smoke.mjs
+import { mantle, RepositoryService } from "@mantlejs/mantle";
+import { MemoryRepository } from "@mantlejs/memory";
+
+class ItemsService extends RepositoryService {}
+const app = mantle();
+app.use("items", new ItemsService(new MemoryRepository()));
+const svc = app.service("items");
+const created = await svc.create({ name: "verdaccio-smoke" });
+const found = await svc.get(created.id);
+if (found.name !== "verdaccio-smoke") throw new Error("CRUD round-trip failed");
+console.log("PASS:", found);
+```
+
+Then re-run `create-mantlejs`'s own e2e smoke test against the rehearsal registry instead of the
+workspace — it already supports this via an env var, no separate script needed:
+
+```bash
+MANTLE_REGISTRY=http://localhost:4873 node packages/create-mantlejs/e2e/scaffold-smoke.mjs
+```
+
+This scaffolds a real app, `npm install`s it from the given registry (instead of linking
+`file:../../packages/*`), builds, tests, boots on an ephemeral port, does a CRUD round-trip over
+HTTP, sends `SIGTERM`, and asserts a clean exit — the same script the `create-mantlejs:e2e-scaffold`
+Nx target runs, just registry-redirected.
+
+### 4. Clean up
+
+```bash
+pkill -f verdaccio          # stop the local registry
+npm config delete registry  # undo the global registry override from step 1
+rm -rf tmp/local-registry/storage  # discard rehearsal state — git-ignored, safe to delete
+```
+
+Confirm `npm config get registry` prints `https://registry.npmjs.org/` again before doing anything
+else — an easy step to forget, and every subsequent `npm install` anywhere on the machine silently
+targets the rehearsal registry until you do.
 
 ---
 
@@ -126,9 +189,24 @@ npx nx release version <specifier> --groups=stable
 ```
 
 Repeat both steps for `experimental` with its own version. `nx release version` writes the new
-version into every project's `package.json` in the group, commits, and tags (`v{version}`) by
-default — it does **not** touch peerDependencies itself (see below), which is why step 1 has to
-happen first, in the same commit. Review the diff, then:
+version into every project's `package.json` in the group and stages the changes with git — it does
+**not** touch peerDependencies itself (see below), which is why step 1 has to happen first, so both
+land together. **It does not commit or tag by default in this workspace** — `nx.json`'s
+`release.version` config has no `git` block, so `--git-commit`/`--git-tag` aren't implied. (Nx's own
+`--help` doesn't show a default for either flag; `docs/releasing.md` used to claim otherwise —
+confirmed wrong live during Phase 6 item 9's real release, where `nx release version` staged the
+changes but left them uncommitted.) Commit and tag it yourself:
+
+```bash
+git commit -m "chore(release): publish <version>"
+git tag -a v<version> -m "v<version>"
+```
+
+Review the diff before committing. **Check the tag doesn't already exist first** (`git tag | grep
+v<version>`) — `releaseTagPattern` is `v{version}`, not group-aware, so two different release groups
+that happen to land on the same version string at different points in the project's history will
+collide (this happened for real in Phase 6 item 9 — see the `experimental` group note in
+[Overview](#overview)). Then:
 
 ```bash
 git push && git push --tags
@@ -142,6 +220,45 @@ range before the package it points at is actually released breaks `npm install`/
 workspace-wide — nothing (not the local workspace link, not the registry, since the package hasn't
 published at that version yet) can satisfy the new range. This happened once already: see the
 [postmortem](#postmortem-premature-peer-range-bump) below.
+
+### `examples/*` dependency ranges
+
+`examples/*` isn't in either release group, but every example's `package.json` still declares
+`@mantlejs/*` dependencies at some range, and `examples/knowledge-base/*` is inside the npm
+workspace (`workspaces` in the root `package.json`) — so these ranges matter too, just on a
+different clock than the peer-range step above. **Bump them only *after* the real `nx release
+version` for the relevant group has landed on disk, never before**, confirmed the hard way in Phase
+6 item 9:
+
+- Bump the examples' ranges *before* the real version lands, and `@nx/dependency-checks` lint fails
+  with "the installed version of X doesn't satisfy the declared range" — the packages in
+  `node_modules` are still the old version, so the now-too-new declared range is genuinely
+  unsatisfied.
+- Run the real `nx release version`'s lockfile-update step (`npm install --package-lock-only`)
+  *before* bumping an example's range for a package that has **never been published to the real
+  registry before** (a brand-new experimental package, e.g. `@mantlejs/embeddings` in this phase),
+  and it hard-fails: the stale range can't be satisfied by the now-newer local workspace package,
+  and npm's fallback — checking the real registry — 404s, because nothing has ever been published
+  there under that name. (For an already-published package like `@mantlejs/mantle`, the same stale
+  range doesn't hard-fail the same way — the real registry genuinely has an old version to fall back
+  to — but it's still wrong to leave it stale, just less loudly wrong.)
+
+So: run `nx release version` for real first, *then* bump every `examples/*/package.json`'s
+`@mantlejs/*` ranges to match, then `npm install` at the repo root to re-settle the lockfile and
+`node_modules` against the new ranges, then re-run `nx run-many -t build,test,lint,typecheck` to
+confirm.
+
+**Stray nested `node_modules` will masquerade as a version problem.** If any `examples/*` directory
+has its own `node_modules/@mantlejs/*` (gitignored, so invisible to `git status` — can happen from
+an earlier standalone `npm install` run directly inside that directory, before or outside the normal
+workspace-wide install), it shadows the hoisted top-level workspace symlink for anything resolving
+from inside that directory. This surfaces as a **very misleading** `@nx/dependency-checks` "package
+is not used" error (not a version-mismatch message) once a version bump makes the stale nested copy
+actually invalid. Check with `npm ls @mantlejs/mantle` from inside the example directory — a real,
+non-symlinked local version (not `-> ./packages/mantle`) means a stray copy exists. Fix: delete the
+nested `node_modules`, `npm install` from the repo root to let it re-hoist, then `npx nx reset` — the
+project graph cache computed while the stray copy existed doesn't self-invalidate just because you
+fixed `node_modules` after the fact.
 
 ---
 
@@ -165,9 +282,68 @@ Two inputs, both default to the safe option:
 **To actually publish:** run `nx release version` locally first (previous section), push the tag,
 then trigger the workflow with `dry_run: false`.
 
+```bash
+gh workflow run "Release publish" --ref main -f dry_run=false -f first_release=true
+```
+
+`first_release` applies to both groups in one run — there's no per-group toggle in the workflow
+(see its `dry_run`/`first_release` inputs above). Pass `true` if *either* group needs it; it's a
+harmless no-op for a group that doesn't (see [Local rehearsal](#local-rehearsal-verdaccio) step 2).
+Turn it off entirely (`first_release=false`) once both groups have had at least one real publish.
+
+**If an AI agent is doing the release work: triggering this workflow with `dry_run: false` is a
+real-world action the agent's own tooling may refuse to take even with your explicit go-ahead in
+chat**, separately from any approval you give it — Claude Code's auto-mode permission classifier
+blocks `gh workflow run` here as "Create Public Surface" regardless of context. This is expected,
+not a bug to route around — trigger it yourself (the command above, or the Actions tab UI) rather
+than asking the agent to find another way in.
+
 Provenance (`NPM_CONFIG_PROVENANCE: true`, `id-token: write` permission) is always requested — it
 only produces a real attestation on GitHub-hosted runners with OIDC, which is what this workflow
 uses.
+
+---
+
+## Post-release verification
+
+Once the workflow completes with `dry_run: false`, confirm the real registry actually has what was
+just published — the workflow succeeding means `npm publish` didn't error, not that the published
+packages actually work for a consumer. From an empty scratch directory (not this repo):
+
+```bash
+mkdir /tmp/release-check && cd /tmp/release-check && npm init -y
+npm install @mantlejs/mantle @mantlejs/memory   # every stable package should resolve this way
+npm install @mantlejs/audit@experimental @mantlejs/embeddings@experimental
+```
+
+Then the same two live checks as the Verdaccio rehearsal (step 3 there), just without
+`--registry`/`MANTLE_REGISTRY` — a real CRUD round-trip against the installed `mantle`+`memory`, and
+`node packages/create-mantlejs/e2e/scaffold-smoke.mjs` run with no env var override (it defaults to
+the real registry). Also worth doing once per release, not just the first: re-point one already-built
+example (e.g. `todo-minimal`) at the registry versions instead of the workspace `file:` links and
+confirm it still boots — catches a class of bug the workspace-linked dev environment can't, since
+`file:` links never go through npm's actual package resolution/packing.
+
+---
+
+## GitHub release notes
+
+`nx release changelog` can't create a GitHub Release for this workspace — it disables workspace-level
+changelog generation (and therefore release creation) outright whenever more than one release group
+is configured, which is exactly this repo's `stable`/`experimental` split (confirmed during Phase 5's
+first real release, item 12). Write release notes by hand and publish via `gh release create`
+directly, once per tag:
+
+```bash
+gh release create v0.2.0 --title "v0.2.0" --notes "..."
+gh release create v0.2.0-experimental --title "v0.2.0-experimental" --notes "..." --prerelease
+```
+
+Mark the `experimental` group's release `--prerelease` — it's a real, intentional npm dist-tag
+distinction (`experimental` vs `latest`), and the GitHub release should carry the same signal.
+`gh release create` is the same category of real-world, public action as triggering the publish
+workflow above — if an agent is doing this work, expect it to ask for the same kind of explicit
+go-ahead rather than running it unprompted.
 
 ---
 
@@ -230,3 +406,8 @@ setting without re-verifying both groups version independently (`nx release vers
 | CI publish step fails with a 401/403                                | `NPM_TOKEN` expired or was revoked                                    | See [Rotating the npm token](#rotating-the-npm-token) |
 | `experimental` packages' version changed when only `stable` was released | `updateDependents` isn't `"never"` — check `nx.json`                 | See [Cross-group version cascading](#cross-group-version-cascading) |
 | npm publish rejects a version as already existing                    | Trying to republish a version already on the registry (safe failure mode — npm never lets you overwrite a published version) | Bump the version and re-run `nx release version` |
+| `git tag v<version>` fails with "already exists"                     | Two different release groups landed on the same version string at different points in history — `releaseTagPattern` isn't group-aware | Pick a version for the newer release that hasn't been used before; see the `experimental` group note in [Overview](#overview) |
+| `nx release version` "succeeds" but nothing was committed/tagged     | This workspace's `nx.json` has no `release.version.git` block, so `--git-commit`/`--git-tag` aren't on by default | Commit and tag it yourself — see [Versioning](#versioning-local-before-every-real-release) |
+| `@nx/dependency-checks` lint fails with "package is not used" on an `examples/*` project, right after a version bump | A stray, un-hoisted `node_modules/@mantlejs/*` inside that example directory is shadowing the workspace symlink | See [`examples/*` dependency ranges](#examples-dependency-ranges) |
+| `nx release version`'s lockfile-update step 404s on a package that was never published before | An `examples/*/package.json` still declares the *old* range for that package, and the old range can't be satisfied locally (already bumped) or from the registry (never published) | Bump that example's range to the new version *after* (not before) the real version bump lands — see [`examples/*` dependency ranges](#examples-dependency-ranges) |
+| An agent's `gh workflow run ... -f dry_run=false` for the publish workflow is refused despite your go-ahead | Claude Code's own auto-mode permission classifier, not the agent declining — "Create Public Surface" actions need you to trigger them directly | Run the command yourself, or use the Actions tab UI — see [Publishing (CI)](#publishing-ci) |
