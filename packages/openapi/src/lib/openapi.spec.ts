@@ -197,6 +197,7 @@ describe("buildOpenApiDocument", () => {
       operators: ["$in", "$or"],
       pagination: "offset",
       fullTextSearch: false,
+      nestedPaths: true,
     };
     const withCaps = buildOpenApiDocument([descriptor({ capabilities })]) as {
       paths: Record<

@@ -81,6 +81,9 @@ function makeEngine(overrides: Partial<AuthEngine> = {}): AuthEngine {
       .mockResolvedValue({ accessToken: "mantle.jwt.token", refreshToken: "mantle.refresh.token" }),
     registerStrategy: vi.fn(),
     authenticate: vi.fn(),
+    issueAgentToken: vi.fn(),
+    revokeAgentToken: vi.fn(),
+    isAgentTokenValid: vi.fn(),
     ...overrides,
   };
 }

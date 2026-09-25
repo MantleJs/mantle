@@ -27,6 +27,9 @@ function makeEngine(overrides: Partial<AuthEngine> = {}): AuthEngine {
       .mockResolvedValue({ accessToken: "mock.jwt.token", refreshToken: "mock.refresh.token" }),
     registerStrategy: vi.fn(),
     authenticate: vi.fn(),
+    issueAgentToken: vi.fn(),
+    revokeAgentToken: vi.fn(),
+    isAgentTokenValid: vi.fn(),
     ...overrides,
   };
 }
