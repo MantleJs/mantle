@@ -260,6 +260,30 @@ nested `node_modules`, `npm install` from the repo root to let it re-hoist, then
 project graph cache computed while the stray copy existed doesn't self-invalidate just because you
 fixed `node_modules` after the fact.
 
+### Local `build`/`typecheck` passing isn't proof CI will
+
+**`npx nx reset` does not clear a package's own `dist/` output or `tsconfig.*.tsbuildinfo`
+incremental-build state — only Nx's own task cache.** Confirmed the hard way in Phase 6 item 9: a
+real CI run (`release-publish.yml`, `dry_run: false`) failed its `build, test, lint, typecheck` step
+with three genuine `tsc` errors — two test files mocking `AuthEngine` that predated an interface it
+grew a phase earlier, one predating a new required field on `RepositoryCapabilities` — that had been
+sitting in committed `main` for multiple prior commits, through several `npx nx reset` + full
+`nx run-many -t build,test,lint,typecheck` passes locally that all reported green. `npm ci` +
+a genuinely fresh git checkout (what CI does) has none of a long-running local session's accumulated
+`dist/`/`.tsbuildinfo` state to lean on; a long local session apparently can, silently.
+
+Before trusting a local green run enough to publish for real, reproduce what CI actually does:
+
+```bash
+find packages -name "*.tsbuildinfo" -delete
+find packages -maxdepth 2 -type d \( -name dist -o -name out-tsc \) -exec rm -rf {} +
+npx nx reset
+npx nx run-many -t build,test,lint,typecheck
+```
+
+If that's still green, a local run is finally as trustworthy as CI's — anything short of it isn't,
+no matter how many times `nx reset` alone was re-run in between.
+
 ---
 
 ## Publishing (CI)
@@ -411,3 +435,4 @@ setting without re-verifying both groups version independently (`nx release vers
 | `@nx/dependency-checks` lint fails with "package is not used" on an `examples/*` project, right after a version bump | A stray, un-hoisted `node_modules/@mantlejs/*` inside that example directory is shadowing the workspace symlink | See [`examples/*` dependency ranges](#examples-dependency-ranges) |
 | `nx release version`'s lockfile-update step 404s on a package that was never published before | An `examples/*/package.json` still declares the *old* range for that package, and the old range can't be satisfied locally (already bumped) or from the registry (never published) | Bump that example's range to the new version *after* (not before) the real version bump lands — see [`examples/*` dependency ranges](#examples-dependency-ranges) |
 | An agent's `gh workflow run ... -f dry_run=false` for the publish workflow is refused despite your go-ahead | Claude Code's own auto-mode permission classifier, not the agent declining — "Create Public Surface" actions need you to trigger them directly | Run the command yourself, or use the Actions tab UI — see [Publishing (CI)](#publishing-ci) |
+| CI's `build, test, lint, typecheck` step fails on `tsc` errors a local run never showed | A long-running local session's leftover `dist/`/`.tsbuildinfo` masked a real, already-committed error — `nx reset` alone doesn't clear those | Reproduce CI's clean-slate build locally before trusting green — see [Local `build`/`typecheck` passing isn't proof CI will](#local-buildtypecheck-passing-isnt-proof-ci-will) |
