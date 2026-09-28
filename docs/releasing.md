@@ -358,6 +358,20 @@ Do this only after the `stable` group's real `nx release version` has landed the
 `packages/create-mantlejs/package.json` and it's been rebuilt (`dist/` matches) — same version the
 rest of `stable` just published at.
 
+**Expect a scary-looking `npm warn publish npm auto-corrected some errors in your package.json ...
+"bin[create-mantlejs]" script name ... was invalid and removed` warning — it's a false alarm, not a
+broken publish.** Confirmed by actually testing it (Phase 6 item 9): `tsc` never sets the executable
+bit on its compiled output (not its job — no TypeScript-authored CLI package's build does this,
+`@mantlejs/cli`'s `mantle` binary included), so every `dist/bin/*.js` in this repo is `644` on disk
+and inside the packed tarball, for `create-mantlejs` and every other package with a `bin` entry
+alike. **`npm install` has always applied `chmod +x` to a package's `bin` files at install/link
+time**, specifically to cover this extremely common mistake across the whole npm ecosystem — verified
+directly: installed `create-mantlejs@0.2.0` fresh into a scratch project, its `node_modules/.bin/
+create-mantlejs` resolved to a `755` file, and running it worked correctly end to end. The `bin` field
+itself also survives in what's actually published (checked by unpacking the real tarball) — the
+warning's wording ("was invalid and removed") oversells what happened. Not worth chasing a "fix" for
+(e.g. adding a `chmod +x` build step) — there's no real problem to fix.
+
 ---
 
 ## Post-release verification
