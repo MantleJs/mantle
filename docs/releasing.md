@@ -326,6 +326,38 @@ Provenance (`NPM_CONFIG_PROVENANCE: true`, `id-token: write` permission) is alwa
 only produces a real attestation on GitHub-hosted runners with OIDC, which is what this workflow
 uses.
 
+### `create-mantlejs` always needs a separate, manual publish
+
+**This isn't a bug to fix — it recurs every single release, expect it every time.**
+`create-mantlejs` is deliberately unscoped (`create-mantlejs`, not `@mantlejs/create-mantlejs` — see
+`CLAUDE.md`'s package table, which already documents it that way). Unscoped packages aren't part of
+any npm organization; ownership is just whichever individual npm account published it first —
+in this case, the maintainer's own personal account, not the `@mantlejs` org. The CI `NPM_TOKEN` is
+a Granular Access Token deliberately scoped to `@mantlejs` packages only (least privilege — see
+[One-time setup](#one-time-setup-already-done)), so it **cannot** publish `create-mantlejs` no
+matter how it's configured; this isn't a permissions mistake to fix on the token. Every real
+`stable`-group publish will show `create-mantlejs:nx-release-publish` fail with `403 Forbidden ...
+You may not perform that action with these credentials` while all 36 other `stable` packages
+succeed — confirmed twice now, Phase 5's first real release and Phase 6 item 9.
+
+**Don't retry the whole `stable` group publish to pick it up** — once the other 36 packages already
+succeeded, `nx`'s dependency-graph-aware publish treats npm's (harmless, expected) "cannot publish
+over a previously published version" rejection on any of them as blocking every downstream package,
+`create-mantlejs` included, which never gets a fresh attempt either way.
+
+**Publish it directly, bypassing `nx` entirely, from the maintainer's own authenticated npm
+session** (not the CI token — it structurally can't do this one):
+
+```bash
+npm whoami   # confirm you're logged in as yourself; 401 means `npm login` first
+cd packages/create-mantlejs
+npm publish --access public
+```
+
+Do this only after the `stable` group's real `nx release version` has landed the target version in
+`packages/create-mantlejs/package.json` and it's been rebuilt (`dist/` matches) — same version the
+rest of `stable` just published at.
+
 ---
 
 ## Post-release verification
@@ -427,7 +459,9 @@ setting without re-verifying both groups version independently (`nx release vers
 | Symptom                                                             | Cause                                                                 | Fix |
 | ---------------------------------------------------------------------- | ------------------------------------------------------------------------ | --- |
 | `nx release version` fails with a `preserveMatchingDependencyRanges` error | A peer range doesn't cover the new version                           | See [Peer dependency ranges](#peer-dependency-ranges) |
-| CI publish step fails with a 401/403                                | `NPM_TOKEN` expired or was revoked                                    | See [Rotating the npm token](#rotating-the-npm-token) |
+| CI publish step fails with a 401/403 on *every* package              | `NPM_TOKEN` expired or was revoked                                    | See [Rotating the npm token](#rotating-the-npm-token) |
+| CI publish step fails with a 403 on `create-mantlejs` specifically, while every `@mantlejs/*` package in the same run succeeds | Expected, not a token problem — `create-mantlejs` is unscoped and outside the `@mantlejs`-scoped token's reach by design | See [`create-mantlejs` always needs a separate, manual publish](#create-mantlejs-always-needs-a-separate-manual-publish) |
+| Local `npm publish`/`npm whoami` for the `create-mantlejs` manual step fails with a 401 | Your local npm CLI session (personal account, separate from the CI's `NPM_TOKEN`) isn't authenticated, or its token is stale | `npm login`, then retry — check `npm config get registry` is the real registry too, in case a prior Verdaccio rehearsal on this machine left it pointed at `localhost` |
 | `experimental` packages' version changed when only `stable` was released | `updateDependents` isn't `"never"` — check `nx.json`                 | See [Cross-group version cascading](#cross-group-version-cascading) |
 | npm publish rejects a version as already existing                    | Trying to republish a version already on the registry (safe failure mode — npm never lets you overwrite a published version) | Bump the version and re-run `nx release version` |
 | `git tag v<version>` fails with "already exists"                     | Two different release groups landed on the same version string at different points in history — `releaseTagPattern` isn't group-aware | Pick a version for the newer release that hasn't been used before; see the `experimental` group note in [Overview](#overview) |

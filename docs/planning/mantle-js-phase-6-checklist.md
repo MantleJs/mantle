@@ -581,12 +581,32 @@ strategy (items 5–8) → release (item 9).
   clean rebuild (not just `nx reset`) — green. `docs/releasing.md` gained a new section (with a
   copy-pasteable clean-rebuild snippet) plus a Troubleshooting row so this can't silently recur. Fix
   pushed (`c715842`, `af145aa`).
-  **Still remaining, waiting on the user to re-trigger** (the workflow-trigger and GitHub-release steps
-  are both real, public actions Claude Code's own permission classifier won't let an agent take even with
-  explicit chat approval — see `docs/releasing.md`'s note under "Publishing (CI)"): re-run
-  `release-publish.yml` with `dry_run: false`; post-release verification against the *live* registry (not
-  just Verdaccio) once it succeeds; `gh release create` for `v0.2.0` and `v0.2.0-experimental` (notes
-  drafted, ready to use).
+  **Update (2026-09-25, second attempt):** user re-triggered `release-publish.yml` — `build, test, lint,
+  typecheck` now green, but both publish steps failed with `404 Not Found - PUT
+  .../@mantlejs%2f<pkg>` on **every** package, stable and experimental alike. Confirmed nothing published
+  (`npm view @mantlejs/mantle` still `0.1.0`). Root cause: an expired `NPM_TOKEN` — npm returns 404 rather
+  than 401/403 when a token lacks scope access, matching the runbook's own "Practical note" that the
+  original token was minted with a short 7-day expiry "for early testing" ahead of Phase 5's release.
+  User rotated the token (new Granular Access Token, `@mantlejs` scope, Read+write (publish and stage),
+  2FA-bypass enabled for this token specifically — org-level permission left at "No access", since
+  publishing doesn't need org-admin capability, only package-scope write).
+  **Update (2026-09-28, third attempt):** re-triggered again — **36 of 37 `stable` packages plus both
+  `experimental` packages published successfully** (confirmed live against the real registry, all
+  versions correct, including through npm's usual post-publish propagation delay). One expected,
+  known failure: `create-mantlejs:nx-release-publish` — `403 Forbidden`. Not a new bug: `create-mantlejs`
+  is deliberately unscoped, so it was never part of the `@mantlejs` org to begin with (owned by the
+  maintainer's personal npm account) — the `@mantlejs`-scoped `NPM_TOKEN` structurally cannot publish it,
+  exactly the same failure Phase 5 item 12 hit and fixed the same way: publish it directly from the
+  maintainer's own authenticated npm session, bypassing `nx`, since retrying the whole `stable` group
+  would just have `nx` treat the other 36 packages' "already published" rejections as blocking a fresh
+  attempt at this one. **`docs/releasing.md` gained a dedicated, permanent section on this** (not just a
+  one-off note) — explicitly framed as "this recurs every release, not a bug to fix" — plus two new
+  Troubleshooting rows disambiguating this 403 from a genuine expired-token 401/403 on every package.
+  **Remaining, waiting on the user**: `npm publish --access public` from `packages/create-mantlejs`
+  (their own npm login, not the CI token) once `npm login` refreshes their local session (a stale local
+  auth token, unrelated to the CI token, was blocking this); post-release verification against the live
+  registry once that lands; `gh release create` for `v0.2.0` and `v0.2.0-experimental` (notes drafted,
+  ready to use).
 
 ---
 
