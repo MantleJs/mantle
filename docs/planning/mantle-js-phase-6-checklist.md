@@ -602,11 +602,29 @@ strategy (items 5–8) → release (item 9).
   attempt at this one. **`docs/releasing.md` gained a dedicated, permanent section on this** (not just a
   one-off note) — explicitly framed as "this recurs every release, not a bug to fix" — plus two new
   Troubleshooting rows disambiguating this 403 from a genuine expired-token 401/403 on every package.
-  **Remaining, waiting on the user**: `npm publish --access public` from `packages/create-mantlejs`
-  (their own npm login, not the CI token) once `npm login` refreshes their local session (a stale local
-  auth token, unrelated to the CI token, was blocking this); post-release verification against the live
-  registry once that lands; `gh release create` for `v0.2.0` and `v0.2.0-experimental` (notes drafted,
-  ready to use).
+  **Update (2026-09-28, complete):** user rotated their local npm session (`npm login`) and published
+  `create-mantlejs@0.2.0` directly (`npm publish --access public` from `packages/create-mantlejs`) — **all
+  40 packages from this phase now live on the real npm registry at their correct tier and version**,
+  confirmed individually (37 `stable` @ `0.2.0`/`latest`, `audit`+`embeddings` @
+  `0.2.0-experimental`/`experimental`, `create-mantlejs` @ `0.2.0`/`latest`). One more false alarm chased
+  down and closed, not left as an open question: `npm publish`'s `"bin[create-mantlejs]" ... was invalid
+  and removed` warning looked like it might have broken the CLI entry point. Verified for real rather than
+  assumed safe — unpacked the actual published tarball (`bin` field intact in `package.json`, despite the
+  warning's wording), confirmed the compiled `dist/bin/*.js` is `644` on disk for *every* bin-having
+  package in the repo (including the already-live `@mantlejs/cli`'s `mantle` binary — `tsc` never sets the
+  executable bit, no TS-authored CLI's build does), then settled it empirically: installed
+  `create-mantlejs@0.2.0` fresh into a scratch project, confirmed `npm install` chmod'd the resolved bin
+  file to `755` (long-standing npm behavior specifically for this near-universal mistake), and ran it —
+  worked correctly end to end. Not a real bug; no build-process change made. Documented in
+  `docs/releasing.md` so it doesn't cause alarm (or a needless "fix") next release.
+  **Full post-release verification against the live registry** (not just Verdaccio): fresh `npm install`
+  of `@mantlejs/mantle`+`@mantlejs/memory` and `@mantlejs/audit@experimental`+`@mantlejs/embeddings@experimental`
+  into an empty scratch project resolves the correct versions; a real `Service<T>` CRUD round-trip against
+  the installed packages passes; `create-mantlejs`'s own `e2e-scaffold` script re-run against the real
+  registry (no override) — scaffold → `npm install` from `registry.npmjs.org` → build → test → boot → CRUD
+  → `SIGTERM` → clean exit, all green.
+  **Still remaining**: `gh release create` for `v0.2.0` and `v0.2.0-experimental` (notes drafted, ready to
+  use) — same category of real, public action the permission classifier defers to the user for.
 
 ---
 
