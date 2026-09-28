@@ -484,7 +484,7 @@ strategy (items 5–8) → release (item 9).
 
 ## Stage 3 — Release
 
-- [ ] **9. Version and publish**
+- [x] **9. Version and publish**
   Finalize tier placement: `@mantlejs/audit` and `@mantlejs/embeddings` (if built) default to
   `0.1.0-experimental` per the standing rule (PRD Decision #3) unless this stage's review finds a specific
   reason to except one, using the same process Phase 5 used for `openapi`. `@mantlejs/auth-twitter` joins
@@ -623,8 +623,10 @@ strategy (items 5–8) → release (item 9).
   the installed packages passes; `create-mantlejs`'s own `e2e-scaffold` script re-run against the real
   registry (no override) — scaffold → `npm install` from `registry.npmjs.org` → build → test → boot → CRUD
   → `SIGTERM` → clean exit, all green.
-  **Still remaining**: `gh release create` for `v0.2.0` and `v0.2.0-experimental` (notes drafted, ready to
-  use) — same category of real, public action the permission classifier defers to the user for.
+  **Done (2026-09-28):** GitHub releases published by the user —
+  [`v0.2.0`](https://github.com/MantleJs/mantle/releases/tag/v0.2.0) (not a prerelease) and
+  [`v0.2.0-experimental`](https://github.com/MantleJs/mantle/releases/tag/v0.2.0-experimental) (marked
+  prerelease), both confirmed live via `gh release view`. **Phase 6 complete — all 9 checklist items done.**
 
 ---
 
