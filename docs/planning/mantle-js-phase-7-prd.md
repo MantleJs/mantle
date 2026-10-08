@@ -1,0 +1,578 @@
+# Mantle JS — Phase 7 PRD: Agent Code Mode, UI Registry, Website
+
+**Status:** Draft
+**Date:** 2026-10-06
+
+---
+
+## Contents
+
+1. [Overview](#overview)
+2. [Goals & Non-Goals](#goals--non-goals)
+3. [Delivery Sequence](#delivery-sequence)
+4. [Phase 7 Specifications](#phase-7-specifications)
+5. [Release Plan](#release-plan)
+6. [Package Structure Additions](#package-structure-additions)
+7. [Success Metrics](#success-metrics)
+8. [Architectural & Design Decisions](#architectural--design-decisions)
+
+---
+
+## Overview
+
+Phase 6 hardened the released surface and added the three agent-native/audit-first primitives
+(`AgentPrincipal` + `authorizeAgent()`, `@mantlejs/audit`, `@mantlejs/embeddings`). With that foundation in
+place, Phase 7 turns outward. It has three themes:
+
+1. **MCP code mode** (`@mantlejs/mcp-code`). This is new and not from the backlog. Today `@mantlejs/mcp` gives an
+   agent one tool per exposed service method. That works, but every tool definition sits in the model's context
+   on every turn, and every intermediate result goes back through the model before the next call. Code mode
+   gives the agent a **typed TypeScript API** for the exposed services instead. The agent writes a short script
+   against it, and the script runs in a **sandbox**: many service calls in one round trip, filtering and joining
+   done in code, and only the final result goes back to the model. Each call inside the script still runs
+   through the service's full hook pipeline (`authenticate`, `authorizeAgent`, validation, audit), so the
+   no-bypass guarantee `@mantlejs/mcp` already makes still holds. This is the agent-native positioning taken one
+   step further: the expose map, capability scopes, and audit trail are what make letting an agent write code
+   against your API reasonable.
+2. **Mantle UI registry** ([backlog item 4](./mantle-js-phase-7-backlog.md#4-mantle-ui-library-supabase-ui-style)).
+   Prebuilt, copy-pasteable React blocks wired to Mantle: auth forms, OAuth buttons, upload dropzones, realtime
+   lists and tables, and pagination. They're distributed as a **shadcn registry** and built on **React Aria**,
+   which is now a first-class component base in shadcn/ui. React Aria brings accessible behavior (keyboard,
+   focus, ARIA, internationalized interactions), which hand-rolled components rarely get right.
+3. **Mantle website** ([backlog item 3](./mantle-js-phase-7-backlog.md#3-mantle-website)). A docs and marketing
+   site built with **Astro Starlight**. It also hosts the UI registry and publishes `llms.txt` for agents that
+   read the docs directly.
+
+The remaining backlog items (`KnexTimeSeriesRepository`, `@mantlejs/arangodb`, and the Phase 4 non-goal
+grab-bag) move to the [Phase 8 backlog](./mantle-js-phase-8-backlog.md).
+
+---
+
+## Goals & Non-Goals
+
+### Goals
+
+- Ship `@mantlejs/mcp-code`. It exposes a typed TypeScript API for every exposed service method, plus two tools:
+  `search_api`, which loads the API piece by piece, and `execute`, which runs a script in a sandbox. Every inner
+  call goes through `service.dispatch()` with the session's identity.
+- Add a small, additive extension point to `@mantlejs/mcp` (`mode` + `codeMode` provider) so code mode can be
+  plugged in without `@mantlejs/mcp` taking on any sandbox dependency. Existing deployments see zero behavior
+  change.
+- Default sandbox: QuickJS compiled to WASM (`quickjs-emscripten`). No native build, it runs anywhere Node runs
+  (including Cloud Run and serverless), and it enforces memory, time, call-count, and output limits. It sits
+  behind a pluggable `CodeExecutor` interface.
+- Prove that code mode and tool mode can't diverge. Both are generated from the same `describe()` metadata, and
+  both get identical accept/reject decisions from the same hook chain.
+- Ship a shadcn registry of Mantle UI blocks built on React Aria Components + Tailwind v4 + `@mantlejs/react`:
+  - auth (local forms + 8 OAuth providers)
+  - storage (dropzone)
+  - data (realtime list/table, `Paginated<T>` pagination, sort, search)
+- Assert accessibility per block with automated axe checks, rather than assuming it from the React Aria base.
+- Move `examples/knowledge-base/web` off its hand-rolled `components/ui/*` and onto the registry, making it the
+  registry's first real consumer.
+- Ship the Mantle website on Astro Starlight:
+  - authored guides
+  - package READMEs pulled in at build time
+  - a generated API reference
+  - the hosted registry
+  - live block demos
+  - `llms.txt`
+- Publish via the existing `nx release` pipeline and deploy the website.
+
+### Non-Goals (Phase 7)
+
+Moved to the [Phase 8 backlog](./mantle-js-phase-8-backlog.md):
+
+- `KnexTimeSeriesRepository`
+- `@mantlejs/arangodb`
+- GraphQL transport, rate limiting plugin, multi-tenancy primitives, Vue/Svelte/Solid/Angular bindings,
+  Neptune/Cosmos adapters
+
+Explicitly out of scope for this phase's own features:
+
+- **A Radix (or Base UI) variant of the UI blocks.** React Aria only. One base keeps the test matrix and the docs
+  single-track.
+- **An npm-published `@mantlejs/ui` package.** Blocks are copy-in source (see
+  [Decisions](#architectural--design-decisions) #2).
+- **Persistent or stateful sandbox sessions.** Each `execute` call gets a fresh context. No variables, modules, or
+  handles carry over between calls.
+- **Network, filesystem, or timer access from inside the sandbox.** The only I/O is the bridged `mantle.*` API.
+- **Arbitrary npm imports inside agent scripts.** The script runs against `mantle.*` and the language built-ins
+  only.
+- **A `--ui` or `--mcp-code` scaffold option in `create-mantlejs`.** Revisit once both have shipped and settled.
+- **Studio/dashboard UI, multi-tenant control plane.** These stay outside the monorepo, per the
+  [Phase 6 PRD](./mantle-js-phase-6-prd.md#non-goals-phase-6).
+
+---
+
+## Delivery Sequence
+
+Phase 7 runs in four stages:
+
+1. **Verify & foundations.** Two spikes run before any build work:
+   - shadcn's React Aria base and registry mechanics
+   - QuickJS's async host bridge and limit enforcement
+
+   Then the `@mantlejs/mcp` extension point. Both spikes follow Phase 6 spec 12's precedent: verify the external
+   mechanics first, record the findings in [Decisions](#architectural--design-decisions), then build. Both
+   technologies are moving fast, and the PRD's assumptions about them should be confirmed rather than trusted.
+
+2. **Build.** `@mantlejs/mcp-code` and the UI registry are independent of each other and can run in parallel.
+   Each ends with its `examples/knowledge-base` integration.
+3. **Website.** Sequenced after Stage 2 because it hosts the registry, demos the blocks, and documents code mode.
+   Scaffolding and the content pipeline can start earlier, in parallel, if convenient.
+4. **Release.** Version and publish the packages, then deploy the site.
+
+---
+
+## Phase 7 Specifications
+
+### Part A — MCP code mode
+
+#### 1. `@mantlejs/mcp` extension point
+
+An additive change to a stable package. It adds two new `McpOptions` fields (`packages/mcp/src/lib/types.ts`):
+
+- `mode?: "tools" | "code" | "both"`
+  - `"tools"`: today's behavior, one tool per exposed method.
+  - `"code"`: only the code-mode provider's tools and resources.
+  - `"both"`: the union of the two.
+
+  The default is `"code"` when a `codeMode` provider is configured, and `"tools"` otherwise. Existing
+  deployments without a provider are unaffected.
+
+- `codeMode?: McpCodeModeProvider` — an interface **defined in `@mantlejs/mcp`** and implemented by
+  `@mantlejs/mcp-code`. The dependency points from `mcp-code` to `mcp`, never the reverse. This is the same
+  pattern as `@mantlejs/auth-oauth`'s interfaces being implemented by the per-provider packages.
+
+At server build time (`listen()`/`startMcp()`), the provider receives:
+
+- the **resolved** expose map, after the existing `"*"`/`true` expansion and unknown-path validation
+- the `ServiceHandle.describe()` output for each exposed service
+- the effective `McpQueryOptions` (find-limit clamp)
+
+It returns `McpToolDefinition[]` and `McpResourceDefinition[]`, the same shapes app-authored `tools`/`resources`
+already use. Collision rules carry over unchanged: a provider tool name that collides with a generated or custom
+tool fails the boot with a `BadRequest`.
+
+`mode: "code" | "both"` without a provider fails the boot with a `BadRequest`, the same fail-loud style as an
+unknown expose-map path.
+
+To keep tool mode and code mode from drifting, the schema-building helpers in `packages/mcp/src/lib/tools.ts` and
+`query-schema.ts` (input schemas per method, the operator-constrained `where` schema, destructive-operation notes)
+are exported for providers to reuse rather than duplicated. The same principle as
+[Phase 6 Decision #4](./mantle-js-phase-6-prd.md#architectural--design-decisions): one implementation for
+adjacent concerns.
+
+**Accept:**
+
+- Every existing `@mantlejs/mcp` spec stays green, unmodified.
+- New specs cover:
+  - each `mode` value
+  - the default resolution with and without a provider
+  - provider/tool-name collision → `BadRequest`
+  - `mode: "code"` without a provider → `BadRequest`
+  - the provider receives the resolved expose map, never `"*"`
+- The README gains a "Code mode" section that points to `@mantlejs/mcp-code`.
+
+#### 2. Typed API generation (`@mantlejs/mcp-code`)
+
+Generates a TypeScript declaration module from the same inputs the per-method tools use:
+
+```typescript
+/** Mantle API — every call runs the service's full hook pipeline as the current session. */
+declare const mantle: {
+  articles: {
+    /** Returns at most 100 records (default 25). Page with `skip`/`limit`; trim fields with `select`. */
+    find(query?: ArticlesQuery): Promise<Article[] | Paginated<Article>>;
+    get(id: Id): Promise<Article>;
+    create(data: ArticleCreate): Promise<Article>;
+    /** Destructive: permanently deletes the record. */
+    remove(id: Id): Promise<Article>;
+    publish(data: { articleId: string }): Promise<Article>; // custom method
+  };
+};
+```
+
+- **Entity, create, and patch types** come from each service's attached TypeBox/JSON schema. Services without a
+  schema get `Record<string, unknown>`, matching tool mode's generic-object fallback.
+- **The `where` type** is narrowed to the adapter's `describe().capabilities.operators`. An agent writing code
+  against an adapter without `$ilike` doesn't see `$ilike` in the types, just as it isn't offered in tool mode's
+  JSON schema.
+- **Only exposed methods appear**, with custom methods included. A path with an awkward identifier (`blog-posts`,
+  nested paths) gets a stable, documented mapping (e.g. `mantle["blog-posts"]` or a camel-cased alias, decided in
+  checklist item 4), which also appears in the declarations.
+- **Agent narrowing:** when the session carries an `AgentPrincipal` (`HookContext.agent`/session params), the
+  declarations shown to that session are filtered by `matchesCapabilityScope`
+  (`packages/mantle/src/lib/capability-scope.ts`). This affects only what the agent sees. Enforcement stays in
+  the hook pipeline: `authorizeAgent()` still runs on every inner call, so a script that guesses at a hidden
+  method still gets a `Forbidden`.
+- **Size discipline:** the generator emits a short header (the `mantle` object, the shared `Id`/`Paginated`/query
+  types) and one block per service, so `search_api` can return a subset.
+
+**Accept:**
+
+- Snapshot specs of the generated declarations for a fixture app (schema/no schema, custom method,
+  operator-narrowed `where`, awkward path name).
+- A spec compiles the generated output with the TypeScript compiler API, with zero diagnostics.
+- Agent-scope narrowing spec: the declarations for an agent session omit out-of-scope methods.
+- A drift spec: for every exposed method, the code-mode parameter type and the tool-mode JSON input schema come
+  from the same exported helper.
+
+#### 3. Tools — `search_api` and `execute`
+
+With `mode: "code"`, the agent sees exactly two tools plus one resource:
+
+| Surface                           | Shape                                                      | Purpose                                                                                                                                                                                   |
+| --------------------------------- | ---------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `search_api` tool                 | `{ query?: string; paths?: string[] }` → declaration text  | Load only the relevant part of the API. A keyword match over service paths, method names, and doc comments. With no arguments it returns the header plus a one-line index of the services |
+| `execute` tool                    | `{ code: string }` → `{ result, logs, calls, truncated? }` | Runs the script. `result` is the script's return value (JSON-serialized), `logs` is the captured `console.*` output, and `calls` is a count/summary of bridged service calls              |
+| `mantle://code/api.d.ts` resource | full declaration module                                    | For clients that load resources as context up front                                                                                                                                       |
+
+- **The script contract:** the body of an async function. `return` sends back the result and top-level `await`
+  works. The tool description includes a short worked example.
+- **Errors inside the script.** A rejected bridged call raises an `Error` inside the sandbox whose properties
+  carry `MantleError.toJSON()` (`name`, `message`, `code`, `data`, `hint`). The script can catch it and branch on
+  `e.name === "Forbidden"`. An uncaught error, a timeout, or a limit breach becomes an MCP **tool error** with the
+  same `toJSON()` shape tool mode already returns. Limit breaches use a typed `MantleError` subclass, never a
+  plain `Error`.
+- **Output limits:** `result` and `logs` are capped by byte size. Truncation comes with a note telling the agent
+  to return less, aggregate in-script, or page, in the same style as tool mode's find-limit clamp note.
+
+**Accept:**
+
+- Specs for:
+  - the `search_api` keyword and path filters
+  - the no-argument index
+  - an `execute` happy path (multi-call script, aggregation, return value)
+  - log capture
+  - a caught `MantleError` inside the script
+  - an uncaught error → tool error shape
+  - truncation with the note
+- A spec showing that `mode: "code"` lists only these two tools in `tools/list`.
+
+#### 4. Sandbox executor
+
+```typescript
+interface CodeExecutor {
+  execute(code: string, bridge: CodeBridge, limits: CodeLimits): Promise<CodeExecutionResult>;
+}
+```
+
+- **Default `quickJsExecutor()`** uses `quickjs-emscripten`'s **asyncify** build, so a host-side `async`
+  `dispatch()` can be awaited from inside the guest. The spike (checklist item 2) confirms the exact
+  `quickjs-emscripten` API for async host functions, how the interrupt handler and memory limit are configured,
+  and the per-execution cold-start cost. A fresh runtime/context per call is the baseline. Reusing the compiled
+  WASM module across calls is fine, but reusing a JS context is not.
+- **The bridge:** `mantle.<path>.<method>(…)` maps to
+  `app.service(path).dispatch(method, data, id, params)`:
+  - `params` is the MCP session's `params`, with `provider: "mcp"`, the resolved `user`, the `agent` where
+    present, and the `authorization` header passed through, exactly as tool mode builds them.
+  - `params.mcp = { mode: "code", executionId }`.
+  - Values cross the boundary as JSON. No host object references enter the guest.
+  - Find-limit clamping applies to bridged `find` calls exactly as in tool mode.
+- **Hidden methods are unreachable.** The bridge only contains the methods that were exposed **and** not
+  filtered out by agent narrowing. Calling anything else fails as an ordinary missing property inside the sandbox.
+  It never falls through to `app.service()`.
+- **Limits** (`CodeLimits`, each configurable with a conservative default recorded in Decisions after the spike):
+  - wall-clock timeout, enforced by the interrupt handler and a host-side deadline
+  - guest memory limit
+  - max stack size
+  - max bridged calls per execution
+  - max result/log bytes
+- **No ambient capabilities:**
+  - no `fetch`, `XMLHttpRequest`, `WebSocket`
+  - no `require`/`import`, `process`, filesystem
+  - no `setTimeout`/`setInterval`
+  - `Date`/`Math.random` stay at their QuickJS defaults
+- **TypeScript input:** agents often write TS when shown a `.d.ts`. The spike chooses between:
+  - accepting JS only and saying so in the tool description
+  - stripping types host-side before execution (Node 22's `module.stripTypeScriptTypes`, or a small bundled
+    stripper)
+
+  Type _checking_ agent code is out of scope. Errors surface at runtime as normal.
+
+- **Pluggable:** `codeMode({ executor })` accepts any `CodeExecutor`, for example an `isolated-vm`- or
+  Worker-backed executor someone writes later. The bridge and limit semantics are part of the interface contract,
+  and there's a shared conformance spec suite (exported, like `NESTED_QUERY_CASES`) that any executor can run.
+
+**Accept:**
+
+- Executor conformance suite, run against `quickJsExecutor`:
+  - bridge round-trip
+  - JSON-only values
+  - async calls in sequence and in parallel (`Promise.all`)
+  - fresh context per execution (a global set in one call is absent in the next)
+- Escape specs: `process`, `require`, `fetch`, `globalThis` host leakage, and `Function`-constructor tricks reach
+  no host capability.
+- Limit specs: `while(true){}` is killed by the deadline, a memory bomb is killed, a call-cap breach and an
+  oversized result each fail with a typed error, and the host process survives every one of these.
+
+#### 5. Security, equivalence, agent scope, audit
+
+These carry the no-bypass guarantee over to code mode:
+
+- **Hook-pipeline equivalence.** Extend `packages/mcp/src/lib/hook-pipeline-equivalence.spec.ts`'s pattern
+  (one service, real `authenticate("jwt")` + an authorization hook; no credentials, wrong role, right role) to
+  three channels: HTTP, MCP tool mode, and MCP code mode. All three get identical accept/reject decisions.
+  `HookContext.provider` is `"mcp"` for both MCP channels, and code mode additionally carries `params.mcp.mode`.
+- **Agent scopes.** With an `AgentPrincipal` session:
+  - an in-scope call inside a script succeeds
+  - an out-of-scope call (forced by hand-constructing the call against a method that _is_ exposed but not
+    in-scope) throws a catchable `Forbidden` whose shape matches `authorizeAgent()`'s denial
+  - narrowing (spec 2) hides the method from the declarations
+- **Audit.** With `@mantlejs/audit` attached, a script making N service calls produces exactly N audit records,
+  all carrying the same `executionId`. "What did this script do" is one `find()` on the audit sink. Whether the
+  script source itself is also recorded is decided in checklist item 6. It's useful for forensics, but scripts can
+  embed data. The recommended default is a hash plus an opt-in full-source option.
+
+**Accept:** the three spec groups above are green.
+
+#### 6. Example and docs
+
+- `examples/knowledge-base/api` gains a code-mode MCP entry point next to (not replacing) its existing MCP setup,
+  plus a README walkthrough. One example task, "find the 5 most-recently updated articles tagged X and summarize
+  their titles", takes one `execute` call instead of several tool round trips.
+- The `@mantlejs/mcp-code` README covers:
+  - quick start
+  - the `mode` table
+  - script contract
+  - limits and their defaults
+  - the security model: what the sandbox can and can't do, and why the hook pipeline is still the authority
+  - writing a custom `CodeExecutor` + running the conformance suite
+  - when to prefer tool mode (small APIs, clients that can't write code well)
+
+**Accept:** the example boots and the walkthrough's script runs end to end. The README quick start is
+copy-paste-correct (verified the same way Phase 6 verified the adapter READMEs during promotion).
+
+### Part B — Mantle UI registry
+
+#### 7. shadcn React Aria base + registry mechanics — spike
+
+Before building any blocks, verify against current shadcn docs and CLI and record the findings in
+[Decisions](#architectural--design-decisions):
+
+- How the React Aria base is selected (`shadcn init` flag, `components.json` field, or style name), and which
+  primitives it provides as registry dependencies (button, text field, dialog, table, …), so blocks can declare
+  them via `registryDependencies` instead of vendoring their own.
+- The current registry item schema (`registry.json`, `registry-item.json`), the `shadcn build` output format, and
+  how a namespaced registry (`@mantle/…`) is declared in a consumer's `components.json`.
+- Tailwind v4 + CSS-variable theming expectations for the React Aria base, so blocks inherit the consumer's theme.
+- Where the registry project lives (`registry/` at the root vs. `packages/ui-registry`) and its Nx tags.
+
+**Accept:** findings are recorded as a Decisions row, and any PRD assumption the findings contradict is amended
+in this document before item 8 starts.
+
+#### 8. Registry project + build pipeline
+
+- An **unpublished** Nx project holding block sources, `registry.json`, and a `build-registry` target that runs
+  `shadcn build` and emits `r/*.json`.
+- Boundary tag: may depend on `@mantlejs/client` and `@mantlejs/react` only (the same row as `@mantlejs/react`),
+  plus peer `react`, `react-aria-components`, `@tanstack/react-query`.
+- A **registry install smoke test**, modeled on `packages/create-mantlejs/e2e/scaffold-smoke.mjs`:
+  1. Create a fresh Vite + React + Tailwind v4 app.
+  2. `shadcn init` with the React Aria base.
+  3. `shadcn add` every block from the locally built registry (served from a local static server).
+  4. Type-check and build.
+
+  It's wired into CI next to the existing `e2e-scaffold` job.
+
+**Accept:** `build-registry` emits valid JSON for every block, and the smoke test passes locally and in CI.
+
+#### 9. Auth blocks
+
+- `login-form`: email/password against `@mantlejs/auth-local`, plus typed error display (`NotAuthenticated`,
+  `BadRequest` field errors).
+- `signup-form`
+- `oauth-buttons`: all 8 providers (Google, GitHub, Facebook, Apple, Microsoft, LinkedIn, X). Each button links
+  to the provider's `@mantlejs/auth-oauth` redirect route and follows provider brand guidelines for label and
+  iconography.
+- `auth-provider` + a `useAuth()` hook built on `@mantlejs/client`'s auth calls (current user, logout, token
+  refresh behavior documented).
+
+Built from React Aria `Form`, `TextField`, `Button`, and field-level validation, so errors are announced to
+assistive tech.
+
+**Accept:**
+
+- Vitest + Testing Library specs per block against a mocked client: happy path, typed error rendering, and
+  keyboard-only operation.
+- axe checks (`vitest-axe` or equivalent) with zero violations per block in each rendered state.
+
+#### 10. Storage and data blocks
+
+| Block             | React Aria basis              | Mantle wiring                                                                                                                                  |
+| ----------------- | ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `upload-dropzone` | `DropZone` + `FileTrigger`    | `@mantlejs/storage` upload endpoint; progress, size/type limits, typed error display                                                           |
+| `realtime-list`   | `GridList`                    | `@mantlejs/react` live query; created/patched/removed events update in place                                                                   |
+| `data-table`      | `Table` (+ sortable `Column`) | `find` with `QueryParams.sort` driven by column sort descriptors; `select` from visible columns                                                |
+| `pagination`      | `Button` group / `Link`s      | Reads `Paginated<T>` (`total`/`limit`/`skip`) and drives `skip`                                                                                |
+| `search-combobox` | `ComboBox`                    | Debounced `find`; uses `$ilike` when the service's capabilities advertise it, `$like` otherwise (the capability matrix in `CLAUDE.md` decides) |
+
+**Accept:** the same spec and axe bar as item 9, plus a realtime-list spec proving that an emitted event updates
+the rendered list without a refetch, and a data-table spec proving that a sort interaction produces the expected
+`QueryParams.sort`.
+
+#### 11. Retrofit `examples/knowledge-base/web`
+
+Replace the hand-rolled `src/components/ui/{button,card,input,textarea}.tsx` with registry installs (React Aria
+base primitives), and replace any hand-rolled auth/upload/list UI with the matching Mantle blocks. This is the
+real-consumer check the backlog item asked for.
+
+**Accept:** the example builds and behaves the same as before (same flows, no regressions). The README describes
+how the UI was installed (`shadcn add …` commands) so the example doubles as registry documentation.
+
+### Part C — Website
+
+#### 12. Starlight site + content pipeline
+
+- An **unpublished** app at `website/`, exempt from the package boundary rules the same way `examples/*` is, and
+  never depended on.
+- **Authored guides:**
+  - getting started
+  - architecture (the layer model, "why Mantle vs FeathersJS")
+  - adapters and the capability matrix
+  - auth
+  - agents (MCP tool mode vs code mode, agent identity, audit)
+  - storage
+  - realtime
+  - deployment (Cloud Run)
+- **Package READMEs pulled in at build time** via an Astro content loader. The READMEs stay the source of truth
+  and nothing is copied by hand, so documentation can't drift between npm and the site.
+- **API reference** generated from the emitted `.d.ts` (TypeDoc via a Starlight integration, with the exact
+  plugin picked in the item).
+- **`llms.txt` / `llms-full.txt`**, generated from the same content, for agents reading Mantle's docs.
+- **Doc-versioning policy:** "docs track `latest`" is the expected default at `0.x`. The policy is recorded in
+  Decisions.
+
+**Accept:**
+
+- The site builds in CI.
+- An internal link check passes.
+- Every published `@mantlejs/*` package has a reference page.
+- `llms.txt` is generated.
+- Editing a package README and rebuilding changes the site. Ingestion is proven live, not as a one-time copy.
+
+#### 13. Registry hosting, live demos, deploy
+
+- Serve the registry's `r/*.json` from the site, at `/r/`.
+- Live block demos as React islands against a **mocked client transport**, so there's no live backend dependency
+  and nothing to secure or keep running.
+- Decide the domain (`mantlejs.com` vs `mantlejs.org`; the backlog and the Phase 6 PRD disagree) and the hosting
+  target (a static host vs Cloud Run serving static files). Record both in Decisions.
+- CI deploys on release (and optionally on `main` for docs-only changes, also decided here).
+
+**Accept:**
+
+- The deployed site is reachable.
+- `npx shadcn add https://<domain>/r/login-form.json` works against the deployed URL in a fresh app.
+- Every block page renders a working demo.
+
+### Part D — Release
+
+#### 14. Release + post-release verification
+
+See [Release Plan](#release-plan).
+
+**Accept:**
+
+- All Phase 7 packages are live on npm at their tier's version.
+- The site is deployed and the registry is reachable.
+- `CLAUDE.md` (monorepo tree, dependency matrix) and the root README packages table are updated.
+- The post-release verification pass matches the depth of Phase 6 item 9's: install each new or changed package
+  from npm in a clean project and run its README quick start.
+
+---
+
+## Release Plan
+
+Builds on the pipeline Phase 5 built and Phase 6 exercised. No new tooling is expected.
+
+- **`@mantlejs/mcp-code` joins the existing `experimental` fixed group** in `nx.json`, alongside `audit` and
+  `embeddings`. Per Phase 6 Decision #3 (as amended), a new package doesn't go straight to stable, and its first
+  version follows the group's current-cycle version (`{stable version}-experimental`), never a hardcoded literal.
+- **`@mantlejs/mcp` takes a stable minor bump** for the extension point (additive). `@mantlejs/mcp-code` peers on
+  that minimum `@mantlejs/mcp` version. Check that `tools/bump-peer-ranges.mjs` covers a peer range that crosses
+  groups (experimental → stable).
+- **Tier-list review for `audit` and `embeddings`:** Phase 7's release is the first chance to promote them. Apply
+  the same per-package bar as Phase 6's Adapter Promotion Plan. A package that doesn't clear it stays
+  experimental.
+- **The registry and the website aren't on npm.** They're versioned by deploy. The registry's block code pins the
+  `@mantlejs/client`/`@mantlejs/react` ranges it was tested against in each item's `dependencies`.
+- **`examples/*` exact-pin audit** before `nx release version`, the same proactive check as in Phase 6.
+- **CI:** a new job for the registry install smoke test, and a site build + deploy job. Node 22 stays.
+
+---
+
+## Package Structure Additions
+
+```text
+mantle/
+├── packages/
+│   ├── [all Phase 1–6 packages]
+│   └── mcp-code/         @mantlejs/mcp-code    [NEW P7 — experimental]
+├── registry/             Mantle UI shadcn registry (unpublished; location confirmed by spec 7)
+├── website/              Astro Starlight site (unpublished, deploy-only)
+└── examples/             [unchanged set; knowledge-base gains code mode + registry UI]
+```
+
+### Updated Package Dependency Rules (Phase 7 additions)
+
+| Package                  | May depend on                                                                                            |
+| ------------------------ | -------------------------------------------------------------------------------------------------------- |
+| `@mantlejs/mcp-code`     | `@mantlejs/mantle`, `@mantlejs/mcp` (+ `quickjs-emscripten`)                                             |
+| `registry` (unpublished) | `@mantlejs/client`, `@mantlejs/react` (peers: `react`, `react-aria-components`, `@tanstack/react-query`) |
+| `website` (unpublished)  | anything (app, exempt like `examples/*`, never depended on)                                              |
+
+The only change to an existing package is `@mantlejs/mcp`'s new _exported_ types and helpers. Its allowed
+dependencies don't change.
+
+---
+
+## Success Metrics
+
+- An agent connected in code mode completes a multi-step task over the knowledge-base example (filter, join
+  across two services, aggregate) in **one `execute` call**, where tool mode needs several round trips. The tool
+  definitions in context shrink from one-per-method to two.
+- HTTP, MCP tool mode, and MCP code mode get **identical** accept/reject decisions from the same hook chain. Zero
+  bypass paths, proven by spec.
+- Every bridged call from a script produces exactly one audit record, correlated by `executionId`.
+- No sandbox escape or limit breach crashes or hangs the host process in the conformance suite.
+- Every UI block installs from the hosted registry into a fresh app, builds, and passes axe with zero
+  violations.
+- `examples/knowledge-base/web` contains no hand-rolled UI primitives.
+- The website is live, covers every published package, serves the registry and `llms.txt`, and re-renders a
+  README change on rebuild.
+- `npx nx run-many -t build,test,lint,typecheck` is green across the workspace, including `mcp-code`, `registry`,
+  and `website`.
+
+---
+
+## Architectural & Design Decisions
+
+| #   | Decision                                                                                                                                                                                                                                | Rationale                                                                                                                                                                                                                                                                                                                                       |
+| --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Phase 7 scope is code mode + UI registry + website only. Time-series, ArangoDB, and the Phase 4 non-goal grab-bag move to a Phase 8 backlog                                                                                             | The three chosen themes reinforce each other: the site hosts the registry and documents code mode, and code mode extends the agent-native position Phase 6 established. The deferred items are new adapter surface with no current demand signal                                                                                                |
+| 2   | The UI is a **shadcn registry** (copy-in source), not an npm `@mantlejs/ui` package                                                                                                                                                     | This is the model shadcn and Supabase UI use. Consumers own and customize the code, there's no versioned component API to maintain as a semver contract, and it matches how `examples/knowledge-base/web` already builds UI                                                                                                                     |
+| 3   | The UI blocks use **React Aria** as their only base                                                                                                                                                                                     | React Aria is now a first-class shadcn base. It brings tested keyboard, focus, ARIA, and i18n behavior, and a `DropZone`/`FileTrigger`/`ComboBox`/`Table` set that maps directly onto Mantle's storage and data blocks. One base keeps tests and docs single-track                                                                              |
+| 4   | Code mode is a **separate package**, `@mantlejs/mcp-code`, plugged into `@mantlejs/mcp` through an interface `@mantlejs/mcp` defines                                                                                                    | Keeps the sandbox dependency (WASM, ~MBs) out of every MCP deployment. The dependency points `mcp-code → mcp`, the same shape as `auth-oauth` → per-provider packages. `@mantlejs/mcp` stays stable while `mcp-code` matures in the experimental tier                                                                                           |
+| 5   | Default sandbox is **QuickJS/WASM** (`quickjs-emscripten`) behind a pluggable `CodeExecutor`                                                                                                                                            | No native build or ABI coupling, so it runs on Cloud Run/serverless. It has real isolation, since the guest has no host objects. It enforces memory, time, and interrupt limits. Raw speed doesn't matter much because scripts mostly wait on bridged I/O. `isolated-vm`/Worker executors can be added later against the same conformance suite |
+| 6   | `mode` defaults to `"code"` when a provider is configured, and `"tools"` otherwise                                                                                                                                                      | Shrinking context is the point of code mode, and `"both"` gives most of that back. Configuring a provider is an explicit opt-in, so existing deployments are unaffected                                                                                                                                                                         |
+| 7   | Code-mode declarations and tool-mode schemas come from **the same exported helpers** in `@mantlejs/mcp`                                                                                                                                 | The two surfaces can't drift. Same principle as Phase 6 Decision #4                                                                                                                                                                                                                                                                             |
+| 8   | Agent narrowing of the declarations is for display only. Enforcement stays in `authorizeAgent()` and the hook pipeline                                                                                                                  | One enforcement point. Narrowing only spends fewer tokens and keeps the agent from guessing                                                                                                                                                                                                                                                     |
+| 9   | Each `execute` gets a fresh sandbox context, with JSON-only values crossing the bridge                                                                                                                                                  | No state carries between calls and no host references reach the guest. Each execution is independently auditable                                                                                                                                                                                                                                |
+| 10  | Website: **Astro Starlight**, static, READMEs pulled in at build time                                                                                                                                                                   | Docs-first, with React islands for live block demos, a static host for the registry JSON, and no SSR framework adopted. Pulling in READMEs keeps them the single source of truth                                                                                                                                                                |
+| —   | _Reserved:_ spike findings (spec 7: shadcn React Aria base; checklist item 2: QuickJS bridge, TS input, limit defaults), path-identifier mapping (spec 2), audit script-source policy (spec 5), domain/hosting/versioning (specs 12–13) | Recorded here as rows 11+ when decided, the same way Phase 6 recorded its spike finding as Decision #9                                                                                                                                                                                                                                          |
+
+---
+
+## Reference
+
+- [Phase 7 Checklist](./mantle-js-phase-7-checklist.md)
+- [Phase 7 Backlog](./mantle-js-phase-7-backlog.md) — source of the UI library and website items
+- [Phase 8 Backlog](./mantle-js-phase-8-backlog.md) — items deferred out of this PRD
+- [Phase 6 PRD](./mantle-js-phase-6-prd.md) — agent identity, audit, tiering rules (Decisions #3, #4, #8)
+- [Phase 6 Checklist](./mantle-js-phase-6-checklist.md) — hook-pipeline equivalence spec precedent (item 2)
+- [`BAAS-READINESS.md`](./BAAS-READINESS.md) — the agent-native/audit-first positioning code mode extends
+- [`docs/releasing.md`](../releasing.md) — publish runbook
+- `@mantlejs/mcp` README (`packages/mcp/README.md`) — the tool-mode surface code mode complements

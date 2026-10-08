@@ -13,9 +13,14 @@ goals are entirely about that hardening plus the three targeted additions the re
 actually unclaimed in the market (agent identity, an audit hook, auto-embed). None of items 1–5 below serve
 that positioning directly, so none were pulled forward. See the Phase 6 PRD's Decisions table, #1.
 
+**Update (2026-10-06):** the [Phase 7 PRD](./mantle-js-phase-7-prd.md) pulls in item 3 (Mantle website, decided
+as Astro Starlight) and item 4 (Mantle UI library, decided as a React Aria-based shadcn registry), plus MCP code
+mode, which is new. Items 1, 2, and 5 move to the [Phase 8 backlog](./mantle-js-phase-8-backlog.md). This file is
+kept as the full-spec source the Phase 8 backlog links to.
+
 ---
 
-## 1. `KnexTimeSeriesRepository` (Q9) *(moved from Phase 5; review §2.2 — time-series)*
+## 1. `KnexTimeSeriesRepository` (Q9) _(moved from Phase 5; review §2.2 — time-series)_
 
 Extend `@mantlejs/knex` following the `KnexVectorRepository` precedent
 (`packages/knex/src/lib/knex-vector-repository.ts`: specialized repository extending `KnexRepository`, asserts the
@@ -31,7 +36,7 @@ README.
 **Accept:** unit specs for the generated `time_bucket` SQL (interval, aggregation map, range filter, where
 passthrough); spec that sqlite client throws on `timeBucket`; `$between` spec expanding to the right bounds.
 
-## 2. `@mantlejs/arangodb` — multi-model adapter (Q10) *(moved from Phase 5; review §2.2 — polyglot)*
+## 2. `@mantlejs/arangodb` — multi-model adapter (Q10) _(moved from Phase 5; review §2.2 — polyglot)_
 
 New package depending on `@mantlejs/mantle` + `arangojs`. One package, two core interfaces — the in-repo precedent
 is `KnexVectorRepository` implementing `Repository<T>` + `VectorRepository<T>` in one class. `arangodb(options)`
@@ -50,7 +55,7 @@ traversal spec against a mocked/`arangojs`-stubbed graph; `describe()` reports d
 
 ## 3. Mantle website
 
-Public marketing + documentation site for mantlejs.org (domain TBD): landing page, docs generated from package
+Public marketing + documentation site for mantlejs.com (domain TBD): landing page, docs generated from package
 READMEs + the planning/decision docs, versioned API reference from the emitted `.d.ts`, guides (getting started,
 architecture, adapters, auth, deployment on Cloud Run), and the canonical example (Phase 5) presented as a live
 demo/tutorial. Site stack is a Phase 6 PRD decision (candidates: Astro Starlight, Docusaurus, Next.js — noting
