@@ -117,9 +117,36 @@ useGet<T>(service, id, params?, options?); // GET /:service/:id → UseQueryResu
 
 `options` accepts every TanStack `useQuery` option except `queryKey`/`queryFn`, plus:
 
-| Option     | Type      | Default                            | Description                                    |
-| ---------- | --------- | ---------------------------------- | ---------------------------------------------- |
-| `realtime` | `boolean` | `true` when a socket is configured | Socket-driven cache invalidation for this hook |
+| Option     | Type                                                                   | Default                            | Description                                                                  |
+| ---------- | ---------------------------------------------------------------------- | ---------------------------------- | ---------------------------------------------------------------------------- |
+| `realtime` | `boolean` (`useGet`), `boolean \| RealtimePatchOptions<T>` (`useFind`) | `true` when a socket is configured | Socket-driven cache invalidation for this hook, or in-place patching (below) |
+
+#### In-place realtime (`useFind` only)
+
+The default realtime behavior invalidates the service's queries, so every event triggers a refetch. With
+`realtime: { mode: "patch" }`, `useFind` writes `created` / `updated` / `patched` / `removed` events straight into its
+own cached result instead. The list changes in place with no request, and a `Paginated<T>` envelope's `total` stays in
+step.
+
+```typescript
+const { data } = useFind<Comment>(
+  "comments",
+  { query: { articleId, $sort: { createdAt: 1 } } },
+  {
+    realtime: {
+      mode: "patch",
+      matches: (comment) => comment.articleId === articleId, // mirror the query's filter
+      insert: "end", // mirror its $sort: where created records go
+      idField: "id", // default
+    },
+  },
+);
+```
+
+Events carry the full record, but the client can't re-run the server's `where`/`$sort`, which is what `matches` and
+`insert` are for. A changed record that stops matching is removed, and one that starts matching is inserted. Only this
+hook's cache entry is touched. Events missed while the socket was disconnected are recovered by the provider's
+invalidate-everything on reconnect.
 
 ### Mutation hooks
 
@@ -136,10 +163,12 @@ useRemove<T>(service, options?); // variables: Id                      → DELET
 
 ## Types
 
-| Type                  | Description                                                       |
-| --------------------- | ----------------------------------------------------------------- |
-| `MantleProviderProps` | Props for `MantleProvider` (`client`, `queryClient?`, `children`) |
-| `MantleQueryOptions`  | The `realtime?: boolean` extension accepted by `useFind`/`useGet` |
+| Type                      | Description                                                                        |
+| ------------------------- | ---------------------------------------------------------------------------------- |
+| `MantleProviderProps`     | Props for `MantleProvider` (`client`, `queryClient?`, `children`)                  |
+| `MantleQueryOptions`      | The `realtime?: boolean` extension accepted by `useGet`                            |
+| `MantleFindOptions<T>`    | `useFind`'s extension: `realtime?: boolean \| RealtimePatchOptions<T>`             |
+| `RealtimePatchOptions<T>` | `{ mode: "patch"; idField?; matches?; insert? }` — in-place realtime for `useFind` |
 
 ---
 

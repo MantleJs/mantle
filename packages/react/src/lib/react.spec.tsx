@@ -305,3 +305,154 @@ describe("real-time cache invalidation", () => {
     expect(invalidate).toHaveBeenCalledWith();
   });
 });
+
+describe("real-time patch mode (realtime: { mode: 'patch' })", () => {
+  interface Task {
+    id: number;
+    text: string;
+    done: boolean;
+  }
+
+  function readData<R extends { data: unknown }>(result: R): R {
+    void result.data;
+    return result;
+  }
+
+  async function renderPatchedFind(
+    initial: Task[],
+    options: Parameters<typeof useFind<Task>>[2],
+    params?: { query: Record<string, unknown> },
+  ) {
+    const socket = fakeSocket();
+    const client = createClient(socket);
+    const queryClient = createQueryClient();
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries");
+    fetchMock.mockResolvedValueOnce(jsonResponse(initial));
+    const hook = renderHook(() => readData(useFind<Task>("tasks", params, options)), {
+      wrapper: createWrapper(client, queryClient),
+    });
+    await waitFor(() => expect(hook.result.current.isSuccess).toBe(true));
+    await waitFor(() => expect(socket.listeners.get("tasks created")).toHaveLength(1));
+    return { socket, hook, invalidate };
+  }
+
+  // TanStack Query notifies observers asynchronously (hence waitFor) and only for result props read
+  // during render — a real component reads `data`; these hooks do via `readData`.
+  it("applies created/patched/updated/removed in place with no refetch and no invalidation", async () => {
+    const { socket, hook, invalidate } = await renderPatchedFind(
+      [
+        { id: 1, text: "a", done: false },
+        { id: 2, text: "b", done: false },
+      ],
+      { realtime: { mode: "patch" } },
+    );
+
+    act(() => socket.trigger("tasks created", { id: 3, text: "c", done: false }));
+    act(() => socket.trigger("tasks patched", { id: 1, text: "a!", done: true }));
+    act(() => socket.trigger("tasks updated", { id: 2, text: "B", done: false }));
+    act(() => socket.trigger("tasks removed", { id: 3, text: "c", done: false }));
+    act(() => socket.trigger("tasks created", { id: 1, text: "dup", done: false }));
+
+    await waitFor(() =>
+      expect(hook.result.current.data).toEqual([
+        { id: 1, text: "a!", done: true },
+        { id: 2, text: "B", done: false },
+      ]),
+    );
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(invalidate).not.toHaveBeenCalled();
+  });
+
+  it("honours matches (drops/admits records) and insert: 'start'", async () => {
+    const { socket, hook } = await renderPatchedFind(
+      [{ id: 1, text: "a", done: false }],
+      { realtime: { mode: "patch", matches: (task) => !task.done, insert: "start" } },
+      { query: { done: false } },
+    );
+
+    act(() => socket.trigger("tasks created", { id: 2, text: "b", done: false }));
+    act(() => socket.trigger("tasks created", { id: 3, text: "c", done: true }));
+    await waitFor(() =>
+      expect(hook.result.current.data).toEqual([
+        { id: 2, text: "b", done: false },
+        { id: 1, text: "a", done: false },
+      ]),
+    );
+
+    act(() => socket.trigger("tasks patched", { id: 1, text: "a", done: true }));
+    act(() => socket.trigger("tasks patched", { id: 3, text: "c", done: false }));
+    await waitFor(() =>
+      expect(hook.result.current.data).toEqual([
+        { id: 3, text: "c", done: false },
+        { id: 2, text: "b", done: false },
+      ]),
+    );
+  });
+
+  it("keeps a Paginated<T> envelope's total in step and supports a custom idField", async () => {
+    interface Doc {
+      _id: string;
+      title: string;
+    }
+    const socket = fakeSocket();
+    const client = createClient(socket);
+    fetchMock.mockResolvedValueOnce(jsonResponse({ total: 10, limit: 2, skip: 0, data: [{ _id: "a", title: "A" }] }));
+    const hook = renderHook(
+      () => readData(useFind<Doc>("docs", undefined, { realtime: { mode: "patch", idField: "_id" } })),
+      {
+        wrapper: createWrapper(client, createQueryClient()),
+      },
+    );
+    await waitFor(() => expect(hook.result.current.isSuccess).toBe(true));
+    await waitFor(() => expect(socket.listeners.get("docs created")).toHaveLength(1));
+
+    act(() => socket.trigger("docs created", { _id: "b", title: "B" }));
+    act(() => socket.trigger("docs patched", { _id: "a", title: "A2" }));
+    await waitFor(() =>
+      expect(hook.result.current.data).toEqual({
+        total: 11,
+        limit: 2,
+        skip: 0,
+        data: [
+          { _id: "a", title: "A2" },
+          { _id: "b", title: "B" },
+        ],
+      }),
+    );
+    act(() => socket.trigger("docs removed", { _id: "b", title: "B" }));
+    await waitFor(() => expect(hook.result.current.data).toMatchObject({ total: 10 }));
+  });
+
+  it("only touches its own cache entry and detaches its listeners on unmount", async () => {
+    const socket = fakeSocket();
+    const client = createClient(socket);
+    const queryClient = createQueryClient();
+    queryClient.setQueryData(["tasks", "find", { query: { other: true } }], [{ id: 9, text: "x", done: false }]);
+    fetchMock.mockResolvedValueOnce(jsonResponse([]));
+    const hook = renderHook(() => readData(useFind<Task>("tasks", undefined, { realtime: { mode: "patch" } })), {
+      wrapper: createWrapper(client, queryClient),
+    });
+    await waitFor(() => expect(hook.result.current.isSuccess).toBe(true));
+    await waitFor(() => expect(socket.listeners.get("tasks created")).toHaveLength(1));
+
+    act(() => socket.trigger("tasks created", { id: 1, text: "a", done: false }));
+    await waitFor(() => expect(hook.result.current.data).toEqual([{ id: 1, text: "a", done: false }]));
+    expect(queryClient.getQueryData(["tasks", "find", { query: { other: true } }])).toEqual([
+      { id: 9, text: "x", done: false },
+    ]);
+
+    hook.unmount();
+    for (const name of ["tasks created", "tasks updated", "tasks patched", "tasks removed"]) {
+      expect(socket.listeners.get(name) ?? []).toHaveLength(0);
+    }
+  });
+
+  it("is a no-op without a socket configured", async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse([{ id: 1, text: "a", done: false }]));
+    const { result } = renderHook(() => useFind<Task>("tasks", undefined, { realtime: { mode: "patch" } }), {
+      wrapper: createWrapper(createClient(), createQueryClient()),
+    });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(result.current.data).toEqual([{ id: 1, text: "a", done: false }]);
+  });
+});
