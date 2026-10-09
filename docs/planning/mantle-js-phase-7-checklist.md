@@ -308,7 +308,7 @@ runs in four stages, in order:
 
 ### UI registry track
 
-- [ ] **8. Registry project + build pipeline + install smoke test** _(PRD spec 8)_
+- [x] **8. Registry project + build pipeline + install smoke test** _(PRD spec 8)_
       Create `registry/` at the repo root:
   - private workspace, Nx name `ui-registry`
   - itself an `aria-*` shadcn project (`components.json`, base primitives, `@/` alias)
@@ -329,8 +329,26 @@ runs in four stages, in order:
   into `.github/workflows/ci.yml` next to `e2e-scaffold`.
   **Accept:** `build-registry` emits valid JSON per block, and the smoke test is green locally and in CI on every
   tested preset.
+  **Done (2026-10-08):**
+  - **Project:** `registry/` is a private workspace project (Nx `ui-registry`, tags `pkg:ui-registry` +
+    `type:registry`) and itself an aria-nova shadcn project, with vendored primitives under `src/components/ui`.
+  - **Matrix:** the `dependencyMatrix` and `CLAUDE.md` rows allow `client` and `react` only.
+    `tools/check-dependency-matrix.mjs` gained standalone-project support.
+  - **Build:** `build-registry` runs `shadcn registry validate`, then `shadcn build`, then a per-style fan-out
+    (`scripts/fan-out-styles.mjs`).
+  - **Aria-only enforcement (PRD Decision #19):** a radix-nova consumer using `{name}` URLs got a "successful" add,
+    then 13 TS errors and a silently unwired `Input`. With `{style}` URLs, the same consumer now gets a not-found
+    error at install time.
+  - **Smoke test:** `e2e-install` (`registry/e2e/install-smoke.mjs`) runs in CI after `e2e-scaffold`.
+    - It installs every block into fresh aria-nova and aria-vega apps, using `npm pack` tarballs of the workspace
+      `client`/`react`, then runs `tsc` and `vite build`.
+    - It also asserts the radix refusal.
+    - shadcn is pinned at 4.21.4.
+    - Measured on the merged `main`: nova 30.1s, vega 17.2s, radix refusal 12.6s.
+  - **`label.tsx`:** the TS6133 workaround is applied conditionally and logs once upstream fixes it (PRD
+    Decision #21).
 
-- [ ] **9. Auth blocks** _(PRD spec 9)_
+- [x] **9. Auth blocks** _(PRD spec 9)_
       `login-form`, `signup-form`, `oauth-buttons` (Google, GitHub, Facebook, Apple, Microsoft, LinkedIn, X), and
       `auth-provider` + `useAuth()`. Built on React Aria `Form`/`TextField`, imported directly (shadcn has no wrapper
       for them), combined with shadcn aria `input`/`label`/`field`/`button`, with field-level validation and typed
@@ -339,12 +357,20 @@ runs in four stages, in order:
   - Vitest + Testing Library specs: happy path, typed errors, keyboard-only operation
   - axe checks with zero violations in each rendered state
   - included in the smoke test
+    **Done (2026-10-08):**
+  - **Blocks:** `auth-provider`/`useAuth` (over `@mantlejs/react`'s `useMantleClient`), `login-form`, `signup-form`
+    (React Aria `Form`/`TextField`/`FieldError` imported directly, plus shadcn aria `input`/`label`/`button`/`alert`),
+    and `oauth-buttons` (aria `LinkButton`).
+  - **Errors:** a shared `lib/mantle-errors.ts` maps `Unprocessable` field errors onto React Aria
+    `validationErrors`, and shows everything else as a form-level alert.
+  - **OAuth:** text-only buttons covering the **7** OAuth strategies. The PRD said 8 but listed 7; it's corrected.
+  - **Specs:** 22, each with happy path, typed errors, keyboard-only use, and axe (zero violations).
 
-- [ ] **10. Storage + data blocks** _(PRD spec 10)_
+- [x] **10. Storage + data blocks** _(PRD spec 10)_
   - `upload-dropzone` (`DropZone` + `FileTrigger` → `@mantlejs/storage`)
   - `realtime-list` (`GridList` + live query)
   - `data-table` (`Table`, sort → `QueryParams.sort`)
-  - `pagination` (`Paginated<T>`)
+  - `mantle-pagination` (`Paginated<T>`; renamed from `pagination`, see PRD Decision #21)
   - `search-combobox` (`ComboBox`, `$ilike` when advertised, otherwise `$like`)
 
   `DropZone`/`FileTrigger`/`GridList` come straight from `react-aria-components` (shadcn doesn't wrap them) and are
@@ -355,12 +381,37 @@ runs in four stages, in order:
   - A realtime event updates the list without a refetch.
   - A sort interaction produces the expected `QueryParams.sort`.
   - All blocks included in the smoke test.
+    **Done (2026-10-08):**
+  - **`upload-dropzone`:** React Aria `DropZone`/`FileTrigger`, upload over XHR with progress, errors mapped via
+    `errorFromResponse`. jsdom can't simulate drag-and-drop, so the picker and keyboard paths are specced, not the
+    drop itself.
+  - **`realtime-list`:** `GridList`. Service events are written into the query cache, so there's no refetch; a spec
+    proves it.
+  - **`data-table`:** shadcn aria `table`. A column sort maps to `QueryParams.sort`, and a spec proves it.
+  - **`mantle-pagination`:** renamed per PRD Decision #21, with a `pageWindow` helper.
+  - **`search-combobox`:** runtime `$ilike` → `$like` fallback (PRD Decision #20).
+  - **Specs:** 39 plus 4 for `mantle-errors`, with zero axe violations.
+  - **Client-SDK gaps the blocks work around** are recorded in the PRD's Release Plan. One is a real bug:
+    `authenticate()` accepts a 200 response with no `accessToken`.
 
-- [ ] **11. Retrofit `examples/knowledge-base/web`** _(PRD spec 11)_
+- [x] **11. Retrofit `examples/knowledge-base/web`** _(PRD spec 11)_
       Run `shadcn init --base aria` first (the example has no `components.json` or `@/` alias yet). Then replace
       `src/components/ui/{button,card,input,textarea}.tsx` (and their hard-coded `bg-slate-*` styling) and any hand-rolled auth/upload/list UI with
       registry installs. Document the `shadcn add` commands in the example's README.
       **Accept:** the example builds, the same flows work with no regressions, and no hand-rolled UI primitives remain.
+      **Done (2026-10-08):**
+  - **Setup:** `examples/knowledge-base/web` now runs on shadcn's React Aria base (`components.json`, `@/` alias)
+    with five Mantle blocks installed from the registry.
+  - **Removed:** the hand-rolled `components/ui/*`, the slate palette, and `lib/cn.ts`.
+  - **Search results:** use React Aria `GridList` directly. They come from `similar()`, not `find()`, so no block
+    fits.
+  - **Unchanged:** the attachments list stays a plain list of download links.
+  - **Visible change:** the OAuth buttons now stack vertically instead of sitting in a row.
+  - **Registry source:** `components.json` points `@mantle` at a locally served registry
+    (`http://localhost:4893/r/{style}/{name}.json`) until item 13 hosts it. The README explains how to serve it.
+  - **Results:** same flows, 4 specs pass, build green. After rebasing onto `mcp-code`, the full workspace
+    `build,test,lint,typecheck` is green on 45 projects (Node 22.17) and `check-dependency-matrix` is green on 41
+    rows.
 
 ---
 
