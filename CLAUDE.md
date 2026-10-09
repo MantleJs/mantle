@@ -253,7 +253,7 @@ interface HookContext<T = any> {
   service: Service<T>;
   path: string; // e.g. "users"
   method: string; // e.g. "create"
-  provider?: string; // "rest" | undefined (internal)
+  provider?: string; // transport: "rest" (express) | "koa" | "http" | "socket.io" | "mcp"; undefined = internal call
   params: ServiceParams;
   data?: Partial<T>;
   id?: Id;

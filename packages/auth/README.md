@@ -90,6 +90,7 @@ Content-Type: application/json
 ```json
 {
   "accessToken": "eyJhbGciOiJIUzI1NiJ9...",
+  "refreshToken": "eyJhbGciOiJIUzI1NiJ9...",
   "user": { "id": 1, "email": "alice@example.com" }
 }
 ```
@@ -137,7 +138,7 @@ Side effects:
 | `audience`          | `string \| string[]` | —           | Sets and verifies the `aud` claim                                                                                                                                                                                                                                           |
 | `refreshExpiresIn`  | `string \| number`   | `"30d"`     | Refresh-token lifetime                                                                                                                                                                                                                                                      |
 | `refreshTokenStore` | `RefreshTokenStore`  | in-memory   | Storage for outstanding refresh tokens. **Multi-instance deployments (Cloud Run) must inject a shared store** — the in-memory default cannot revoke tokens issued by another instance. Use [`redisRefreshTokenStore` from `@mantlejs/auth-redis`](../auth-redis/README.md). |
-| `agentTokenStore`   | `AgentTokenStore`    | in-memory   | Storage for outstanding agent tokens, enabling `revokeAgentToken()` before JWT expiry. Same multi-instance caveat as `refreshTokenStore`. |
+| `agentTokenStore`   | `AgentTokenStore`    | in-memory   | Storage for outstanding agent tokens, enabling `revokeAgentToken()` before JWT expiry. Same multi-instance caveat as `refreshTokenStore`.                                                                                                                                   |
 
 ---
 
@@ -271,6 +272,7 @@ The built-in authentication endpoint. Dispatches to a registered strategy based 
 ```json
 {
   "accessToken": "eyJhbGciOiJIUzI1NiJ9...",
+  "refreshToken": "eyJhbGciOiJIUzI1NiJ9...",
   "user": { "id": 1, "email": "alice@example.com" }
 }
 ```
