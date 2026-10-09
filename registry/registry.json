@@ -16,6 +16,68 @@
           "target": "@lib/mantle-errors.ts"
         }
       ]
+    },
+    {
+      "name": "auth-provider",
+      "type": "registry:component",
+      "title": "Auth provider",
+      "description": "Session state for the Mantle auth blocks: persisted-session restore, OAuth redirect handling, login/signup/logout. Exposes useAuth().",
+      "dependencies": ["@mantlejs/client", "@mantlejs/react", "@tanstack/react-query"],
+      "files": [
+        {
+          "path": "src/components/mantle/auth-provider.tsx",
+          "type": "registry:component",
+          "target": "@components/mantle/auth-provider.tsx"
+        }
+      ]
+    },
+    {
+      "name": "login-form",
+      "type": "registry:block",
+      "title": "Login form",
+      "description": "Email/password login against @mantlejs/auth-local, built on React Aria Form + TextField.",
+      "categories": ["auth"],
+      "dependencies": ["react-aria-components", "@mantlejs/client", "cn"],
+      "registryDependencies": ["button", "input", "label", "alert", "@mantle/auth-provider", "@mantle/mantle-errors"],
+      "files": [
+        {
+          "path": "src/components/mantle/login-form.tsx",
+          "type": "registry:component",
+          "target": "@components/mantle/login-form.tsx"
+        }
+      ]
+    },
+    {
+      "name": "signup-form",
+      "type": "registry:block",
+      "title": "Sign-up form",
+      "description": "Account creation through your users service, then local login. Duplicate-email and schema errors shown inline.",
+      "categories": ["auth"],
+      "dependencies": ["react-aria-components", "@mantlejs/client", "cn"],
+      "registryDependencies": ["button", "input", "label", "alert", "@mantle/auth-provider", "@mantle/mantle-errors"],
+      "files": [
+        {
+          "path": "src/components/mantle/signup-form.tsx",
+          "type": "registry:component",
+          "target": "@components/mantle/signup-form.tsx"
+        }
+      ]
+    },
+    {
+      "name": "oauth-buttons",
+      "type": "registry:block",
+      "title": "OAuth buttons",
+      "description": "Continue-with links for the seven @mantlejs/auth-* OAuth strategies (Google, GitHub, Facebook, Apple, Microsoft, LinkedIn, X).",
+      "categories": ["auth"],
+      "dependencies": ["cn"],
+      "registryDependencies": ["button"],
+      "files": [
+        {
+          "path": "src/components/mantle/oauth-buttons.tsx",
+          "type": "registry:component",
+          "target": "@components/mantle/oauth-buttons.tsx"
+        }
+      ]
     }
   ]
 }
