@@ -87,7 +87,7 @@ runs in four stages, in order:
 
   Default limits: 10 s, 32 MB soft / 64 MB hard, 192 KB stack, 50 calls, 64 KB output.
 
-- [ ] **3. `@mantlejs/mcp`: `mode` option + `McpCodeModeProvider` extension point** _(PRD spec 1)_
+- [x] **3. `@mantlejs/mcp`: `mode` option + `McpCodeModeProvider` extension point** _(PRD spec 1)_
       Add `mode?: "tools" | "code" | "both"` and `codeMode?: McpCodeModeProvider` to `McpOptions`
       (`packages/mcp/src/lib/types.ts`). The provider receives the resolved expose map, `describe()` output, and the
       effective query options. It returns `McpToolDefinition[]`/`McpResourceDefinition[]`. Export the schema-building
@@ -103,8 +103,30 @@ runs in four stages, in order:
     - the provider receives the resolved map (never `"*"`)
   - README "Code mode" section added.
   - `npx nx run-many -t build,test,lint,typecheck` green.
+    **Done (2026-10-08):**
+  - **Options:** `McpOptions` gained `mode` (`McpMode`) and `codeMode?: McpCodeModeProvider`. The default is
+    `"code"` with a provider and `"tools"` without one, so there's zero change for existing deployments.
+  - **Provider:** `build({ app, services, query })` runs once, when the expose map is resolved (`listen()`/
+    `startMcp()`).
+    - `services` is `McpExposedService[]` (`path`, exposed `methods` including custom ones, `descriptor`), with
+      `"*"` and `true` already expanded.
+    - It returns `McpCodeModeSurface` (`tools`, optional `resources`).
+  - **What `"code"` registers:** it suppresses only the generated per-method tools. App-authored
+    tools/resources/prompts and event resources are registered in every mode.
+  - **Shared schema helpers:** `describeServiceMethod`, `buildQuerySchema`, and `toolName` are exported.
+    Generated tools are now built through `describeServiceMethod`, and a spec checks the two stay identical
+    (PRD Decision #7).
+  - **Validation:** tool and resource validation was extracted into shared helpers and is applied to provider
+    output too. Existing error messages are unchanged.
+  - **Boot errors** (`BadRequest`): an unknown `mode`, a provider without `build()`, and `"code"`/`"both"` without
+    a provider.
+  - **Implication for item 4:** session `params` don't carry `HookContext.agent`, which only exists inside the
+    hook pipeline. So the provider's per-session agent narrowing must resolve the agent token from
+    `params.headers.authorization` itself, via the auth engine. This is documented in `types.ts` and the README.
+  - **Results:** 21 new specs in `code-mode.spec.ts`; the four existing spec files are unmodified. Full workspace
+    `build,test,lint,typecheck` green on 43 projects after merging with item 3a.
 
-- [ ] **3a. Enforce the package dependency matrix** _(PRD spec 15)_
+- [x] **3a. Enforce the package dependency matrix** _(PRD spec 15)_
       Found by the item 1 spike: the workspace has no Nx tags, and the root `eslint.config.mjs` `depConstraints` is a
       single wildcard, so `CLAUDE.md`'s "enforced by `@nx/enforce-module-boundaries`" claim isn't true. Do this
       before items 4 and 8, so `mcp-code` and `registry` are created under real constraints.
@@ -123,6 +145,37 @@ runs in four stages, in order:
   - A deliberate forbidden import (e.g. `@mantlejs/auth` → `@mantlejs/knex`) fails `nx lint`, then is reverted.
   - The cross-check is green.
   - `npx nx run-many -t lint` green with real constraints.
+    **Done (2026-10-08):**
+  - **Tags:** every project is tagged in `package.json` `nx.tags`: `pkg:<name>` + `type:lib` for the 39 packages,
+    and `type:app` for the 4 example apps. No `type:tool` tag was needed, since nothing under `tools/` is an Nx
+    project.
+  - **Constraints:** the root `eslint.config.mjs` builds one `depConstraints` entry per `CLAUDE.md` matrix row from
+    an exported `dependencyMatrix`. The old match-everything wildcard is gone. A spec-file override adds the
+    `testOnlyDependencies` exceptions. Existing rule options are kept.
+  - **Violations:** switching the real constraints on surfaced 14, all in spec files and zero in production
+    source. They're recorded as narrow test-only exceptions in config and in the `CLAUDE.md` matrix:
+    `client`→`mantle` (already documented as dev-only), `mcp`→`http`/`memory`/`auth`, `audit`→`memory`/`knex`,
+    `embeddings`→`memory`.
+  - **Matrix fit:** every package's `@mantlejs/*` deps and peerDeps already fit its matrix row, so no allowed
+    production dependency changed.
+  - **Cross-check:** `tools/check-dependency-matrix.mjs` (`npm run check-dependency-matrix`, new CI step)
+    cross-checks:
+    - the `CLAUDE.md` table and its test-only notes
+    - the configured lint rules
+    - project tags
+    - each package's `@mantlejs/*` deps/peerDeps (and devDeps against its row plus test-only extras)
+
+    It caught all 6 deliberate drift mutations it was tested with.
+
+  - **Proof it fires:**
+    - An `@mantlejs/auth` → `@mantlejs/knex` import failed `nx lint auth` with
+      `A project tagged with "pkg:auth" can only depend on libs tagged with "pkg:mantle"`, both in production source
+      and in a spec.
+    - An `audit` → `memory` import in production source also failed, proving test-only exceptions don't leak.
+    - All probes were reverted.
+  - **Results:** `nx run-many -t build,test,lint,typecheck` green on 43 projects after merging with item 3.
+  - **Not fixed (pre-existing):** three example `package.json` files (`realtime-chat`, `todo-minimal`,
+    `knowledge-base/api`) and a few `packages/mcp` files don't match prettier on `main`. They were left as-is.
 
 ---
 
