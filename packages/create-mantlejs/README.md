@@ -67,14 +67,14 @@ await newProject("my-app", {
 
 #### CLI flags
 
-| Flag | Values | Default | Description |
-|---|---|---|---|
-| `--database <db>` | `pg`, `sqlite`, `mongodb`, `none` | prompted | Database adapter |
-| `--auth <auth>` | `local`, `google`, `github`, `facebook`, `apple`, `microsoft`, `linkedin`, `none` | prompted | Auth strategy |
-| `--cors` | — | `false` | Enable CORS on the transport |
-| `--redis` | — | `false` | Wire `@mantlejs/auth-redis` state/refresh-token stores |
-| `--package-manager <pm>` | `npm`, `yarn`, `pnpm` | prompted | Package manager |
-| `--skip-install` | — | `false` | Skip running install after scaffold |
+| Flag                     | Values                                                                                       | Default  | Description                                            |
+| ------------------------ | -------------------------------------------------------------------------------------------- | -------- | ------------------------------------------------------ |
+| `--database <db>`        | `pg`, `sqlite`, `mongodb`, `none`                                                            | prompted | Database adapter                                       |
+| `--auth <auth>`          | `local`, `google`, `github`, `facebook`, `apple`, `microsoft`, `linkedin`, `twitter`, `none` | prompted | Auth strategy                                          |
+| `--cors`                 | —                                                                                            | `false`  | Enable CORS on the transport                           |
+| `--redis`                | —                                                                                            | `false`  | Wire `@mantlejs/auth-redis` state/refresh-token stores |
+| `--package-manager <pm>` | `npm`, `yarn`, `pnpm`                                                                        | prompted | Package manager                                        |
+| `--skip-install`         | —                                                                                            | `false`  | Skip running install after scaffold                    |
 
 ---
 
@@ -84,13 +84,13 @@ await newProject("my-app", {
 import type { NewProjectOptions, Database, Auth, PackageManager, Transport } from "create-mantlejs";
 ```
 
-| Type | Description |
-|---|---|
-| `NewProjectOptions` | Options accepted by `newProject()` |
-| `Database` | `"pg" \| "sqlite" \| "mongodb" \| "none"` |
-| `Auth` | `"local" \| "google" \| "github" \| "facebook" \| "apple" \| "microsoft" \| "linkedin" \| "none"` |
-| `PackageManager` | `"npm" \| "yarn" \| "pnpm"` |
-| `Transport` | `"express"` |
+| Type                | Description                                                                                                    |
+| ------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `NewProjectOptions` | Options accepted by `newProject()`                                                                             |
+| `Database`          | `"pg" \| "sqlite" \| "mongodb" \| "none"`                                                                      |
+| `Auth`              | `"local" \| "google" \| "github" \| "facebook" \| "apple" \| "microsoft" \| "linkedin" \| "twitter" \| "none"` |
+| `PackageManager`    | `"npm" \| "yarn" \| "pnpm"`                                                                                    |
+| `Transport`         | `"express"`                                                                                                    |
 
 ---
 

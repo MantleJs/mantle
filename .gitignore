@@ -56,6 +56,10 @@ examples/knowledge-base/**/uploads
 registry/public/r
 vite.config.*.timestamp*
 
+# Website — Astro build output/cache, and the API reference starlight-typedoc generates on every build
+website/.astro
+website/src/content/docs/api
+
 # local env files (copied from .env.example — never commit real secrets)
 .env
 .env.local

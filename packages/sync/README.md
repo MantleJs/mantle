@@ -36,13 +36,13 @@ Events are delivered **at most once** — there is no persistence, acknowledgmen
 - an instance is restarting, or subscribes after the message was published (pub/sub has no backlog);
 - a WebSocket client is disconnected or reconnecting when its instance fans the event out.
 
-Design consequence: **clients must not treat the event stream as a source of truth.** Treat events as cache-invalidation hints and refetch on reconnect. The planned `@mantlejs/client` emits a `reconnect` event for exactly this, and `@mantlejs/react` will call `queryClient.invalidateQueries()` on it, bounding the staleness a missed event can cause. If you need guaranteed delivery, put a real queue (or an outbox table) behind your service instead of relying on `service:event` fan-out.
+Design consequence: **clients must not treat the event stream as a source of truth.** Treat events as cache-invalidation hints and refetch on reconnect. `@mantlejs/client` emits a `reconnect` event for exactly this, and `@mantlejs/react`'s `MantleProvider` calls `queryClient.invalidateQueries()` on it, bounding the staleness a missed event can cause. If you need guaranteed delivery, put a real queue (or an outbox table) behind your service instead of relying on `service:event` fan-out.
 
 ### Adapters
 
-| Adapter | Source | Transport |
-| ------- | ------ | --------- |
-| `redisAdapter()` | `@mantlejs/sync` | Redis pub/sub (ioredis, two connections) — also compatible with DragonflyDB |
+| Adapter             | Source               | Transport                                                                       |
+| ------------------- | -------------------- | ------------------------------------------------------------------------------- |
+| `redisAdapter()`    | `@mantlejs/sync`     | Redis pub/sub (ioredis, two connections) — also compatible with DragonflyDB     |
 | `supabaseAdapter()` | `@mantlejs/supabase` | Supabase Realtime Broadcast — zero additional infrastructure for Supabase users |
 
 Custom adapters can be plugged in by implementing the `SyncAdapter` interface.
@@ -92,10 +92,10 @@ function sync(options: SyncOptions): MantlePlugin;
 
 #### Options
 
-| Option | Type | Default | Description |
-| ------ | ---- | ------- | ----------- |
-| `adapter` | `SyncAdapter` | — | **Required.** The pub/sub transport adapter. |
-| `channel` | `string` | `"mantle:sync"` | Shared pub/sub channel name. Must be the same across all instances. |
+| Option    | Type          | Default         | Description                                                         |
+| --------- | ------------- | --------------- | ------------------------------------------------------------------- |
+| `adapter` | `SyncAdapter` | —               | **Required.** The pub/sub transport adapter.                        |
+| `channel` | `string`      | `"mantle:sync"` | Shared pub/sub channel name. Must be the same across all instances. |
 
 ---
 
@@ -109,14 +109,14 @@ function redisAdapter(options?: RedisAdapterOptions): SyncAdapter;
 
 #### Options
 
-| Option | Type | Default | Description |
-| ------ | ---- | ------- | ----------- |
-| `url` | `string` | — | Full Redis URL (e.g. `"redis://user:pass@host:6379/0"`). Takes precedence over host/port. |
-| `host` | `string` | `"127.0.0.1"` | Redis hostname. Ignored when `url` is set. |
-| `port` | `number` | `6379` | Redis port. Ignored when `url` is set. |
-| `password` | `string` | — | AUTH password. |
-| `db` | `number` | `0` | Redis database index. |
-| `tls` | `boolean` | `false` | Enable TLS. |
+| Option     | Type      | Default       | Description                                                                               |
+| ---------- | --------- | ------------- | ----------------------------------------------------------------------------------------- |
+| `url`      | `string`  | —             | Full Redis URL (e.g. `"redis://user:pass@host:6379/0"`). Takes precedence over host/port. |
+| `host`     | `string`  | `"127.0.0.1"` | Redis hostname. Ignored when `url` is set.                                                |
+| `port`     | `number`  | `6379`        | Redis port. Ignored when `url` is set.                                                    |
+| `password` | `string`  | —             | AUTH password.                                                                            |
+| `db`       | `number`  | `0`           | Redis database index.                                                                     |
+| `tls`      | `boolean` | `false`       | Enable TLS.                                                                               |
 
 ---
 
@@ -133,10 +133,10 @@ The message envelope published and received by adapters.
 
 ```typescript
 interface SyncMessage {
-  originId: string;       // UUID of the originating instance
-  path: string;           // service path (e.g. "users")
-  event: string;          // event name (e.g. "created")
-  result: unknown;        // the service method result
+  originId: string; // UUID of the originating instance
+  path: string; // service path (e.g. "users")
+  event: string; // event name (e.g. "created")
+  result: unknown; // the service method result
   params: SyncMessageParams;
 }
 ```

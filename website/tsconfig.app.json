@@ -1,0 +1,36 @@
+{
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "out-tsc",
+    "tsBuildInfoFile": "out-tsc/tsconfig.app.tsbuildinfo",
+    "jsx": "react-jsx",
+    "lib": ["es2022", "dom", "dom.iterable"],
+    "types": ["node"],
+    "rootDir": "..",
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "paths": {
+      "@/*": ["../registry/src/*"]
+    }
+  },
+  // The block demos import the UI registry's own sources through its `@/` alias, and the registry is an
+  // unpublished app-like project with no declarations to reference — so its block sources are checked
+  // here, as part of this program, the same way a consumer app compiles them after `shadcn add`.
+  "include": ["src/**/*.ts", "src/**/*.tsx", "../registry/src/components/**/*.tsx", "../registry/src/lib/**/*.ts"],
+  "exclude": [
+    "out-tsc",
+    "dist",
+    "src/content.config.ts",
+    "src/content/**",
+    "../registry/src/**/*.spec.ts",
+    "../registry/src/**/*.spec.tsx"
+  ],
+  "references": [
+    {
+      "path": "../packages/react/tsconfig.lib.json"
+    },
+    {
+      "path": "../packages/client/tsconfig.lib.json"
+    }
+  ]
+}

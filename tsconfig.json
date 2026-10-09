@@ -137,6 +137,9 @@
     },
     {
       "path": "./registry"
+    },
+    {
+      "path": "./website"
     }
   ]
 }

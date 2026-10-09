@@ -1,0 +1,67 @@
+---
+/**
+ * Renders a Markdown table straight out of a repo file at build time, so a matrix maintained
+ * elsewhere (CLAUDE.md's dependency matrix and adapter capability table — both cross-checked by
+ * tools/check-dependency-matrix.mjs and the adapter conformance specs) is shown, never copied.
+ *
+ *   <RepoTable file="CLAUDE.md" header="| Adapter" />
+ *
+ * `header` is the start of the table's header row. Cells support `code`, **bold**, and `\` escapes.
+ */
+import { readFile } from "node:fs/promises";
+import path from "node:path";
+
+interface Props {
+  /** Path relative to the repository root. */
+  file: string;
+  /** Prefix that identifies the table's header row. */
+  header: string;
+}
+
+const { file, header } = Astro.props;
+const source = await readFile(path.join(import.meta.env.MANTLE_REPO_ROOT, file), "utf8");
+const lines = source.split("\n");
+const start = lines.findIndex((line) => line.startsWith(header));
+if (start < 0) throw new Error(`RepoTable: no table starting with "${header}" in ${file}`);
+const rows: string[][] = [];
+for (const line of lines.slice(start)) {
+  if (!line.startsWith("|")) break;
+  rows.push(
+    line
+      .split(/(?<!\\)\|/)
+      .slice(1, -1)
+      .map((cell) => cell.trim()),
+  );
+}
+const [head, , ...body] = rows;
+
+function escapeHtml(text: string): string {
+  return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+function inline(cell: string): string {
+  return cell
+    .split(/(`[^`]*`)/)
+    .map((part) =>
+      part.startsWith("`") && part.endsWith("`") && part.length > 1
+        ? `<code>${escapeHtml(part.slice(1, -1))}</code>`
+        : escapeHtml(part.replace(/\\(.)/g, "$1")).replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>"),
+    )
+    .join("");
+}
+---
+
+<table>
+  <thead>
+    <tr>{head.map((cell) => <th set:html={inline(cell)} />)}</tr>
+  </thead>
+  <tbody>
+    {body.map((row) => <tr>{row.map((cell) => <td set:html={inline(cell)} />)}</tr>)}
+  </tbody>
+</table>
+<p>
+  <small
+    >Rendered at build time from <a href={`https://github.com/MantleJs/mantle/blob/main/${file}`}><code>{file}</code></a
+    >, so it can't drift from the repository.</small
+  >
+</p>

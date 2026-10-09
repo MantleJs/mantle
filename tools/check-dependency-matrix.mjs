@@ -10,7 +10,8 @@
  *   - the production and spec-file boundary rules actually configured in eslint.config.mjs's default
  *     export equal the constraints derived from the table (catches hand-edited depConstraints)
  *   - every packages/* project has a row and is tagged exactly ["pkg:<name>", "type:lib"]; the
- *     registry/ project likewise with "type:registry"; every examples/* project is tagged ["type:app"]
+ *     registry/ project likewise with "type:registry"; every app (examples/*, website/) is tagged ["type:app"]
+ *     and has an "anything" row
  *   - every package's @mantlejs/* dependencies/peerDependencies are allowed by its row, and its
  *     @mantlejs/* devDependencies by its row plus its test-only exceptions
  */
@@ -51,10 +52,10 @@ function parseMatrixTable() {
 
   const matrix = {};
   const testOnly = {};
-  let apps = false;
+  const apps = new Set();
   for (const { pkg, deps } of rows) {
-    if (pkg === "examples/*") {
-      apps = /^anything\b/.test(deps);
+    if (APP_ROWS.includes(pkg)) {
+      if (/^anything\b/.test(deps)) apps.add(pkg);
       continue;
     }
     const name = projectName(pkg);
@@ -129,6 +130,9 @@ function loadProjects(dir) {
     }));
 }
 
+/** Unconstrained app rows in CLAUDE.md's table — each must say "anything" and its projects be tagged type:app. */
+const APP_ROWS = ["examples/*", "website"];
+
 /** Constrained projects outside packages/*: [directory, expected kind tag]. Same row/tag/dep rules. */
 const STANDALONE_PROJECTS = [["registry", "type:registry"]];
 
@@ -166,11 +170,14 @@ function checkProjects(documented, errors) {
     checkConstrainedProject(dir, JSON.parse(readFileSync(path, "utf8")), kindTag, documented, errors);
   }
 
-  const examples = [
+  const apps = [
     ...loadProjects("examples"),
     ...(existsSync(join(REPO_ROOT, "examples/knowledge-base")) ? loadProjects("examples/knowledge-base") : []),
+    ...(existsSync(join(REPO_ROOT, "website/package.json"))
+      ? [{ dir: "website", pkg: JSON.parse(readFileSync(join(REPO_ROOT, "website/package.json"), "utf8")) }]
+      : []),
   ];
-  for (const { dir, pkg } of examples) {
+  for (const { dir, pkg } of apps) {
     if (!same(pkg.nx?.tags ?? [], ["type:app"]))
       errors.push(`${dir}: nx.tags must be ["type:app"], found ${JSON.stringify(pkg.nx?.tags ?? [])}`);
   }
@@ -181,7 +188,9 @@ async function main() {
   const configModule = await import(pathToFileURL(join(REPO_ROOT, "eslint.config.mjs")).href);
   const errors = [];
 
-  if (!documented.apps) errors.push(`CLAUDE.md: the examples/* row must allow "anything"`);
+  for (const row of APP_ROWS) {
+    if (!documented.apps.has(row)) errors.push(`CLAUDE.md: the ${row} row must exist and allow "anything"`);
+  }
   compareMaps("matrix", documented.matrix, configModule.dependencyMatrix ?? {}, errors);
   compareMaps("test-only", documented.testOnly, configModule.testOnlyDependencies ?? {}, errors);
   checkConfiguredRules(configModule.default, documented, errors);

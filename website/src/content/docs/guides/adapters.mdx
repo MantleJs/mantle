@@ -1,0 +1,82 @@
+---
+title: Adapters & queries
+description: The Repository<T> adapters for SQL, document, key-value, graph, and vector stores — and exactly which query operators each one supports.
+sidebar:
+  order: 1
+---
+
+import RepoTable from "../../../components/RepoTable.astro";
+
+An adapter is a `Repository<T>` implementation in the Infrastructure layer. Services never import one directly —
+they receive a `Repository<T>` — so moving a service from SQLite to Postgres to MongoDB is a change to the
+repository you construct, not to the service.
+
+| Package                                     | Repository classes                         | Backends                                                  |
+| ------------------------------------------- | ------------------------------------------ | --------------------------------------------------------- |
+| [`@mantlejs/knex`](/packages/knex/)         | `KnexRepository`, `KnexVectorRepository`   | PostgreSQL (incl. pgvector), MySQL/MariaDB, SQLite, MSSQL |
+| [`@mantlejs/mongodb`](/packages/mongodb/)   | `MongoRepository`, `MongoVectorRepository` | MongoDB, Atlas Vector Search                              |
+| [`@mantlejs/supabase`](/packages/supabase/) | `SupabaseRepository`                       | Supabase (Postgres via PostgREST)                         |
+| [`@mantlejs/dynamodb`](/packages/dynamodb/) | `DynamoDbRepository`                       | Amazon DynamoDB                                           |
+| [`@mantlejs/neo4j`](/packages/neo4j/)       | `Neo4jRepository`                          | Neo4j (with graph traversal)                              |
+| [`@mantlejs/pinecone`](/packages/pinecone/) | `PineconeRepository`                       | Pinecone (vector search)                                  |
+| [`@mantlejs/qdrant`](/packages/qdrant/)     | `QdrantRepository`                         | Qdrant (vector search)                                    |
+| [`@mantlejs/memory`](/packages/memory/)     | `MemoryRepository`                         | In-process `Map` — tests and prototypes                   |
+
+## Defining a repository
+
+Adapters are configured once as a plugin, then subclassed per table or collection:
+
+```typescript
+import { mantle, RepositoryService } from "@mantlejs/mantle";
+import { knex, KnexRepository } from "@mantlejs/knex";
+
+const app = mantle().configure(knex({ client: "pg", connection: process.env.DATABASE_URL }));
+
+class UserRepository extends KnexRepository<User> {
+  readonly tableName = "users";
+}
+
+app.use("users", new RepositoryService(new UserRepository(app)));
+```
+
+Every adapter keeps an escape hatch to its native client (the Knex query builder, the MongoDB collection, Neo4j's
+Cypher `raw()`) for queries the portable API can't express — put them in a named repository method, not in the
+service.
+
+## Portable queries
+
+`find()` takes a `QueryParams` object — `where`, `sort`, `limit`, `skip`, `select` — that every adapter
+translates to its own query language. Over HTTP the same object travels as a bracket-notation query string
+(`?age[$gt]=21&$sort[name]=asc&$limit=10`).
+
+The `where` operators:
+
+- Equality `{ field: value }`, null `{ field: null }`, not-equal `$ne`
+- Comparison `$lt`, `$lte`, `$gt`, `$gte`; inclusion `$in`, `$nin`
+- Logical `$or`, `$and` (arrays of where clauses)
+- Pattern `$like`, `$notlike`, `$ilike`
+- Containment `$contains` — the field is a superset of the value (an element, every element, or a recursive
+  key/value match)
+- Nested paths — dot-path keys such as `"metadata.owner.name"`
+
+## What each adapter supports
+
+Support is uneven by design: some backends can't represent nested data at all. Rather than silently
+misbehaving, every adapter **rejects an operator it doesn't support with a `BadRequest` naming it**, and reports
+exactly what it accepts through `describe().capabilities` — the same metadata `@mantlejs/openapi` and
+`@mantlejs/mcp` use, so an AI agent is never offered an operator the adapter would reject.
+
+<RepoTable file="CLAUDE.md" header="| Adapter" />
+
+On `knex`, capabilities depend on the **connected client** — check `describe().capabilities` at runtime rather
+than assuming every SQL database behaves the same. The semantics in this table are pinned by a shared conformance
+fixture exported from `@mantlejs/mantle` (`NESTED_QUERY_CASES`), which `@mantlejs/memory` executes as the
+reference implementation and the other adapters run as translator specs.
+
+## Services with more than one repository
+
+`RepositoryService` covers one repository. When a service has to write to two stores — a record and its
+embedding, a record and an activity log — write a `Service<T>` that receives both repositories. Writes across
+adapters aren't atomic, so the rule is: the secondary write is an **idempotent upsert keyed on the source
+record's id, safe to retry, and non-fatal on failure** — logged, never rethrown into the primary caller.
+[`@mantlejs/embeddings`](/packages/embeddings/)'s `embed()` hook is the reference implementation of that pattern.

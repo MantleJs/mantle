@@ -77,7 +77,8 @@
     "packages/*",
     "examples/*",
     "examples/knowledge-base/*",
-    "registry"
+    "registry",
+    "website"
   ],
   "dependencies": {
     "@aws-sdk/client-dynamodb": "^3.1075.0",

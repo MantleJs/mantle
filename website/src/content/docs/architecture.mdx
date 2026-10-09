@@ -1,0 +1,99 @@
+---
+title: Architecture
+description: Mantle's layers, the inward-only dependency rule, and why services are contracts rather than data-access classes.
+---
+
+import RepoTable from "../../components/RepoTable.astro";
+
+Mantle is a layered framework in the spirit of Clean and Onion Architecture. The name is the metaphor: the
+application layer is the geological _mantle_ — between the database at the core and the UI at the crust.
+
+```text
+CRUST (UI)            React, Vue, Angular, iOS, Android
+Transport layer       Express / Koa / HTTP / Socket.IO / MCP — route calls to services
+Application layer     Service<T> contracts, the hook pipeline          ← the mantle
+Domain layer (core)   Entities, Repository<T> interfaces
+Infrastructure        KnexRepository, MongoRepository, … — implement the Domain interfaces
+```
+
+## The dependency rule
+
+Dependencies always point **inward**:
+
+- Infrastructure implements interfaces the Domain defines — never the reverse. A service depends on
+  `Repository<T>`, not on `KnexRepository`.
+- Nothing in the Domain or Application layers knows about HTTP or databases. A hook that needs to tell callers
+  apart reads `context.provider` (`"rest"` for Express, `"koa"`, `"http"`, `"socket.io"`, `"mcp"`, or `undefined`
+  for an internal call), never a request object.
+- Transports are thin: they translate a request into a service call and run it through the same hook pipeline.
+  REST, Socket.IO, and MCP calls to one service get identical authentication, validation, and auditing — that
+  equivalence is covered by specs, not left to convention.
+
+## Services are contracts
+
+The closest relative of Mantle is FeathersJS, and the central difference is this: in Feathers a service _is_
+its data access — one class is use case, repository, and controller at once. In Mantle, `Service<T>` is only a
+contract:
+
+```typescript
+interface Service<T, D = Partial<T>> {
+  find(params?: ServiceParams): Promise<T[] | Paginated<T>>;
+  get(id: Id, params?: ServiceParams): Promise<T>;
+  create(data: D, params?: ServiceParams): Promise<T>;
+  update(id: Id, data: D, params?: ServiceParams): Promise<T>;
+  patch(id: Id, data: D, params?: ServiceParams): Promise<T>;
+  remove(id: Id, params?: ServiceParams): Promise<T>;
+}
+```
+
+Data access lives behind `Repository<T>` (`findAll`, `findById`, `save`, `updateById`, `patchById`,
+`deleteById`, `count`, …), implemented by an adapter in the Infrastructure layer. `RepositoryService` bridges the
+two for plain CRUD; anything richer — a service that writes to two stores, or one with custom methods — is a
+hand-written class that implements `Service<T>` and composes repositories it receives through its constructor.
+
+| Concern            | FeathersJS                      | Mantle JS                                   |
+| ------------------ | ------------------------------- | ------------------------------------------- |
+| Service definition | Class implementing data + logic | Interface (contract) only                   |
+| Data access        | Inside the service via adapter  | Repository in the Infrastructure layer      |
+| Business logic     | Mixed into service methods      | Isolated in the Application / Domain layers |
+| Hooks              | Transport-aware                 | Transport-agnostic                          |
+| Swapping databases | Requires service changes        | Swap the adapter only                       |
+| Testability        | Requires mocking the transport  | Domain testable with no mocks               |
+
+## Hooks
+
+Hooks are plain functions — `(context: HookContext) => HookContext | Promise<HookContext>`, never classes —
+registered per service and per method in three phases:
+
+```typescript
+app.service("users").hooks({
+  before: { all: [authenticate("jwt")], create: [hashPassword()] },
+  after: { all: [sanitizeUser()] },
+  error: { all: [logError()] },
+});
+```
+
+A `before` hook that sets `context.result` skips the service call; an `error` hook sees `context.error`. Every
+cross-cutting package — `@mantlejs/auth`, `@mantlejs/schema`, `@mantlejs/logger`, `@mantlejs/audit`,
+`@mantlejs/storage`, `@mantlejs/embeddings` — plugs in as hooks rather than middleware, which is what keeps them
+transport-agnostic.
+
+## Typed errors
+
+Code never throws a plain `Error`: every failure is a `MantleError` subclass — `BadRequest` (400),
+`NotAuthenticated` (401), `Forbidden` (403), `NotFound` (404), `Conflict` (409), `Unprocessable` (422),
+`GeneralError` (500), and a few more. Each serializes to the same JSON over every transport and can carry a
+`hint`: actionable guidance on how to make the request succeed, written for whoever reads it — a developer, a
+client SDK, or an AI agent.
+
+## Packages and their boundaries
+
+The monorepo holds one package per concern. Which package may import which is part of the architecture, not a
+convention: every project is tagged in Nx, the root ESLint config turns each row below into an
+`@nx/enforce-module-boundaries` constraint, and a CI check fails if this table and the configuration drift
+apart.
+
+<RepoTable file="CLAUDE.md" header="| Package" />
+
+Each package has a page under [Packages](/packages/mantle/) (its README) and a generated
+[API reference](/api/).

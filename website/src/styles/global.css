@@ -1,0 +1,122 @@
+/*
+ * Starlight + Tailwind v4, wired the way Starlight's Tailwind guide prescribes: Tailwind's base layer sits
+ * below Starlight's, and Preflight is left out so Starlight's own reset keeps styling the docs chrome.
+ * Tailwind is here for the live UI-block demos (React islands rendering the registry's own sources).
+ */
+@layer base, starlight, theme, components, utilities;
+
+@import "@astrojs/starlight-tailwind";
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/utilities.css" layer(utilities);
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+/* Blocks and their vendored shadcn primitives — scan them for utility classes. */
+@source "../../../registry/src/components";
+@source "../demos";
+
+/*
+ * shadcn's aria-nova theme tokens (registry/src/styles.css — what `shadcn init --base aria --preset nova`
+ * writes), so the demos render the way a consumer's fresh aria-nova app does. Dark values follow
+ * Starlight's theme toggle (`data-theme="dark"`) instead of shadcn's `.dark` class.
+ */
+@theme inline {
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --color-foreground: var(--foreground);
+  --color-background: var(--background);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+}
+
+:root {
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.145 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.145 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.145 0 0);
+  --primary: oklch(0.205 0 0);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.97 0 0);
+  --secondary-foreground: oklch(0.205 0 0);
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: oklch(0.556 0 0);
+  --accent: oklch(0.97 0 0);
+  --accent-foreground: oklch(0.205 0 0);
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: oklch(0.922 0 0);
+  --input: oklch(0.922 0 0);
+  --ring: oklch(0.708 0 0);
+  --radius: 0.625rem;
+}
+
+:root[data-theme="dark"] {
+  --background: oklch(0.145 0 0);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.205 0 0);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.205 0 0);
+  --popover-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.922 0 0);
+  --primary-foreground: oklch(0.205 0 0);
+  --secondary: oklch(0.269 0 0);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.269 0 0);
+  --muted-foreground: oklch(0.708 0 0);
+  --accent: oklch(0.269 0 0);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.704 0.191 22.216);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.556 0 0);
+}
+
+/* shadcn's base-layer defaults, scoped to the demos and React Aria overlays they portal into <body>. */
+@layer base {
+  :where(.mantle-demo, [data-rac]),
+  :where(.mantle-demo, [data-rac]) * {
+    border-color: var(--border);
+    outline-color: color-mix(in oklab, var(--ring) 50%, transparent);
+  }
+
+  /* The slice of Tailwind Preflight the shadcn primitives assume (Preflight itself stays off site-wide). */
+  :where(.mantle-demo, [data-rac]) :where(ul, ol) {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+  :where(.mantle-demo, [data-rac]) :where(a) {
+    color: inherit;
+    text-decoration: inherit;
+  }
+  :where(.mantle-demo, [data-rac]) :where(table) {
+    border-collapse: collapse;
+  }
+  :where(.mantle-demo, [data-rac]) :where(svg) {
+    display: block;
+    vertical-align: middle;
+  }
+  :where(.mantle-demo, [data-rac]) :where(button, input) {
+    font: inherit;
+    color: inherit;
+    background-color: transparent;
+  }
+}

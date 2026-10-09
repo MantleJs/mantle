@@ -202,12 +202,12 @@ app.use(
 
 Reserved keys inside `query` (everything else becomes the repository `where` clause):
 
-| Key | Example | Meaning |
-| --------- | ----------------------- | ---------------------------------------------- |
-| `$limit` | `?$limit=10` | page size (capped at `paginate.max` when set) |
-| `$skip` | `?$skip=20` | offset |
-| `$sort` | `?$sort[name]=asc` | sort order — accepts `asc`/`desc`/`1`/`-1` |
-| `$select` | `?$select[]=name` | field projection |
+| Key       | Example            | Meaning                                       |
+| --------- | ------------------ | --------------------------------------------- |
+| `$limit`  | `?$limit=10`       | page size (capped at `paginate.max` when set) |
+| `$skip`   | `?$skip=20`        | offset                                        |
+| `$sort`   | `?$sort[name]=asc` | sort order — accepts `asc`/`desc`/`1`/`-1`    |
+| `$select` | `?$select[]=name`  | field projection                              |
 
 `GET /users?age[$gt]=21&$limit=10&$sort[name]=asc` becomes
 `repository.findAll({ where: { age: { $gt: 21 } }, limit: 10, sort: { name: "asc" } })`.
@@ -231,12 +231,16 @@ the full hook pipeline). `VectorRepositoryService` is a `RepositoryService` with
 ```typescript
 import { VectorRepositoryService } from "@mantlejs/mantle";
 
-app.use("docs", new VectorRepositoryService(new DocRepository(app), {
-  fields: ["category", "tags"], // whitelist applies to similar()'s where too
-  topK: { default: 10, max: 100 }, // missing topK gets default; requests are capped at max
-}), {
-  methods: ["find", "get", "create", "update", "patch", "remove", "similar"],
-});
+app.use(
+  "docs",
+  new VectorRepositoryService(new DocRepository(app), {
+    fields: ["category", "tags"], // whitelist applies to similar()'s where too
+    topK: { default: 10, max: 100 }, // missing topK gets default; requests are capped at max
+  }),
+  {
+    methods: ["find", "get", "create", "update", "patch", "remove", "similar"],
+  },
+);
 ```
 
 ```
@@ -280,18 +284,18 @@ app.service("users").hooks({
 
 #### `HookContext<T>`
 
-| Field      | Type                            | Description                                 |
-| ---------- | ------------------------------- | ------------------------------------------- |
-| `app`      | `MantleApplication`             | The application instance                    |
-| `service`  | `Partial<Service<T>>`           | The service being called                    |
-| `path`     | `string`                        | Registered path, e.g. `"users"`             |
-| `method`   | `string`                        | Method name, e.g. `"create"`                |
-| `provider` | `string \| undefined`           | `"rest"` for HTTP calls, `undefined` internally |
-| `params`   | `ServiceParams`                 | Query, headers, user, etc.                  |
-| `data`     | `Partial<T> \| undefined`       | Request body (write methods)                |
-| `id`       | `Id \| undefined`               | Record identifier (get/update/patch/remove) |
-| `result`   | `T \| T[] \| Paginated<T> \| undefined` | Set by the service or an `after` hook |
-| `error`    | `Error \| undefined`            | Set when an error occurs                    |
+| Field      | Type                                    | Description                                                                                          |
+| ---------- | --------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `app`      | `MantleApplication`                     | The application instance                                                                             |
+| `service`  | `Partial<Service<T>>`                   | The service being called                                                                             |
+| `path`     | `string`                                | Registered path, e.g. `"users"`                                                                      |
+| `method`   | `string`                                | Method name, e.g. `"create"`                                                                         |
+| `provider` | `string \| undefined`                   | The transport: `"rest"` (Express), `"koa"`, `"http"`, `"socket.io"`, `"mcp"`; `undefined` internally |
+| `params`   | `ServiceParams`                         | Query, headers, user, etc.                                                                           |
+| `data`     | `Partial<T> \| undefined`               | Request body (write methods)                                                                         |
+| `id`       | `Id \| undefined`                       | Record identifier (get/update/patch/remove)                                                          |
+| `result`   | `T \| T[] \| Paginated<T> \| undefined` | Set by the service or an `after` hook                                                                |
+| `error`    | `Error \| undefined`                    | Set when an error occurs                                                                             |
 
 Setting `context.result` in a `before` hook skips the service call entirely.
 
@@ -301,19 +305,19 @@ Setting `context.result` in a `before` hook skips the service call entirely.
 
 Always throw a typed error — never a plain `new Error()`.
 
-| Class               | HTTP status | `className`          |
-| ------------------- | ----------- | -------------------- |
-| `BadRequest`        | 400         | `bad-request`        |
-| `NotAuthenticated`  | 401         | `not-authenticated`  |
-| `Forbidden`         | 403         | `forbidden`          |
-| `NotFound`          | 404         | `not-found`          |
-| `MethodNotAllowed`  | 405         | `method-not-allowed` |
-| `Conflict`          | 409         | `conflict`           |
-| `Unprocessable`     | 422         | `unprocessable`      |
-| `TooManyRequests`   | 429         | `too-many-requests`  |
-| `GeneralError`      | 500         | `general-error`      |
-| `NotImplemented`    | 501         | `not-implemented`    |
-| `Unavailable`       | 503         | `unavailable`        |
+| Class              | HTTP status | `className`          |
+| ------------------ | ----------- | -------------------- |
+| `BadRequest`       | 400         | `bad-request`        |
+| `NotAuthenticated` | 401         | `not-authenticated`  |
+| `Forbidden`        | 403         | `forbidden`          |
+| `NotFound`         | 404         | `not-found`          |
+| `MethodNotAllowed` | 405         | `method-not-allowed` |
+| `Conflict`         | 409         | `conflict`           |
+| `Unprocessable`    | 422         | `unprocessable`      |
+| `TooManyRequests`  | 429         | `too-many-requests`  |
+| `GeneralError`     | 500         | `general-error`      |
+| `NotImplemented`   | 501         | `not-implemented`    |
+| `Unavailable`      | 503         | `unavailable`        |
 
 All errors accept `(message?, data?, errors?, hint?)` and serialize via `.toJSON()`.
 

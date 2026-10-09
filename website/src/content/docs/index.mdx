@@ -1,0 +1,73 @@
+---
+title: Mantle JS
+description: A layered, real-time TypeScript framework for web APIs — services as contracts, repositories for data access, one hook pipeline for every transport and every agent.
+template: splash
+hero:
+  tagline: Build real-time APIs in TypeScript with clean layers — services as contracts, swappable data adapters, and one hook pipeline for REST, sockets, and AI agents.
+  actions:
+    - text: Get started
+      link: /getting-started/
+      icon: right-arrow
+    - text: Architecture
+      link: /architecture/
+      variant: minimal
+    - text: View on GitHub
+      link: https://github.com/MantleJs/mantle
+      icon: external
+      variant: minimal
+---
+
+import { Card, CardGrid, LinkCard } from "@astrojs/starlight/components";
+
+```bash
+npm create mantlejs@latest my-app
+```
+
+<CardGrid>
+  <Card title="Services are contracts" icon="puzzle">
+    `Service<T>` defines the API; `Repository<T>` adapters do the data access. Swap Postgres for MongoDB or
+    DynamoDB without touching a service.
+  </Card>
+  <Card title="One hook pipeline" icon="random">
+    Authentication, validation, logging, and auditing are plain function hooks that run identically for REST,
+    Socket.IO, and MCP callers.
+  </Card>
+  <Card title="Agent-native" icon="rocket">
+    Expose services to AI agents over MCP — per-method tools or a sandboxed code mode — with scoped, revocable
+    agent tokens and an audit trail.
+  </Card>
+  <Card title="Batteries, unbundled" icon="seti:config">
+    Eight SQL, document, graph, and vector adapters; local and seven OAuth sign-in strategies; uploads to disk, S3,
+    or GCS; OpenAPI; realtime sync — one package each.
+  </Card>
+</CardGrid>
+
+## Explore
+
+<CardGrid>
+  <LinkCard
+    title="Getting started"
+    href="/getting-started/"
+    description="Scaffold a project or write the smallest Mantle app by hand."
+  />
+  <LinkCard
+    title="Adapters & queries"
+    href="/guides/adapters/"
+    description="Every Repository<T> adapter and the query operators each one supports."
+  />
+  <LinkCard
+    title="Agents (MCP)"
+    href="/guides/agents/"
+    description="Tool mode, code mode, agent tokens, and the audit trail."
+  />
+  <LinkCard
+    title="UI blocks"
+    href="/blocks/"
+    description="React Aria blocks for shadcn/ui, wired to Mantle — install with shadcn add."
+  />
+  <LinkCard title="Packages" href="/packages/mantle/" description="The README of every @mantlejs package." />
+  <LinkCard title="API reference" href="/api/" description="Generated from each package's TypeScript exports." />
+</CardGrid>
+
+Building with an AI assistant? Point it at [`/llms.txt`](/llms.txt) — or [`/llms-full.txt`](/llms-full.txt) for
+every guide and package README in one file.

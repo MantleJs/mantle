@@ -8,3 +8,6 @@
 /registry/src/components/ui
 /registry/public
 /examples/knowledge-base/web/src/components/ui
+/website/dist
+/website/.astro
+/website/src/content/docs/api

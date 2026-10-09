@@ -49,8 +49,12 @@ jobs:
       - name: Dependency matrix cross-check
         run: npm run check-dependency-matrix
 
+      # Includes the website (Phase 7 item 12): its build runs starlight-links-validator, so a PR that
+      # breaks an internal link — in a guide or in any package README the site ingests — fails here.
       - name: Build, test, lint, typecheck
         run: npx nx run-many -t build,test,lint,typecheck
+        env:
+          ASTRO_TELEMETRY_DISABLED: "1"
 
       - name: create-mantlejs scaffold smoke test
         run: npx nx run create-mantlejs:e2e-scaffold

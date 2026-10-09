@@ -87,6 +87,7 @@ mantle/
 │   ├── cli/             @mantlejs/cli          Command-line interface — scaffold projects/services/hooks
 │   └── create-mantlejs/ create-mantlejs        `npm create mantlejs` project initializer
 ├── registry/           Mantle UI — React Aria blocks as a shadcn registry (`shadcn add @mantle/…`), unpublished
+├── website/            mantlejs.com — Astro Starlight docs site; serves the registry at /r/ (deployed, unpublished)
 ├── examples/           Runnable apps, unpublished, npm-workspace-linked (not part of the release)
 │   ├── todo-minimal/    @mantlejs/http + @mantlejs/memory, single file, README quick-start source
 │   ├── realtime-chat/   Express + socketio + knex/sqlite + auth-local, static HTML client
@@ -141,9 +142,10 @@ mantle/
 | create-mantlejs          | @mantlejs/cli                                                                                                                                                                  |
 | ui-registry              | @mantlejs/client, @mantlejs/react (`registry/`, unpublished; peers: react, react-aria-components, @tanstack/react-query)                                                       |
 | examples/\*              | anything (apps, not libraries — exempt from the boundary rules above, never depended on)                                                                                       |
+| website                  | anything (the mantlejs.com docs site — an app like examples/\*, never depended on)                                                                                             |
 
 Enforced for real: every `packages/*` project is tagged `pkg:<name>` + `type:lib`, the `registry/` project
-`pkg:ui-registry` + `type:registry`, and every `examples/*` project `type:app` (in its `package.json` `nx.tags`).
+`pkg:ui-registry` + `type:registry`, and every app (`examples/*`, `website/`) `type:app` (in its `package.json` `nx.tags`).
 The root `eslint.config.mjs` builds one `depConstraints` entry per row above from its `dependencyMatrix` export. "test-only" packages may be imported only from `*.spec.ts(x)` files (the
 `testOnlyDependencies` export, applied by a spec-file override), never from production sources. Parenthesized npm
 packages (`+ @modelcontextprotocol/sdk`, peers) are informational and not checked. `npm run check-dependency-matrix`
