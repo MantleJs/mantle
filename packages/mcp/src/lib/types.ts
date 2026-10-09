@@ -1,4 +1,4 @@
-import type { CapabilityScope, MantleApplication, ServiceParams } from "@mantlejs/mantle";
+import type { CapabilityScope, MantleApplication, ServiceDescriptor, ServiceParams } from "@mantlejs/mantle";
 
 /**
  * Context handed to app-authored tool handlers. Dispatch inner service calls with
@@ -66,6 +66,52 @@ export interface McpQueryOptions {
   maxLimit?: number;
 }
 
+/**
+ * Which tool surface the server lists. `"tools"`: one generated tool per exposed method.
+ * `"code"`: the generated per-method tools are suppressed and the `codeMode` provider's
+ * tools/resources take their place. `"both"`: the union. App-authored `tools`, `resources`,
+ * `prompts`, and event resources are registered in every mode.
+ */
+export type McpMode = "tools" | "code" | "both";
+
+/** One expose-map entry after resolution — what a code-mode provider builds its API from. */
+export interface McpExposedService {
+  /** Service path, leading slash stripped. */
+  path: string;
+  /** Exposed methods only (the expose map's list, or every registered method for `true`), custom methods included. */
+  methods: string[];
+  /** `app.service(path).describe()` — the same metadata the generated tools are built from. */
+  descriptor: ServiceDescriptor;
+}
+
+/** Input to `McpCodeModeProvider.build()`. */
+export interface McpCodeModeInput {
+  app: MantleApplication;
+  /** The resolved expose map — `"*"` and `true` already expanded, unknown paths/methods already rejected. */
+  services: McpExposedService[];
+  /** Effective find() guardrails, defaults applied. */
+  query: Required<McpQueryOptions>;
+}
+
+/** What a code-mode provider contributes to the server. */
+export interface McpCodeModeSurface {
+  /** Same collision rules as app-authored tools: a name clash with any registered tool throws `BadRequest`. */
+  tools: McpToolDefinition[];
+  /** Same rules as app-authored resources (unique URI, `mantle://events/` reserved). */
+  resources?: McpResourceDefinition[];
+}
+
+/**
+ * Extension point for code mode (implemented by `@mantlejs/mcp-code`; this package never
+ * depends on an implementation). `build()` runs once, when the expose map is resolved — at
+ * `listen()` for HTTP, at `startMcp()` for stdio. The surface is therefore shared by every
+ * session: per-session behavior (e.g. narrowing the API shown to an agent token) belongs in
+ * the returned handlers, which receive the session's `McpToolContext.params` on every call.
+ */
+export interface McpCodeModeProvider {
+  build(input: McpCodeModeInput): McpCodeModeSurface;
+}
+
 export interface McpOptions {
   /**
    * Expose map — required, deny-by-default. Maps a registered service path to the methods
@@ -96,6 +142,13 @@ export interface McpOptions {
   prompts?: McpPromptDefinition[];
   /** find() result guardrails. @default { defaultLimit: 25, maxLimit: 100 } */
   query?: McpQueryOptions;
+  /**
+   * Tool surface. `"code"`/`"both"` require `codeMode` (`BadRequest` otherwise).
+   * @default "code" when `codeMode` is set, `"tools"` otherwise
+   */
+  mode?: McpMode;
+  /** Code-mode provider, e.g. `codeMode()` from `@mantlejs/mcp-code`. */
+  codeMode?: McpCodeModeProvider;
 }
 
 export const DEFAULT_FIND_LIMIT = 25;

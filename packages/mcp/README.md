@@ -22,8 +22,8 @@ Nothing is exposed unless you say so. `services` is required and maps a service 
 mcp({
   transport: "http",
   services: {
-    articles: true,            // every method registered in app.use()
-    users: ["find", "get"],    // read-only over MCP
+    articles: true, // every method registered in app.use()
+    users: ["find", "get"], // read-only over MCP
   },
 });
 ```
@@ -84,9 +84,9 @@ const app = mantle()
   .configure(express())
   .configure(
     mcp({
-      transport: "http",           // mounts POST /mcp (path configurable)
+      transport: "http", // mounts POST /mcp (path configurable)
       services: { users: ["find", "get"], articles: true },
-      events: true,                // mantle://events/{path} resources
+      events: true, // mantle://events/{path} resources
     }),
   );
 
@@ -181,23 +181,60 @@ mcp({
 
 The `prompts` capability is only declared when at least one prompt is defined; duplicate names fail at configure time.
 
+### Code mode
+
+Instead of one tool per method, a server can give the agent a typed API it writes a short script against. Many service calls then run in one round trip, and intermediate results stay out of the model's context. The sandbox lives in a separate package, **`@mantlejs/mcp-code`** (forthcoming, experimental), which plugs in through the `codeMode` option. `@mantlejs/mcp` itself has no sandbox dependency.
+
+| `mode`    | Tools listed                                                                                                  |
+| --------- | ------------------------------------------------------------------------------------------------------------- |
+| `"tools"` | One generated tool per exposed method. The default when no `codeMode` provider is set, and today's behavior.  |
+| `"code"`  | The provider's tools only; the generated per-method tools are suppressed. The default when `codeMode` is set. |
+| `"both"`  | Generated tools plus the provider's tools.                                                                    |
+
+App-authored `tools`, `resources`, `prompts`, and event resources are registered in every mode. `mode: "code"` or `"both"` without a provider fails at configure time with a `BadRequest`.
+
+A provider implements `McpCodeModeProvider`. Its `build()` runs once, when the expose map is resolved (at `listen()` for HTTP, at `startMcp()` for stdio):
+
+```typescript
+interface McpCodeModeProvider {
+  build(input: McpCodeModeInput): McpCodeModeSurface;
+}
+
+interface McpCodeModeInput {
+  app: MantleApplication;
+  services: McpExposedService[]; // resolved expose map: { path, methods, descriptor }, never "*"
+  query: { defaultLimit: number; maxLimit: number }; // effective find() guardrails
+}
+
+interface McpCodeModeSurface {
+  tools: McpToolDefinition[];
+  resources?: McpResourceDefinition[];
+}
+```
+
+- **Same rules as app-authored tools and resources.** A provider tool whose name collides with any registered tool fails the boot, and so does a provider resource URI that duplicates another or uses `mantle://events/`. In `"code"` mode the generated tools aren't registered, so their names are free.
+- **Same metadata as tool mode.** `describeServiceMethod(descriptor, method, query)` and `buildQuerySchema(operators, limits)` are exported. They are the exact helpers the generated tools are built from, so a provider's typed API cannot drift from the tool schemas.
+- **Per-session behavior lives in the handlers.** The surface is built once and shared by every session. Tool handlers and resource `read` functions receive the session's `McpToolContext.params` on every call, which is where a provider narrows what a given agent sees. Enforcement still happens in the hook pipeline, because every inner `dispatch()` runs the target service's hooks.
+
 ---
 
 ## API
 
 ### `mcp(options: McpOptions): MantlePlugin`
 
-| Option       | Type                                     | Default                                | Description                                                                 |
-| ------------ | ---------------------------------------- | -------------------------------------- | --------------------------------------------------------------------------- |
-| `services`   | `Record<string, string[] \| true> \| "*"` | — (required)                           | Deny-by-default expose map.                                                 |
-| `transport`  | `"stdio" \| "http"`                      | — (required)                           | `"http"` mounts on the app's transport; `"stdio"` pairs with `startMcp()`.  |
-| `path`       | `string`                                 | `"/mcp"`                               | HTTP mount path.                                                            |
-| `serverInfo` | `{ name?, version? }`                    | `{ name: "mantle", version: "0.0.0" }` | Identity reported during MCP initialization.                                |
-| `events`     | `boolean`                                | `false`                                | Event resources (`mantle://events/{path}`, last 50 events) for exposed services. |
-| `tools`      | `McpToolDefinition[]`                    | `[]`                                   | App-authored composite tools.                                               |
-| `resources`  | `McpResourceDefinition[]`                | `[]`                                   | App-authored read-only resources.                                           |
-| `prompts`    | `McpPromptDefinition[]`                  | `[]`                                   | App-authored prompt templates.                                              |
-| `query`      | `{ defaultLimit?, maxLimit? }`           | `{ defaultLimit: 25, maxLimit: 100 }`  | `find` result guardrails.                                                   |
+| Option       | Type                                      | Default                                  | Description                                                                      |
+| ------------ | ----------------------------------------- | ---------------------------------------- | -------------------------------------------------------------------------------- |
+| `services`   | `Record<string, string[] \| true> \| "*"` | — (required)                             | Deny-by-default expose map.                                                      |
+| `transport`  | `"stdio" \| "http"`                       | — (required)                             | `"http"` mounts on the app's transport; `"stdio"` pairs with `startMcp()`.       |
+| `path`       | `string`                                  | `"/mcp"`                                 | HTTP mount path.                                                                 |
+| `serverInfo` | `{ name?, version? }`                     | `{ name: "mantle", version: "0.0.0" }`   | Identity reported during MCP initialization.                                     |
+| `events`     | `boolean`                                 | `false`                                  | Event resources (`mantle://events/{path}`, last 50 events) for exposed services. |
+| `tools`      | `McpToolDefinition[]`                     | `[]`                                     | App-authored composite tools.                                                    |
+| `resources`  | `McpResourceDefinition[]`                 | `[]`                                     | App-authored read-only resources.                                                |
+| `prompts`    | `McpPromptDefinition[]`                   | `[]`                                     | App-authored prompt templates.                                                   |
+| `query`      | `{ defaultLimit?, maxLimit? }`            | `{ defaultLimit: 25, maxLimit: 100 }`    | `find` result guardrails.                                                        |
+| `mode`       | `"tools" \| "code" \| "both"`             | `"code"` with `codeMode`, else `"tools"` | Tool surface — see [Code mode](#code-mode).                                      |
+| `codeMode`   | `McpCodeModeProvider`                     | —                                        | Code-mode provider (e.g. from `@mantlejs/mcp-code`).                             |
 
 ### `startMcp(app, options?): Promise<Server>`
 

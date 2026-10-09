@@ -1,7 +1,13 @@
 import type { MantleApplication, Paginated, ServiceDescriptor, ServiceParams } from "@mantlejs/mantle";
 import { BadRequest, NotFound } from "@mantlejs/mantle";
 import { buildQuerySchema } from "./query-schema.js";
-import type { McpOptions, McpToolDefinition } from "./types.js";
+import type {
+  McpExposedService,
+  McpOptions,
+  McpQueryOptions,
+  McpResourceDefinition,
+  McpToolDefinition,
+} from "./types.js";
 import { DEFAULT_FIND_LIMIT, DEFAULT_MAX_FIND_LIMIT } from "./types.js";
 
 type JsonObject = Record<string, unknown>;
@@ -19,6 +25,21 @@ export interface ToolTable {
   tools: Map<string, ToolEntry>;
   /** Service paths in the expose map — the only services whose events may surface as resources. */
   exposedPaths: string[];
+  /** Resources contributed by the code-mode provider, served alongside `options.resources`. */
+  providerResources: McpResourceDefinition[];
+}
+
+/**
+ * Listing metadata for one exposed service method — tool name, description (including
+ * destructive-operation notes and the find-limit clamp), and JSON Schemas. The single source
+ * the generated tools are built from; exported so a code-mode provider derives its typed API
+ * from exactly the same shapes and the two surfaces cannot drift.
+ */
+export interface McpMethodSchema {
+  name: string;
+  description: string;
+  inputSchema: JsonObject;
+  outputSchema?: JsonObject;
 }
 
 /** The structured query argument accepted by generated find/get/remove tools. */
@@ -30,10 +51,7 @@ interface QueryArg {
   select?: unknown[];
 }
 
-interface FindLimits {
-  defaultLimit: number;
-  maxLimit: number;
-}
+type FindLimits = Required<McpQueryOptions>;
 
 /**
  * Resolve the expose map against the app's registered services and build the tool table.
@@ -51,13 +69,16 @@ export function buildToolTable(app: MantleApplication, options: McpOptions, regi
       ? registeredPaths.map((path) => [path, true])
       : Object.entries(options.services).map(([path, methods]) => [path.replace(/^\//, ""), methods]);
 
+  const mode = resolveMode(options);
   const tools = new Map<string, ToolEntry>();
-  const exposedPaths: string[] = [];
+  const exposed: McpExposedService[] = [];
 
   for (const [path, methodsSpec] of exposeMap) {
     const descriptor = describeService(app, path);
     const methods = resolveMethods(descriptor, methodsSpec);
-    exposedPaths.push(path);
+    exposed.push({ path, methods, descriptor });
+    // Code mode replaces the per-method tools — the expose map still governs what the provider sees.
+    if (mode === "code") continue;
     for (const method of methods) {
       const entry = buildServiceTool(app, descriptor, method, limits);
       tools.set(entry.name, entry);
@@ -76,7 +97,84 @@ export function buildToolTable(app: MantleApplication, options: McpOptions, regi
     tools.set(definition.name, buildCustomTool(app, definition));
   }
 
-  return { tools, exposedPaths };
+  const providerResources: McpResourceDefinition[] = [];
+  if (options.codeMode !== undefined && mode !== "tools") {
+    const surface = options.codeMode.build({ app, services: exposed, query: limits });
+    for (const definition of surface.tools) {
+      validateToolDefinition(definition, "code-mode provider tool");
+      if (tools.has(definition.name)) {
+        throw new BadRequest(
+          `Code-mode provider tool '${definition.name}' collides with an existing tool name`,
+          undefined,
+          undefined,
+          'Rename the conflicting custom tool, or exclude the conflicting service method from the expose map (or use mode: "code").',
+        );
+      }
+      tools.set(definition.name, buildCustomTool(app, definition));
+    }
+    const resources = surface.resources ?? [];
+    validateResourceDefinitions(
+      resources,
+      new Set((options.resources ?? []).map((r) => r.uri)),
+      "code-mode provider resource",
+    );
+    providerResources.push(...resources);
+  }
+
+  return { tools, exposedPaths: exposed.map((service) => service.path), providerResources };
+}
+
+/** `mode` default: `"code"` when a provider is configured, `"tools"` otherwise. */
+export function resolveMode(options: McpOptions): NonNullable<McpOptions["mode"]> {
+  return options.mode ?? (options.codeMode !== undefined ? "code" : "tools");
+}
+
+/** Shared by `mcp()` option validation and code-mode provider output. `label` is lower-case, e.g. "custom MCP tool". */
+export function validateToolDefinition(tool: McpToolDefinition, label: string): void {
+  if (typeof tool.name !== "string" || tool.name.length === 0) {
+    throw new BadRequest(`Every ${label} needs a non-empty 'name'`);
+  }
+  if (typeof tool.handler !== "function") {
+    throw new BadRequest(`${capitalize(label)} '${tool.name}' needs a handler function`);
+  }
+}
+
+/**
+ * Shared by `mcp()` option validation and code-mode provider output. `seen` holds URIs
+ * already taken (and accumulates these). `label` is lower-case, e.g. "custom MCP resource".
+ */
+export function validateResourceDefinitions(
+  resources: McpResourceDefinition[],
+  seen: Set<string>,
+  label: string,
+): void {
+  for (const resource of resources) {
+    if (typeof resource.uri !== "string" || resource.uri.length === 0) {
+      throw new BadRequest(`Every ${label} needs a non-empty 'uri'`);
+    }
+    if (resource.uri.startsWith("mantle://events/")) {
+      throw new BadRequest(
+        `${capitalize(label)} '${resource.uri}' uses the reserved mantle://events/ namespace`,
+        undefined,
+        undefined,
+        "Event resources are generated from the expose map when events: true — pick a different URI scheme or path.",
+      );
+    }
+    if (seen.has(resource.uri)) {
+      throw new BadRequest(`Duplicate ${label} URI '${resource.uri}'`);
+    }
+    seen.add(resource.uri);
+    if (typeof resource.name !== "string" || resource.name.length === 0) {
+      throw new BadRequest(`${capitalize(label)} '${resource.uri}' needs a non-empty 'name'`);
+    }
+    if (typeof resource.read !== "function") {
+      throw new BadRequest(`${capitalize(label)} '${resource.uri}' needs a read function`);
+    }
+  }
+}
+
+function capitalize(text: string): string {
+  return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
 function describeService(app: MantleApplication, path: string): ServiceDescriptor {
@@ -132,19 +230,20 @@ function partialSchema(schema: JsonObject): JsonObject {
 
 const ID_SCHEMA: JsonObject = { type: ["string", "integer"], description: "Record id." };
 
-function buildServiceTool(
-  app: MantleApplication,
+/**
+ * Listing metadata for one service method — see `McpMethodSchema`. `limits` are the effective
+ * find() guardrails, advertised on `find` (pass `McpCodeModeInput.query`).
+ */
+export function describeServiceMethod(
   descriptor: ServiceDescriptor,
   method: string,
-  limits: FindLimits,
-): ToolEntry {
+  limits: Required<McpQueryOptions>,
+): McpMethodSchema {
   const path = descriptor.path;
   const name = toolName(path, method);
   const operators = descriptor.capabilities?.operators;
   const entity = entitySchema(descriptor);
-  const output = descriptor.schema !== undefined ? entity : undefined;
-  const dispatch = (data: unknown, id: unknown, params: ServiceParams): Promise<unknown> =>
-    app.service(path).dispatch(method, data as Partial<unknown> | undefined, id as string | number | undefined, params);
+  const output = descriptor.schema !== undefined ? { outputSchema: entity } : {};
 
   switch (method) {
     case "find":
@@ -155,16 +254,6 @@ function buildServiceTool(
           type: "object",
           additionalProperties: false,
           properties: { query: buildQuerySchema(operators, limits) },
-        },
-        run: async (args, params) => {
-          const query = (args["query"] ?? {}) as QueryArg;
-          const requested = typeof query.limit === "number" ? query.limit : undefined;
-          const limit = Math.min(requested ?? limits.defaultLimit, limits.maxLimit);
-          const result = await dispatch(undefined, undefined, {
-            ...params,
-            query: toRestQuery(query, limit),
-          });
-          return { result, note: truncationNote(result) };
         },
       };
     case "get":
@@ -177,13 +266,7 @@ function buildServiceTool(
           required: ["id"],
           properties: { id: ID_SCHEMA, query: buildQuerySchema(operators) },
         },
-        ...(output ? { outputSchema: output } : {}),
-        run: async (args, params) => ({
-          result: await dispatch(undefined, requireId(args, name), {
-            ...params,
-            query: toRestQuery((args["query"] ?? {}) as QueryArg),
-          }),
-        }),
+        ...output,
       };
     case "create":
       return {
@@ -195,8 +278,7 @@ function buildServiceTool(
           required: ["data"],
           properties: { data: entity },
         },
-        ...(output ? { outputSchema: output } : {}),
-        run: async (args, params) => ({ result: await dispatch(args["data"], undefined, params) }),
+        ...output,
       };
     case "update":
       return {
@@ -208,8 +290,7 @@ function buildServiceTool(
           required: ["id", "data"],
           properties: { id: ID_SCHEMA, data: entity },
         },
-        ...(output ? { outputSchema: output } : {}),
-        run: async (args, params) => ({ result: await dispatch(args["data"], requireId(args, name), params) }),
+        ...output,
       };
     case "patch":
       return {
@@ -221,8 +302,7 @@ function buildServiceTool(
           required: ["id", "data"],
           properties: { id: ID_SCHEMA, data: partialSchema(entity) },
         },
-        ...(output ? { outputSchema: output } : {}),
-        run: async (args, params) => ({ result: await dispatch(args["data"], requireId(args, name), params) }),
+        ...output,
       };
     case "remove":
       return {
@@ -234,12 +314,6 @@ function buildServiceTool(
           required: ["id"],
           properties: { id: ID_SCHEMA, query: buildQuerySchema(operators) },
         },
-        run: async (args, params) => ({
-          result: await dispatch(undefined, requireId(args, name), {
-            ...params,
-            query: toRestQuery((args["query"] ?? {}) as QueryArg),
-          }),
-        }),
       };
     default:
       // Custom service method: dispatches as (data, params), like the HTTP transports' POST /path/:method.
@@ -251,6 +325,58 @@ function buildServiceTool(
           additionalProperties: false,
           properties: { data: { type: "object", description: "Payload passed to the method." } },
         },
+      };
+  }
+}
+
+function buildServiceTool(
+  app: MantleApplication,
+  descriptor: ServiceDescriptor,
+  method: string,
+  limits: FindLimits,
+): ToolEntry {
+  const path = descriptor.path;
+  const schema = describeServiceMethod(descriptor, method, limits);
+  const dispatch = (data: unknown, id: unknown, params: ServiceParams): Promise<unknown> =>
+    app.service(path).dispatch(method, data as Partial<unknown> | undefined, id as string | number | undefined, params);
+
+  switch (method) {
+    case "find":
+      return {
+        ...schema,
+        run: async (args, params) => {
+          const query = (args["query"] ?? {}) as QueryArg;
+          const requested = typeof query.limit === "number" ? query.limit : undefined;
+          const limit = Math.min(requested ?? limits.defaultLimit, limits.maxLimit);
+          const result = await dispatch(undefined, undefined, {
+            ...params,
+            query: toRestQuery(query, limit),
+          });
+          return { result, note: truncationNote(result) };
+        },
+      };
+    case "get":
+    case "remove":
+      return {
+        ...schema,
+        run: async (args, params) => ({
+          result: await dispatch(undefined, requireId(args, schema.name), {
+            ...params,
+            query: toRestQuery((args["query"] ?? {}) as QueryArg),
+          }),
+        }),
+      };
+    case "create":
+      return { ...schema, run: async (args, params) => ({ result: await dispatch(args["data"], undefined, params) }) };
+    case "update":
+    case "patch":
+      return {
+        ...schema,
+        run: async (args, params) => ({ result: await dispatch(args["data"], requireId(args, schema.name), params) }),
+      };
+    default:
+      return {
+        ...schema,
         run: async (args, params) => ({ result: await dispatch(args["data"] ?? {}, undefined, params) }),
       };
   }

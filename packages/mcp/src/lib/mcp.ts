@@ -13,7 +13,7 @@ import { EventLog } from "./events.js";
 import { createMcpServer } from "./server.js";
 import { handleSingleShot } from "./single-shot.js";
 import type { ToolTable } from "./tools.js";
-import { buildToolTable } from "./tools.js";
+import { buildToolTable, validateResourceDefinitions, validateToolDefinition } from "./tools.js";
 import type { McpOptions } from "./types.js";
 
 /** Stored under `app.get("mcp:server")` — builds a server bound to one session's params. */
@@ -155,37 +155,24 @@ function validateOptions(options: McpOptions): void {
   }
 
   for (const tool of options.tools ?? []) {
-    if (typeof tool.name !== "string" || tool.name.length === 0) {
-      throw new BadRequest("Every custom MCP tool needs a non-empty 'name'");
-    }
-    if (typeof tool.handler !== "function") {
-      throw new BadRequest(`Custom MCP tool '${tool.name}' needs a handler function`);
-    }
+    validateToolDefinition(tool, "custom MCP tool");
   }
+  validateResourceDefinitions(options.resources ?? [], new Set<string>(), "custom MCP resource");
 
-  const resourceUris = new Set<string>();
-  for (const resource of options.resources ?? []) {
-    if (typeof resource.uri !== "string" || resource.uri.length === 0) {
-      throw new BadRequest("Every custom MCP resource needs a non-empty 'uri'");
-    }
-    if (resource.uri.startsWith("mantle://events/")) {
-      throw new BadRequest(
-        `Custom MCP resource '${resource.uri}' uses the reserved mantle://events/ namespace`,
-        undefined,
-        undefined,
-        "Event resources are generated from the expose map when events: true — pick a different URI scheme or path.",
-      );
-    }
-    if (resourceUris.has(resource.uri)) {
-      throw new BadRequest(`Duplicate custom MCP resource URI '${resource.uri}'`);
-    }
-    resourceUris.add(resource.uri);
-    if (typeof resource.name !== "string" || resource.name.length === 0) {
-      throw new BadRequest(`Custom MCP resource '${resource.uri}' needs a non-empty 'name'`);
-    }
-    if (typeof resource.read !== "function") {
-      throw new BadRequest(`Custom MCP resource '${resource.uri}' needs a read function`);
-    }
+  const mode = options.mode as unknown;
+  if (mode !== undefined && mode !== "tools" && mode !== "code" && mode !== "both") {
+    throw new BadRequest(`mcp() mode must be "tools", "code", or "both", got '${String(mode)}'`);
+  }
+  if (options.codeMode !== undefined && typeof options.codeMode.build !== "function") {
+    throw new BadRequest("mcp() codeMode must be a code-mode provider with a build() function");
+  }
+  if ((mode === "code" || mode === "both") && options.codeMode === undefined) {
+    throw new BadRequest(
+      `mcp() mode "${mode}" requires a codeMode provider`,
+      undefined,
+      undefined,
+      'Pass codeMode: codeMode() from @mantlejs/mcp-code, or use mode: "tools".',
+    );
   }
 
   const promptNames = new Set<string>();

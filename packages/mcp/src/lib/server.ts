@@ -40,7 +40,9 @@ export function toErrorJson(error: unknown): Record<string, unknown> {
 export function createMcpServer(context: McpServerContext, sessionParams: ServiceParams): Server {
   const { app, options, table, eventLog } = context;
   const events = options.events === true && eventLog !== undefined;
-  const customResources = new Map((options.resources ?? []).map((resource) => [resource.uri, resource]));
+  const customResources = new Map(
+    [...(options.resources ?? []), ...table.providerResources].map((resource) => [resource.uri, resource]),
+  );
   const prompts = new Map((options.prompts ?? []).map((prompt) => [prompt.name, prompt]));
   const hasResources = events || customResources.size > 0;
 
