@@ -1,59 +1,42 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { MantleProvider } from "@mantlejs/react";
-import { client } from "../lib/client.js";
-import { AuthPage } from "../pages/AuthPage.js";
-import { ArticlesPage } from "../pages/ArticlesPage.js";
-import { ArticleDetailPage } from "../pages/ArticleDetailPage.js";
-import { Button } from "../components/ui/button.js";
+import { client } from "@/lib/client";
+import { AuthProvider, useAuth } from "@/components/mantle/auth-provider";
+import { Button } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
+import { AuthPage } from "@/pages/AuthPage";
+import { ArticlesPage } from "@/pages/ArticlesPage";
+import { ArticleDetailPage } from "@/pages/ArticleDetailPage";
 
 type View = { name: "list" } | { name: "article"; id: number };
 
 function Shell() {
-  // undefined = still checking for a persisted session. getAccessToken() is synchronous and
-  // reads only the in-memory copy, which is empty on a fresh page load until something hydrates
-  // it from storage — checking it here would show the login page on every refresh even with a
-  // valid session saved. isAuthenticated() hydrates first; see @mantlejs/client's README.
-  const [authenticated, setAuthenticated] = useState<boolean | undefined>(undefined);
+  // AuthProvider resolves the persisted-session check (and any OAuth redirect fragment) on mount;
+  // "loading" until then, so a valid saved session never flashes the login page.
+  const { status, logout } = useAuth();
   const [view, setView] = useState<View>({ name: "list" });
 
-  useEffect(() => {
-    let cancelled = false;
-    void client.isAuthenticated().then((result) => {
-      if (!cancelled) setAuthenticated(result);
-    });
-
-    const onAuthenticated = () => setAuthenticated(true);
-    const onLogout = () => setAuthenticated(false);
-    client.on("authenticated", onAuthenticated);
-    client.on("logout", onLogout);
-    return () => {
-      cancelled = true;
-      client.off("authenticated", onAuthenticated);
-      client.off("logout", onLogout);
-    };
-  }, []);
-
-  if (authenticated === undefined) {
+  if (status === "loading") {
     return (
-      <main className="min-h-screen bg-slate-50 px-4 py-8">
-        <p className="text-sm text-slate-500">Loading…</p>
+      <main className="flex min-h-screen items-center justify-center bg-background">
+        <Spinner />
       </main>
     );
   }
 
-  if (!authenticated) {
+  if (status === "unauthenticated") {
     return (
-      <main className="min-h-screen bg-slate-50 px-4 py-8">
+      <main className="min-h-screen bg-background px-4 py-8">
         <AuthPage />
       </main>
     );
   }
 
   return (
-    <main className="min-h-screen bg-slate-50 px-4 py-8">
+    <main className="min-h-screen bg-background px-4 py-8">
       <header className="mx-auto mb-6 flex max-w-2xl items-center justify-between">
-        <h1 className="text-lg font-semibold text-slate-900">Mantle KB</h1>
-        <Button variant="ghost" onClick={() => void client.logout()}>
+        <h1 className="text-lg font-semibold">Mantle KB</h1>
+        <Button variant="ghost" onPress={() => void logout()}>
           Log out
         </Button>
       </header>
@@ -69,7 +52,9 @@ function Shell() {
 export function App() {
   return (
     <MantleProvider client={client}>
-      <Shell />
+      <AuthProvider>
+        <Shell />
+      </AuthProvider>
     </MantleProvider>
   );
 }

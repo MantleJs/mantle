@@ -1,103 +1,41 @@
-import { useEffect, useState, type FormEvent } from "react";
-import { useCreate } from "@mantlejs/react";
-import { client, apiUrl } from "../lib/client.js";
-import { Button } from "../components/ui/button.js";
-import { Input } from "../components/ui/input.js";
-import { Card } from "../components/ui/card.js";
-import type { User } from "../types.js";
+import { useState } from "react";
+import { apiUrl } from "@/lib/client";
+import { LoginForm } from "@/components/mantle/login-form";
+import { SignupForm } from "@/components/mantle/signup-form";
+import { OAuthButtons } from "@/components/mantle/oauth-buttons";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 
-const OAUTH_PROVIDERS = [
-  { key: "google", label: "Google" },
-  { key: "github", label: "GitHub" },
-  { key: "apple", label: "Apple" },
-  { key: "microsoft", label: "Microsoft" },
-  { key: "linkedin", label: "LinkedIn" },
-];
+/** The strategies api/src/app.ts's configureOAuthStrategies() can register (each only when its env vars are set). */
+const OAUTH_PROVIDERS = ["google", "github", "apple", "microsoft", "linkedin"] as const;
 
 export function AuthPage() {
   const [mode, setMode] = useState<"login" | "register">("login");
-  const [error, setError] = useState<string | undefined>();
-  const registerUser = useCreate<User>("users");
 
-  // The OAuth callback (see api/src/app.ts's configureOAuthStrategies) redirects here with
-  // tokens — or a failure message — in the URL fragment, since the "Continue with Google"
-  // link below is a full-page navigation, not a fetch() this page could read a response from.
-  useEffect(() => {
-    const hash = window.location.hash;
-    if (!hash) return;
-    const params = new URLSearchParams(hash.slice(1));
-    window.history.replaceState(null, "", window.location.pathname + window.location.search);
-
-    const accessToken = params.get("accessToken");
-    if (accessToken) {
-      void client.setTokens({ accessToken, refreshToken: params.get("refreshToken") ?? undefined });
-      return;
-    }
-    const oauthError = params.get("error");
-    if (oauthError) setError(oauthError);
-  }, []);
-
-  async function handleSubmit(event: FormEvent<HTMLFormElement>): Promise<void> {
-    event.preventDefault();
-    setError(undefined);
-    const form = new FormData(event.currentTarget);
-    const email = String(form.get("email"));
-    const password = String(form.get("password"));
-
-    try {
-      if (mode === "register") {
-        await registerUser.mutateAsync({ email, password, name: String(form.get("name")) } as Partial<User>);
-      }
-      await client.authenticate({ strategy: "local", email, password });
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong");
-    }
-  }
-
+  // Login, registration, and the OAuth redirect-back (tokens or #error= in the URL fragment) are all
+  // handled by the Mantle UI registry blocks + <AuthProvider> in app.tsx; a successful login flips
+  // AuthProvider's status, which swaps this page out.
   return (
     <div className="mx-auto mt-16 max-w-sm">
-      <h1 className="mb-6 text-center text-2xl font-semibold text-slate-900">Mantle KB</h1>
+      <h1 className="mb-6 text-center text-2xl font-semibold">Mantle KB</h1>
       <Card>
-        <div className="mb-4 flex gap-2 text-sm">
-          <button
-            type="button"
-            onClick={() => setMode("login")}
-            className={mode === "login" ? "font-semibold text-slate-900" : "text-slate-500"}
-          >
-            Log in
-          </button>
-          <span className="text-slate-300">/</span>
-          <button
-            type="button"
-            onClick={() => setMode("register")}
-            className={mode === "register" ? "font-semibold text-slate-900" : "text-slate-500"}
-          >
-            Register
-          </button>
-        </div>
-
-        <form onSubmit={handleSubmit} className="flex flex-col gap-3">
-          {mode === "register" && <Input name="name" type="text" placeholder="Name" required />}
-          <Input name="email" type="email" placeholder="Email" required />
-          <Input name="password" type="password" placeholder="Password" required minLength={8} />
-          {error && <p className="text-sm text-red-600">{error}</p>}
-          <Button type="submit">{mode === "login" ? "Log in" : "Register"}</Button>
-        </form>
-
-        <div className="mt-6 border-t border-slate-200 pt-4">
-          <p className="mb-2 text-center text-xs text-slate-400">Or continue with</p>
-          <div className="flex flex-wrap justify-center gap-2">
-            {OAUTH_PROVIDERS.map((provider) => (
-              <a
-                key={provider.key}
-                href={`${apiUrl}/auth/${provider.key}`}
-                className="rounded-md border border-slate-300 px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-50"
-              >
-                {provider.label}
-              </a>
-            ))}
+        <CardContent className="flex flex-col gap-4">
+          <div className="flex gap-2 text-sm" role="group" aria-label="Account">
+            <Button variant={mode === "login" ? "secondary" : "ghost"} size="sm" onPress={() => setMode("login")}>
+              Log in
+            </Button>
+            <Button variant={mode === "register" ? "secondary" : "ghost"} size="sm" onPress={() => setMode("register")}>
+              Register
+            </Button>
           </div>
-        </div>
+
+          {mode === "login" ? <LoginForm /> : <SignupForm submitLabel="Register" />}
+
+          <div className="border-t border-border pt-4">
+            <p className="mb-2 text-center text-xs text-muted-foreground">Or continue with</p>
+            <OAuthButtons apiUrl={apiUrl} providers={[...OAUTH_PROVIDERS]} label={(name) => name} />
+          </div>
+        </CardContent>
       </Card>
     </div>
   );

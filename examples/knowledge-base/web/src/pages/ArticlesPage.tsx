@@ -1,16 +1,29 @@
 import { useState, type FormEvent } from "react";
-import { useCreate, useFind } from "@mantlejs/react";
-import type { Paginated } from "@mantlejs/client";
-import { client } from "../lib/client.js";
-import { localEmbed } from "../lib/local-embed.js";
-import { Button } from "../components/ui/button.js";
-import { Input } from "../components/ui/input.js";
-import { Textarea } from "../components/ui/textarea.js";
-import { Card } from "../components/ui/card.js";
-import type { Article } from "../types.js";
+import { Form, GridList, GridListItem, TextField } from "react-aria-components";
+import { useCreate } from "@mantlejs/react";
+import { client } from "@/lib/client";
+import { localEmbed } from "@/lib/local-embed";
+import { RealtimeList } from "@/components/mantle/realtime-list";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import type { Article } from "@/types";
 
 interface ArticlesPageProps {
   onSelect: (id: number) => void;
+}
+
+function ArticleSummary({ article }: { article: Article & { _score?: number } }) {
+  return (
+    <>
+      <h3 className="font-medium">{article.title}</h3>
+      <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">{article.body}</p>
+      {article._score !== undefined && (
+        <p className="mt-1 text-xs text-muted-foreground">distance: {article._score.toFixed(3)}</p>
+      )}
+    </>
+  );
 }
 
 export function ArticlesPage({ onSelect }: ArticlesPageProps) {
@@ -18,8 +31,6 @@ export function ArticlesPage({ onSelect }: ArticlesPageProps) {
   const [searching, setSearching] = useState(false);
   const [showNewForm, setShowNewForm] = useState(false);
   const [createError, setCreateError] = useState<string | undefined>();
-
-  const articlesQuery = useFind<Article>("articles", { query: { $sort: { createdAt: "desc" } } }, { realtime: true });
   const createArticle = useCreate<Article>("articles");
 
   async function handleSearch(event: FormEvent<HTMLFormElement>): Promise<void> {
@@ -52,62 +63,79 @@ export function ArticlesPage({ onSelect }: ArticlesPageProps) {
     }
   }
 
-  const list: Array<Article & { _score?: number }> = searchResults ?? toArray(articlesQuery.data);
-
   return (
     <div className="mx-auto max-w-2xl">
-      <form onSubmit={handleSearch} className="mb-4 flex gap-2">
-        <Input name="q" type="search" placeholder="Semantic search…" />
-        <Button type="submit" variant="secondary" disabled={searching}>
-          {searching ? "Searching…" : "Search"}
+      <Form onSubmit={handleSearch} className="mb-4 flex gap-2">
+        <TextField name="q" type="search" aria-label="Semantic search" className="flex-1">
+          <Input placeholder="Semantic search…" />
+        </TextField>
+        <Button type="submit" variant="secondary" isPending={searching}>
+          Search
         </Button>
         {searchResults && (
-          <Button type="button" variant="ghost" onClick={() => setSearchResults(undefined)}>
+          <Button variant="ghost" onPress={() => setSearchResults(undefined)}>
             Clear
           </Button>
         )}
-      </form>
+      </Form>
 
       <div className="mb-4 flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-slate-900">{searchResults ? "Search results" : "Articles"}</h2>
-        <Button variant="secondary" onClick={() => setShowNewForm((v) => !v)}>
+        <h2 className="text-lg font-semibold">{searchResults ? "Search results" : "Articles"}</h2>
+        <Button variant="secondary" onPress={() => setShowNewForm((v) => !v)}>
           {showNewForm ? "Cancel" : "New article"}
         </Button>
       </div>
 
       {showNewForm && (
         <Card className="mb-4">
-          <form onSubmit={handleCreate} className="flex flex-col gap-3">
-            <Input name="title" placeholder="Title" required />
-            <Textarea name="body" placeholder="Write something…" rows={4} required />
-            {createError && <p className="text-sm text-red-600">{createError}</p>}
-            <Button type="submit" disabled={createArticle.isPending}>
-              Publish
-            </Button>
-          </form>
+          <CardContent>
+            <Form onSubmit={handleCreate} className="flex flex-col gap-3">
+              <TextField name="title" aria-label="Title" isRequired>
+                <Input placeholder="Title" />
+              </TextField>
+              <TextField name="body" aria-label="Body" isRequired>
+                <Textarea placeholder="Write something…" rows={4} />
+              </TextField>
+              {createError && <p className="text-sm text-destructive">{createError}</p>}
+              <Button type="submit" isPending={createArticle.isPending}>
+                Publish
+              </Button>
+            </Form>
+          </CardContent>
         </Card>
       )}
 
-      {articlesQuery.isLoading && !searchResults && <p className="text-sm text-slate-500">Loading…</p>}
-
-      <ul className="flex flex-col gap-2">
-        {list.map((article) => (
-          <li key={article.id}>
-            <Card className="cursor-pointer hover:border-slate-400" onClick={() => onSelect(article.id)}>
-              <h3 className="font-medium text-slate-900">{article.title}</h3>
-              <p className="mt-1 line-clamp-2 text-sm text-slate-500">{article.body}</p>
-              {article._score !== undefined && (
-                <p className="mt-1 text-xs text-slate-400">distance: {article._score.toFixed(3)}</p>
-              )}
-            </Card>
-          </li>
-        ))}
-      </ul>
+      {searchResults ? (
+        // similar() results aren't a find() — a plain React Aria GridList, styled like the live list.
+        <GridList
+          aria-label="Search results"
+          items={searchResults}
+          onAction={(key) => onSelect(Number(key))}
+          renderEmptyState={() => <p className="p-4 text-sm text-muted-foreground">No matches.</p>}
+          className="flex flex-col gap-1"
+        >
+          {(article) => (
+            <GridListItem
+              id={article.id}
+              textValue={article.title}
+              className="cursor-pointer rounded-lg border border-border bg-card px-3 py-2 text-sm outline-none hover:bg-muted data-focus-visible:ring-3 data-focus-visible:ring-ring/50"
+            >
+              <ArticleSummary article={article} />
+            </GridListItem>
+          )}
+        </GridList>
+      ) : (
+        <RealtimeList<Article>
+          service="articles"
+          aria-label="Articles"
+          query={{ $sort: { createdAt: "desc" } }}
+          insert="start"
+          textValue={(article) => article.title}
+          onAction={(article) => onSelect(article.id)}
+          renderItem={(article) => <ArticleSummary article={article} />}
+          renderEmpty={() => "No articles yet."}
+        />
+      )}
     </div>
   );
-}
-
-function toArray<T>(data: T[] | Paginated<T> | undefined): T[] {
-  if (!data) return [];
-  return Array.isArray(data) ? data : data.data;
 }

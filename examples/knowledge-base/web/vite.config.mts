@@ -1,4 +1,5 @@
 /// <reference types='vitest' />
+import { resolve } from "node:path";
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import tailwindcss from "@tailwindcss/vite";
@@ -18,6 +19,10 @@ export default defineConfig(() => ({
     host: "localhost",
   },
   plugins: [react(), tailwindcss()],
+  // shadcn's `@/` import alias (components.json) — the Mantle UI registry blocks import through it.
+  resolve: {
+    alias: { "@": resolve(import.meta.dirname, "./src") },
+  },
   // Uncomment this if you are using workers.
   // worker: {
   //  plugins: [],

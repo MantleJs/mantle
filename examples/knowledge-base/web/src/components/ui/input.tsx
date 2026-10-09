@@ -1,18 +1,30 @@
-import { forwardRef, type InputHTMLAttributes } from "react";
-import { cn } from "../../lib/cn.js";
+"use client"
 
-export const Input = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement>>(function Input(
-  { className, ...props },
-  ref,
-) {
+import * as React from "react"
+import { cn } from "cn"
+import {
+  composeRenderProps,
+  Input as InputPrimitive,
+} from "react-aria-components"
+
+function Input({
+  className,
+  type,
+  ...props
+}: React.ComponentProps<typeof InputPrimitive>) {
   return (
-    <input
-      ref={ref}
-      className={cn(
-        "w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm placeholder:text-slate-400 focus:border-slate-500 focus:outline-none",
-        className,
+    <InputPrimitive
+      type={type}
+      data-slot="input"
+      className={composeRenderProps(className, (className) =>
+        cn(
+          "h-8 w-full min-w-0 rounded-lg border border-input bg-transparent px-2.5 py-1 text-base transition-colors outline-none file:inline-flex file:h-6 file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:cursor-not-allowed disabled:bg-input/50 disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 md:text-sm dark:bg-input/30 dark:disabled:bg-input/80 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40",
+          className
+        )
       )}
       {...props}
     />
-  );
-});
+  )
+}
+
+export { Input }

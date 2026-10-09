@@ -7,3 +7,4 @@
 # Vendored verbatim from shadcn's aria-nova style — keep byte-identical to upstream
 /registry/src/components/ui
 /registry/public
+/examples/knowledge-base/web/src/components/ui
