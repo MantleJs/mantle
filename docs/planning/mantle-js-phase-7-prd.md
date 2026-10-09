@@ -635,8 +635,7 @@ Builds on the pipeline Phase 5 built and Phase 6 exercised. No new tooling is ex
     the second call overwrites `app.get("mcp:server")`. Only `startMcp()` over stdio is affected.
 - **Client-SDK follow-ups found during items 8–11** (the blocks work around these; decide before release whether to
   fix in `@mantlejs/client`/`@mantlejs/react` or record them as known issues):
-  - **Bug:** `@mantlejs/client`'s `authenticate()` accepts a 200 response with no `accessToken`. It stores
-    `undefined` and still emits `"authenticated"`. It should throw a typed error.
+  - ~~**Bug:** `@mantlejs/client`'s `authenticate()` accepts a 200 response with no `accessToken`.~~ **Fixed (2026-10-08, `fe31721`):** `authenticate()` now throws a `GeneralError` and stores and emits nothing. The same hole in the 401-refresh path now counts as a failed rotation. `setTokens()` rejects an empty token.
   - `@mantlejs/client` has no multipart upload support and doesn't expose `baseUrl`. `tryRefresh` is private.
     Because of this, `upload-dropzone` takes an absolute `url` and sends the bearer token over XHR itself, which
     means it can't use the client's 401-refresh retry.
