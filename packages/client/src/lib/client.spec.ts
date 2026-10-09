@@ -680,3 +680,195 @@ describe("batch coalescing", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("upload()", () => {
+  let client: MantleClient;
+  let storage: TokenStorage;
+
+  beforeEach(async () => {
+    storage = memoryStorage();
+    client = mantle({ url: `${BASE}/`, storage });
+    fetchMock.mockResolvedValueOnce(jsonResponse({ accessToken: "at-1", refreshToken: "rt-1", user: {} }, 201));
+    await client.authenticate({ strategy: "local" });
+    fetchMock.mockClear();
+  });
+
+  it("exposes the normalized base URL", () => {
+    expect(client.url).toBe(BASE);
+  });
+
+  it("POSTs multipart/form-data to /:service with fields before the file part, bearer auth, no JSON content-type", async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({ id: 7, file: { name: "a.txt" } }, 201));
+    const file = new File(["hello"], "a.txt", { type: "text/plain" });
+
+    const result = await client.service("attachments").upload(file, { fields: { articleId: "42" } });
+
+    expect(result).toEqual({ id: 7, file: { name: "a.txt" } });
+    const { url, init } = lastRequest();
+    expect(url).toBe(`${BASE}/attachments`);
+    expect(init.method).toBe("POST");
+    const headers = init.headers as Record<string, string>;
+    expect(headers["authorization"]).toBe("Bearer at-1");
+    expect(headers["content-type"]).toBeUndefined();
+    const body = init.body as FormData;
+    expect([...body.keys()]).toEqual(["articleId", "file"]);
+    expect(body.get("articleId")).toBe("42");
+    const sent = body.get("file") as File;
+    expect(sent.name).toBe("a.txt");
+    expect(await sent.text()).toBe("hello");
+  });
+
+  it("PATCHes /:service/:id with a custom field and filename when given an id", async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({ id: "x/1" }));
+    await client.service("avatars").upload(new Blob(["png"]), { id: "x/1", field: "avatar", filename: "me.png" });
+    const { url, init } = lastRequest();
+    expect(url).toBe(`${BASE}/avatars/x%2F1`);
+    expect(init.method).toBe("PATCH");
+    expect(((init.body as FormData).get("avatar") as File).name).toBe("me.png");
+  });
+
+  it("maps a non-2xx response to a typed MantleClientError", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({ name: "BadRequest", message: "File too large", code: 400, hint: "Max 1 MB" }, 400),
+    );
+    const error = await client
+      .service("attachments")
+      .upload(new Blob(["x"]))
+      .catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(MantleClientError);
+    expect(error).toMatchObject({ name: "BadRequest", code: 400, hint: "Max 1 MB" });
+  });
+
+  it("on 401, refreshes once and resends a freshly built body", async () => {
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse({ name: "NotAuthenticated", message: "expired", code: 401 }, 401))
+      .mockResolvedValueOnce(jsonResponse({ accessToken: "at-2", refreshToken: "rt-2" }, 201))
+      .mockResolvedValueOnce(jsonResponse({ id: 1 }, 201));
+
+    await expect(client.service("attachments").upload(new Blob(["x"]))).resolves.toEqual({ id: 1 });
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    const first = fetchMock.mock.calls[0] as [string, RequestInit];
+    const retry = fetchMock.mock.calls[2] as [string, RequestInit];
+    expect((retry[1].headers as Record<string, string>)["authorization"]).toBe("Bearer at-2");
+    expect(retry[1].body).toBeInstanceOf(FormData);
+    expect(retry[1].body).not.toBe(first[1].body);
+  });
+
+  it("is never batched, even with batch enabled", async () => {
+    const batched = mantle({ url: BASE, storage, batch: true });
+    fetchMock.mockResolvedValueOnce(jsonResponse({ id: 1 }, 201));
+    await batched.service("attachments").upload(new Blob(["x"]));
+    expect(lastRequest().url).toBe(`${BASE}/attachments`);
+  });
+
+  it("passes the abort signal to fetch", async () => {
+    const controller = new AbortController();
+    fetchMock.mockResolvedValueOnce(jsonResponse({ id: 1 }, 201));
+    await client.service("attachments").upload(new Blob(["x"]), { signal: controller.signal });
+    expect(lastRequest().init.signal).toBe(controller.signal);
+  });
+
+  describe("with onProgress (XMLHttpRequest transport)", () => {
+    class FakeXhr {
+      static instances: FakeXhr[] = [];
+      status = 0;
+      statusText = "";
+      responseText = "";
+      method = "";
+      url = "";
+      headers: Record<string, string> = {};
+      body?: FormData;
+      upload: { onprogress: ((event: { loaded: number; total: number; lengthComputable: boolean }) => void) | null } = {
+        onprogress: null,
+      };
+      onload: (() => void) | null = null;
+      onerror: (() => void) | null = null;
+      onabort: (() => void) | null = null;
+      constructor() {
+        FakeXhr.instances.push(this);
+      }
+      open(method: string, url: string): void {
+        this.method = method;
+        this.url = url;
+      }
+      setRequestHeader(name: string, value: string): void {
+        this.headers[name] = value;
+      }
+      getResponseHeader(): string | null {
+        return "application/json";
+      }
+      send(body: FormData): void {
+        this.body = body;
+      }
+      abort(): void {
+        this.onabort?.();
+      }
+      respond(status: number, body: unknown): void {
+        this.status = status;
+        this.responseText = JSON.stringify(body);
+        this.onload?.();
+      }
+    }
+
+    beforeEach(() => {
+      FakeXhr.instances = [];
+      vi.stubGlobal("XMLHttpRequest", FakeXhr);
+    });
+
+    async function nextXhr(): Promise<FakeXhr> {
+      await vi.waitFor(() => expect(FakeXhr.instances.length).toBeGreaterThan(0));
+      return FakeXhr.instances.shift() as FakeXhr;
+    }
+
+    it("reports progress and resolves with the parsed body", async () => {
+      const progress = vi.fn();
+      const pending = client.service("attachments").upload(new Blob(["x"]), { onProgress: progress });
+      const xhr = await nextXhr();
+      expect(xhr.method).toBe("POST");
+      expect(xhr.url).toBe(`${BASE}/attachments`);
+      expect(xhr.headers["authorization"]).toBe("Bearer at-1");
+      xhr.upload.onprogress?.({ loaded: 50, total: 200, lengthComputable: true });
+      xhr.upload.onprogress?.({ loaded: 10, total: 0, lengthComputable: false });
+      xhr.respond(201, { id: 3 });
+      await expect(pending).resolves.toEqual({ id: 3 });
+      expect(progress).toHaveBeenNthCalledWith(1, { loaded: 50, total: 200, percent: 25 });
+      expect(progress).toHaveBeenNthCalledWith(2, { loaded: 10, total: undefined, percent: undefined });
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    it("maps errors to MantleClientError and refresh-retries a 401 over XHR", async () => {
+      const pending = client.service("attachments").upload(new Blob(["x"]), { onProgress: () => undefined });
+      (await nextXhr()).respond(401, { name: "NotAuthenticated", message: "expired", code: 401 });
+      fetchMock.mockResolvedValueOnce(jsonResponse({ accessToken: "at-2", refreshToken: "rt-2" }, 201));
+      const retry = await nextXhr();
+      expect(retry.headers["authorization"]).toBe("Bearer at-2");
+      retry.respond(422, { name: "Unprocessable", message: "bad file", code: 422 });
+      await expect(pending).rejects.toMatchObject({ name: "Unprocessable", code: 422 });
+    });
+
+    it("rejects with a TypeError on network failure and with the signal's reason on abort", async () => {
+      const failing = client.service("attachments").upload(new Blob(["x"]), { onProgress: () => undefined });
+      (await nextXhr()).onerror?.();
+      await expect(failing).rejects.toBeInstanceOf(TypeError);
+
+      const controller = new AbortController();
+      const aborted = client
+        .service("attachments")
+        .upload(new Blob(["x"]), { onProgress: () => undefined, signal: controller.signal });
+      await nextXhr();
+      controller.abort(new Error("user cancelled"));
+      await expect(aborted).rejects.toThrow("user cancelled");
+    });
+
+    it("rejects immediately when the signal is already aborted", async () => {
+      const controller = new AbortController();
+      controller.abort();
+      await expect(
+        client
+          .service("attachments")
+          .upload(new Blob(["x"]), { onProgress: () => undefined, signal: controller.signal }),
+      ).rejects.toMatchObject({ name: "AbortError" });
+      expect(FakeXhr.instances).toHaveLength(0);
+    });
+  });
+});

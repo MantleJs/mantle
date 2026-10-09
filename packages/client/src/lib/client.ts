@@ -5,7 +5,15 @@ import { serializeQuery } from "./serialize-query.js";
 import { ServiceClient } from "./service-client.js";
 import { SocketManager } from "./socket-manager.js";
 import { defaultStorage } from "./storage.js";
-import type { AuthCredentials, AuthResult, ClientEvent, ClientOptions, ClientParams, TokenStorage } from "./types.js";
+import type {
+  AuthCredentials,
+  AuthResult,
+  ClientEvent,
+  ClientOptions,
+  ClientParams,
+  TokenStorage,
+  UploadProgress,
+} from "./types.js";
 
 const ACCESS_TOKEN_KEY = "mantle-access-token";
 const REFRESH_TOKEN_KEY = "mantle-refresh-token";
@@ -92,6 +100,11 @@ export class MantleClient {
     this.emitter.emit("logout");
   }
 
+  /** The server's base URL, trailing slashes removed — handy for building links to non-service routes. */
+  get url(): string {
+    return this.baseUrl;
+  }
+
   getAccessToken(): string | undefined {
     return this.accessToken;
   }
@@ -129,6 +142,46 @@ export class MantleClient {
       throw await errorFromResponse(retry);
     }
     throw error;
+  }
+
+  /**
+   * `multipart/form-data` dispatch used by `ServiceClient.upload()`: bearer auth, one refresh-retry
+   * on 401, typed errors — the same guarantees as `request()`. The body is rebuilt for the retry,
+   * since a consumed `FormData` stream can't be replayed by every transport.
+   */
+  async upload<R>(
+    method: string,
+    path: string,
+    body: () => FormData,
+    options: UploadTransportOptions = {},
+  ): Promise<R> {
+    const response = await this.sendForm(method, path, body(), options);
+    if (response.ok) return this.parseBody<R>(response);
+    const error = await errorFromResponse(response);
+    if (response.status === 401 && (await this.tryRefresh())) {
+      const retry = await this.sendForm(method, path, body(), options);
+      if (retry.ok) return this.parseBody<R>(retry);
+      throw await errorFromResponse(retry);
+    }
+    throw error;
+  }
+
+  private async sendForm(
+    method: string,
+    path: string,
+    body: FormData,
+    { headers: extra, onProgress, signal }: UploadTransportOptions,
+  ): Promise<Response> {
+    const url = `${this.baseUrl}/${path}`;
+    // No content-type: the transport sets multipart/form-data with its own boundary.
+    const headers: Record<string, string> = { ...this.defaultHeaders, ...extra };
+    const token = await this.loadAccessToken();
+    if (token) headers["authorization"] = `Bearer ${token}`;
+    const Xhr = xhrConstructor();
+    if (onProgress && Xhr) {
+      return xhrSend(Xhr, method, url, headers, body, onProgress, signal);
+    }
+    return fetch(url, { method, headers, body, signal });
   }
 
   private async send(
@@ -208,4 +261,97 @@ function hasAccessToken(value: unknown): value is AuthResult {
   if (value === null || typeof value !== "object") return false;
   const token = (value as Record<string, unknown>)["accessToken"];
   return typeof token === "string" && token.length > 0;
+}
+
+/** Transport-level upload options (`ServiceClient.upload()` resolves fields/filename into the body). */
+export interface UploadTransportOptions {
+  headers?: Record<string, string>;
+  onProgress?: (progress: UploadProgress) => void;
+  signal?: AbortSignal;
+}
+
+/**
+ * The slice of `XMLHttpRequest` the upload transport uses. This package compiles without the DOM lib
+ * (it targets Node and React Native too), so the global is looked up structurally at runtime.
+ */
+interface XhrLike {
+  status: number;
+  statusText: string;
+  responseText: string;
+  upload: { onprogress: ((event: { loaded: number; total: number; lengthComputable: boolean }) => void) | null };
+  onload: (() => void) | null;
+  onerror: (() => void) | null;
+  onabort: (() => void) | null;
+  open(method: string, url: string): void;
+  setRequestHeader(name: string, value: string): void;
+  getResponseHeader(name: string): string | null;
+  send(body: FormData): void;
+  abort(): void;
+}
+
+type XhrConstructor = new () => XhrLike;
+
+function xhrConstructor(): XhrConstructor | undefined {
+  return (globalThis as { XMLHttpRequest?: XhrConstructor }).XMLHttpRequest;
+}
+
+/**
+ * `XMLHttpRequest` transport for uploads that want progress events, adapted back to a `Response`
+ * so success parsing and error mapping are shared with the `fetch` path.
+ */
+function xhrSend(
+  Xhr: XhrConstructor,
+  method: string,
+  url: string,
+  headers: Record<string, string>,
+  body: FormData,
+  onProgress: (progress: UploadProgress) => void,
+  signal?: AbortSignal,
+): Promise<Response> {
+  return new Promise<Response>((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(abortReason(signal));
+      return;
+    }
+    const xhr = new Xhr();
+    xhr.open(method, url);
+    for (const [name, value] of Object.entries(headers)) xhr.setRequestHeader(name, value);
+    xhr.upload.onprogress = (event) => {
+      const total = event.lengthComputable ? event.total : undefined;
+      onProgress({
+        loaded: event.loaded,
+        total,
+        percent: total ? Math.round((event.loaded / total) * 100) : undefined,
+      });
+    };
+    const onAbort = (): void => xhr.abort();
+    signal?.addEventListener("abort", onAbort, { once: true });
+    const done = (): void => signal?.removeEventListener("abort", onAbort);
+    xhr.onload = () => {
+      done();
+      // 204/205/304 must be built without a body.
+      const nullBody = xhr.status === 204 || xhr.status === 205 || xhr.status === 304;
+      resolve(
+        new Response(nullBody ? null : xhr.responseText, {
+          status: xhr.status,
+          statusText: xhr.statusText,
+          headers: { "content-type": xhr.getResponseHeader("content-type") ?? "application/json" },
+        }),
+      );
+    };
+    // Same rejection shapes as fetch: TypeError for network failure, the signal's reason on abort.
+    xhr.onerror = () => {
+      done();
+      reject(new TypeError("Upload failed: network error"));
+    };
+    xhr.onabort = () => {
+      done();
+      reject(signal ? abortReason(signal) : new DOMException("The upload was aborted", "AbortError"));
+    };
+    xhr.send(body);
+  });
+}
+
+function abortReason(signal: AbortSignal): unknown {
+  return signal.reason ?? new DOMException("The upload was aborted", "AbortError");
 }

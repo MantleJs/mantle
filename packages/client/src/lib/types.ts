@@ -107,3 +107,34 @@ export interface SimilarQuery {
   where?: Record<string, unknown>;
   [key: string]: unknown;
 }
+
+/** Progress of an in-flight `upload()`. */
+export interface UploadProgress {
+  loaded: number;
+  /** Total request size in bytes, when the transport reports it. */
+  total?: number;
+  /** 0–100, when `total` is known. */
+  percent?: number;
+}
+
+/** Options for `ServiceClient.upload()` — a `multipart/form-data` request for `@mantlejs/storage`'s `handleUpload()`. */
+export interface UploadOptions {
+  /** Upload into an existing record: `PATCH /:service/:id` instead of `POST /:service`. */
+  id?: Id;
+  /** Multipart field name `handleUpload(field)` reads. @default "file" */
+  field?: string;
+  /** Ordinary form fields sent before the file part (merged into `context.data` by `handleUpload()`). */
+  fields?: Record<string, string>;
+  /** Filename sent with the file part. Default: the `File`'s own name, or `"blob"`. */
+  filename?: string;
+  /**
+   * Upload progress. When set and `XMLHttpRequest` exists (browsers, React Native), the request
+   * goes over XHR — `fetch` can't report upload progress. Otherwise `fetch` is used and this is
+   * never called.
+   */
+  onProgress?: (progress: UploadProgress) => void;
+  /** Abort the upload; rejects with the signal's reason (an `AbortError` by default). */
+  signal?: AbortSignal;
+  /** Per-request header overrides. */
+  headers?: Record<string, string>;
+}

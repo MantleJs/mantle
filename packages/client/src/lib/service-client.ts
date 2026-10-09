@@ -1,11 +1,30 @@
 import type { BatchScheduler } from "./batch-scheduler.js";
 import { MantleClientError } from "./errors.js";
 import type { SocketManager } from "./socket-manager.js";
-import type { BatchCall, ClientParams, Id, Paginated, ServiceEvent, SimilarQuery } from "./types.js";
+import type {
+  BatchCall,
+  ClientParams,
+  Id,
+  Paginated,
+  ServiceEvent,
+  SimilarQuery,
+  UploadOptions,
+  UploadProgress,
+} from "./types.js";
 
 /** REST transport provided by `MantleClient` — auth, refresh-retry, and error handling live there. */
 export interface RestDispatcher {
   request<R>(method: string, path: string, data: unknown | undefined, params?: ClientParams): Promise<R>;
+  upload<R>(
+    method: string,
+    path: string,
+    body: () => FormData,
+    options?: {
+      headers?: Record<string, string>;
+      onProgress?: (progress: UploadProgress) => void;
+      signal?: AbortSignal;
+    },
+  ): Promise<R>;
 }
 
 /**
@@ -65,6 +84,26 @@ export class ServiceClient<T = unknown> {
       ...(data !== undefined ? { data } : {}),
       ...(params?.query ? { params: { query: params.query } } : {}),
     });
+  }
+
+  /**
+   * Upload a file as `multipart/form-data` to a service whose `create` (or, with `options.id`,
+   * `patch`) runs `@mantlejs/storage`'s `handleUpload()`. Ordinary `fields` go before the file part,
+   * which `handleUpload()` merges into `context.data`. Never batched — `POST /batch` is JSON-only.
+   */
+  upload(file: Blob, options: UploadOptions = {}): Promise<T> {
+    const { id, field = "file", fields, filename, onProgress, signal, headers } = options;
+    const name = filename ?? (typeof File !== "undefined" && file instanceof File ? file.name : "blob");
+    const body = (): FormData => {
+      const form = new FormData();
+      // Ordinary fields first: busboy streams parts in order.
+      for (const [key, value] of Object.entries(fields ?? {})) form.append(key, value);
+      form.append(field, file, name);
+      return form;
+    };
+    const method = id === undefined ? "POST" : "PATCH";
+    const path = id === undefined ? this.path : this.idPath(id);
+    return this.rest.upload<T>(method, path, body, { headers, onProgress, signal });
   }
 
   /**

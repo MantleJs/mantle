@@ -92,6 +92,23 @@ with per-request `headers` bypass coalescing and go out individually, as does `s
 every entry fails with a 401 (expired token), the client performs its usual single token refresh
 and retries just those entries once.
 
+### File uploads
+
+`service.upload(file, options?)` sends a `multipart/form-data` request to a service whose `create` (or, with `options.id`,
+`patch`) runs `@mantlejs/storage`'s `handleUpload()`. It gets the same guarantees as every other call: bearer auth, one
+refresh-and-retry on a 401, typed `MantleClientError`s. Uploads are never batched.
+
+```typescript
+const attachment = await api.service<Attachment>("attachments").upload(file, {
+  fields: { articleId: "42" }, // ordinary form fields, merged into context.data by handleUpload()
+  onProgress: ({ percent }) => setProgress(percent ?? 0),
+});
+```
+
+`fetch` can't report upload progress, so when `onProgress` is set and `XMLHttpRequest` exists (browsers, React Native),
+the request goes over XHR instead. Elsewhere (Node), `fetch` is used and `onProgress` never fires. Pass `signal` to abort;
+the promise rejects with the signal's reason.
+
 ### Errors
 
 Non-2xx responses are deserialized into `MantleClientError` — `name` (`"BadRequest"`, `"NotFound"`, …), `code` (HTTP status), `data`, `errors`, and the server's actionable `hint` when present. Non-JSON bodies (gateway errors) fall back to the HTTP status. Network failures propagate as the native fetch `TypeError`, unwrapped.
@@ -139,43 +156,45 @@ const hits = await api.service<Doc>("docs").similar({ vector: [0.1, 0.2, 0.3], t
 
 Creates a `MantleClient`. Throws `TypeError` if `url` is missing.
 
-| Option    | Type                     | Default                            | Description                                                                                    |
-| --------- | ------------------------ | ---------------------------------- | ---------------------------------------------------------------------------------------------- |
-| `url`     | `string`                 | — (required)                       | Base URL of the Mantle server, e.g. `"http://localhost:3030"`                                  |
-| `storage` | `TokenStorage`           | `localStorage` browser / in-memory | Token persistence. Any object with `getItem`/`setItem`/`removeItem` (sync or async) works      |
-| `socket`  | `SocketOptions`          | `undefined`                        | Socket.IO connection options, passed to `io(url, options)`. Omit to disable real-time features |
-| `headers` | `Record<string, string>` | `{}`                               | Default headers appended to every REST request (per-request `params.headers` win)              |
+| Option    | Type                      | Default                            | Description                                                                                    |
+| --------- | ------------------------- | ---------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `url`     | `string`                  | — (required)                       | Base URL of the Mantle server, e.g. `"http://localhost:3030"`                                  |
+| `storage` | `TokenStorage`            | `localStorage` browser / in-memory | Token persistence. Any object with `getItem`/`setItem`/`removeItem` (sync or async) works      |
+| `socket`  | `SocketOptions`           | `undefined`                        | Socket.IO connection options, passed to `io(url, options)`. Omit to disable real-time features |
+| `headers` | `Record<string, string>`  | `{}`                               | Default headers appended to every REST request (per-request `params.headers` win)              |
 | `batch`   | `boolean \| BatchOptions` | `false`                            | Coalesce same-window service calls into one `POST /batch` request (see Batch coalescing)       |
 
 `SocketOptions.io` optionally overrides the socket factory itself — inject a stub in tests, or supply a pre-bundled `io` when dynamic import of the optional peer is undesirable.
 
 ### `MantleClient`
 
-| Member                      | Description                                                                          |
-| --------------------------- | ------------------------------------------------------------------------------------ |
-| `service<T>(path)`          | Returns the (cached) `ServiceClient<T>` for a service path                           |
-| `authenticate(credentials)` | `POST /authentication`, stores tokens, emits `'authenticated'`, returns `AuthResult` |
-| `setTokens(tokens)`         | Stores a `{ accessToken, refreshToken? }` pair obtained outside `authenticate()`, emits `'authenticated'` |
-| `isAuthenticated()`         | `Promise<boolean>` — hydrates from storage first if needed. Use on startup, not `getAccessToken()` (see "Restoring a session on startup") |
-| `logout()`                  | Clears tokens, emits `'logout'`, fires a best-effort `POST /authentication/logout`   |
-| `getAccessToken()`          | Current access token (synchronous, from the in-memory copy — may be `undefined` until something hydrates it, even with a valid session in storage) |
-| `on(event, handler)`        | Client events: `'authenticated'`, `'logout'`, `'reconnect'`                          |
-| `off(event, handler)`       | Remove a client event handler                                                        |
+| Member                      | Description                                                                                                                                                     |
+| --------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `service<T>(path)`          | Returns the (cached) `ServiceClient<T>` for a service path                                                                                                      |
+| `authenticate(credentials)` | `POST /authentication`, stores tokens, emits `'authenticated'`, returns `AuthResult`. A 2xx without an `accessToken` throws a `GeneralError` and stores nothing |
+| `setTokens(tokens)`         | Stores a `{ accessToken, refreshToken? }` pair obtained outside `authenticate()`, emits `'authenticated'`                                                       |
+| `isAuthenticated()`         | `Promise<boolean>` — hydrates from storage first if needed. Use on startup, not `getAccessToken()` (see "Restoring a session on startup")                       |
+| `logout()`                  | Clears tokens, emits `'logout'`, fires a best-effort `POST /authentication/logout`                                                                              |
+| `url`                       | The server's base URL (trailing slashes removed) — for links to non-service routes, e.g. downloads                                                              |
+| `getAccessToken()`          | Current access token (synchronous, from the in-memory copy — may be `undefined` until something hydrates it, even with a valid session in storage)              |
+| `on(event, handler)`        | Client events: `'authenticated'`, `'logout'`, `'reconnect'`                                                                                                     |
+| `off(event, handler)`       | Remove a client event handler                                                                                                                                   |
 
 ### `ServiceClient<T>`
 
-| Member                      | HTTP                     | Description                                                                   |
-| --------------------------- | ------------------------ | ----------------------------------------------------------------------------- |
-| `find(params?)`             | `GET /:service`          | `Promise<T[] \| Paginated<T>>`                                                |
-| `get(id, params?)`          | `GET /:service/:id`      | `Promise<T>`                                                                  |
-| `create(data, params?)`     | `POST /:service`         | `Promise<T>`                                                                  |
-| `update(id, data, params?)` | `PUT /:service/:id`      | `Promise<T>`                                                                  |
-| `patch(id, data, params?)`  | `PATCH /:service/:id`    | `Promise<T>`                                                                  |
-| `remove(id, params?)`       | `DELETE /:service/:id`   | `Promise<T>`                                                                  |
-| `similar(data, params?)`    | `POST /:service/similar` | Vector-search convention — `Promise<Array<T & { _score }>>`                   |
-| `on(event, handler)`        | —                        | Subscribe to `'created' \| 'updated' \| 'patched' \| 'removed'`               |
-| `off(event, handler)`       | —                        | Unsubscribe; the socket listener detaches with the last handler               |
-| `realtime`                  | —                        | `true` when the client has the `socket` option — `on()`/`off()` are available |
+| Member                      | HTTP                                                          | Description                                                                   |
+| --------------------------- | ------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| `find(params?)`             | `GET /:service`                                               | `Promise<T[] \| Paginated<T>>`                                                |
+| `get(id, params?)`          | `GET /:service/:id`                                           | `Promise<T>`                                                                  |
+| `create(data, params?)`     | `POST /:service`                                              | `Promise<T>`                                                                  |
+| `update(id, data, params?)` | `PUT /:service/:id`                                           | `Promise<T>`                                                                  |
+| `patch(id, data, params?)`  | `PATCH /:service/:id`                                         | `Promise<T>`                                                                  |
+| `remove(id, params?)`       | `DELETE /:service/:id`                                        | `Promise<T>`                                                                  |
+| `similar(data, params?)`    | `POST /:service/similar`                                      | Vector-search convention — `Promise<Array<T & { _score }>>`                   |
+| `upload(file, options?)`    | `POST /:service` (or `PATCH /:service/:id` with `options.id`) | `multipart/form-data` for `handleUpload()` — see "File uploads"               |
+| `on(event, handler)`        | —                                                             | Subscribe to `'created' \| 'updated' \| 'patched' \| 'removed'`               |
+| `off(event, handler)`       | —                                                             | Unsubscribe; the socket listener detaches with the last handler               |
+| `realtime`                  | —                                                             | `true` when the client has the `socket` option — `on()`/`off()` are available |
 
 ---
 
@@ -214,6 +233,16 @@ interface Paginated<T> {
   limit: number;
   skip: number;
   data: T[];
+}
+
+interface UploadOptions {
+  id?: Id; // PATCH /:service/:id instead of POST /:service
+  field?: string; // multipart field handleUpload(field) reads. Default "file"
+  fields?: Record<string, string>; // ordinary form fields, sent before the file part
+  filename?: string; // default: the File's name, or "blob"
+  onProgress?: (progress: { loaded: number; total?: number; percent?: number }) => void; // XHR transport only
+  signal?: AbortSignal;
+  headers?: Record<string, string>;
 }
 
 class MantleClientError extends Error {
