@@ -1,0 +1,72 @@
+name: Website
+
+# Builds the Astro Starlight site (website/) — guides, every package README, the generated API
+# reference, llms.txt, the live UI-block demos, and the Mantle UI registry at /r/ — and deploys it to
+# GitHub Pages at https://mantlejs.com (Phase 7 item 13).
+#
+# Docs track the latest release, so the site deploys when a (non-prerelease) GitHub release is
+# published — `gh release create`, per docs/releasing.md — and on manual dispatch for docs-only fixes
+# between releases. It deliberately does not deploy on every push to main: that would document APIs
+# that aren't on npm yet. Every push and PR still builds the site (link validation included) in ci.yml.
+#
+# One-time repository setup (Settings → Pages): Source = "GitHub Actions", custom domain mantlejs.com,
+# "Enforce HTTPS" on. website/public/CNAME carries the domain into every deploy.
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: website-pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build site
+    if: github.event_name == 'workflow_dispatch' || !github.event.release.prerelease
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # Same pin and rationale as ci.yml (npm <11.5 Arborist peer-resolution crash).
+      - name: Upgrade npm
+        run: npm install -g npm@11.19.1
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Builds @mantlejs/client + @mantlejs/react (demo islands) and the UI registry first (dependsOn).
+      - name: Build website
+        run: npx nx run website:build
+        env:
+          ASTRO_TELEMETRY_DISABLED: "1"
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: website/dist
+
+  deploy:
+    name: Deploy to GitHub Pages
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@v4

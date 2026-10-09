@@ -27,10 +27,11 @@ blocks to your own app:
 #    Needs the "@/*" → "./src/*" alias in tsconfig.json / tsconfig.app.json and vite.config.mts first.
 npx shadcn init --base aria --preset nova
 
-# 2. Register the @mantle namespace in components.json (already done here):
-#    "registries": { "@mantle": "http://localhost:4893/r/{style}/{name}.json" }
-#    — until the Mantle website hosts the registry, serve a local build from the repo root:
-npx nx run ui-registry:build-registry && npx serve registry/public -l 4893
+# 2. Register the @mantle namespace in components.json (already done here) — the registry mantlejs.com hosts:
+#    "registries": { "@mantle": "https://mantlejs.com/r/{style}/{name}.json" }
+#    To try unreleased block changes, point it at a local build instead — from the repo root:
+#      npx nx run ui-registry:build-registry && npx serve registry/public -l 4893
+#    and use "http://localhost:4893/r/{style}/{name}.json".
 
 # 3. Add the blocks this app uses, plus the base primitives its pages compose directly.
 npx shadcn add @mantle/login-form @mantle/signup-form @mantle/oauth-buttons \

@@ -23,7 +23,7 @@ refused at install time:
 ```json
 {
   "registries": {
-    "@mantle": "https://<registry-host>/r/{style}/{name}.json"
+    "@mantle": "https://mantlejs.com/r/{style}/{name}.json"
   }
 }
 ```
@@ -38,8 +38,10 @@ npx shadcn add @mantle/upload-dropzone @mantle/realtime-list @mantle/data-table 
 Files land under `components/mantle/` (and `lib/mantle-errors.ts`), so they never collide with shadcn's own
 blocks.
 
-> Until the Mantle website hosts the registry (Phase 7 item 13), serve a local build: `npx nx run
-ui-registry:build-registry`, then `npx serve registry/public` and use `http://localhost:3000/r/{style}/{name}.json`.
+The registry is published with the Mantle website at [mantlejs.com/r/](https://mantlejs.com/r/aria-nova/registry.json),
+and every block has a live demo under [mantlejs.com/blocks/](https://mantlejs.com/blocks/). To try unreleased
+changes, serve a local build instead: `npx nx run ui-registry:build-registry`, then `npx serve registry/public` and
+use `http://localhost:3000/r/{style}/{name}.json`.
 
 ## Blocks
 

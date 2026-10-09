@@ -1,0 +1,57 @@
+---
+title: Auth provider
+description: "Session state for the auth blocks — restores a persisted session, consumes OAuth redirects, and exposes useAuth()."
+sidebar:
+  order: 1
+---
+
+import LiveDemo from "../../../components/LiveDemo.astro";
+
+<LiveDemo block="auth-provider" />
+
+## Install
+
+```bash
+npx shadcn add @mantle/auth-provider
+```
+
+Needs a React Aria shadcn project and the `@mantle` registry in `components.json` — see
+[Install](/blocks/#install). The block lands in `components/mantle/auth-provider.tsx`, yours to edit.
+
+## Usage
+
+Wrap your app once, inside `<MantleProvider>`. Every auth block reads the session from it.
+
+```tsx
+import { mantle } from "@mantlejs/client";
+import { MantleProvider } from "@mantlejs/react";
+import { AuthProvider, useAuth } from "@/components/mantle/auth-provider";
+
+const client = mantle({ url: "https://api.example.com" });
+
+export function App() {
+  return (
+    <MantleProvider client={client}>
+      <AuthProvider>
+        <Header />
+      </AuthProvider>
+    </MantleProvider>
+  );
+}
+
+function Header() {
+  const { status, user, logout } = useAuth();
+  if (status === "loading") return null;
+  return status === "authenticated" ? (
+    <button onClick={() => void logout()}>Log out</button>
+  ) : (
+    <a href="/login">Log in</a>
+  );
+}
+```
+
+- `status` is `"loading"` until the persisted-session check on mount resolves; `user` is set by `login()` and is `undefined` after a reload (the client persists tokens, not the user record).
+- With `handleOAuthRedirect` (default on), tokens arriving in the URL fragment from an `@mantlejs/auth-oauth` redirect are handed to the client and stripped from the address bar.
+- `signup()` creates the user through the `users` service (configurable with `usersService`), then logs in.
+
+[View the source](https://github.com/MantleJs/mantle/blob/main/registry/src/components/mantle/auth-provider.tsx).

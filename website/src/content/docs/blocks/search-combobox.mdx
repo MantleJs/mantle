@@ -1,0 +1,40 @@
+---
+title: Search combobox
+description: "Debounced type-ahead over find(), using $ilike where the adapter supports it."
+sidebar:
+  order: 9
+---
+
+import LiveDemo from "../../../components/LiveDemo.astro";
+
+<LiveDemo block="search-combobox" />
+
+## Install
+
+```bash
+npx shadcn add @mantle/search-combobox
+```
+
+Needs a React Aria shadcn project and the `@mantle` registry in `components.json` — see
+[Install](/blocks/#install). The block lands in `components/mantle/search-combobox.tsx`, yours to edit.
+
+## Usage
+
+Point it at a service and the field to match.
+
+```tsx
+import { SearchCombobox } from "@/components/mantle/search-combobox";
+
+<SearchCombobox<Article>
+  service="articles"
+  field="title"
+  label="Search articles"
+  onSelect={(article) => open(article.id)}
+/>;
+```
+
+- Built on shadcn's aria `Combobox` (React Aria `ComboBox`): keyboard navigation and live-region announcements included.
+- `operator="auto"` (default) tries case-insensitive `$ilike` and falls back to `$like` for the rest of the session if the adapter rejects it — see the [capability matrix](/guides/adapters/#what-each-adapter-supports).
+- `minChars`, `debounceMs`, and `limit` tune how eagerly it queries.
+
+[View the source](https://github.com/MantleJs/mantle/blob/main/registry/src/components/mantle/search-combobox.tsx).

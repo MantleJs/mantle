@@ -1,0 +1,35 @@
+---
+title: Login form
+description: "Email and password sign-in against @mantlejs/auth-local, with server errors mapped onto the form."
+sidebar:
+  order: 2
+---
+
+import LiveDemo from "../../../components/LiveDemo.astro";
+
+<LiveDemo block="login-form" />
+
+## Install
+
+```bash
+npx shadcn add @mantle/login-form
+```
+
+Needs a React Aria shadcn project and the `@mantle` registry in `components.json` — see
+[Install](/blocks/#install). The block lands in `components/mantle/login-form.tsx`, yours to edit.
+
+## Usage
+
+Render inside `<AuthProvider>`.
+
+```tsx
+import { LoginForm } from "@/components/mantle/login-form";
+
+<LoginForm onSuccess={() => navigate("/")} />;
+```
+
+- Built on React Aria `Form` + `TextField` with shadcn's aria `Input`, so labels, required-field validation, and error messages are announced to assistive technology.
+- A `401 NotAuthenticated` becomes a form-level alert; a `422 Unprocessable` carrying field errors lands on the matching field.
+- An error from an OAuth redirect (`#error=…`) is shown here too.
+
+[View the source](https://github.com/MantleJs/mantle/blob/main/registry/src/components/mantle/login-form.tsx).

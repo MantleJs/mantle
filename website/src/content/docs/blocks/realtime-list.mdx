@@ -1,0 +1,41 @@
+---
+title: Realtime list
+description: "A find() result that applies created, patched, and removed events in place — no refetch."
+sidebar:
+  order: 6
+---
+
+import LiveDemo from "../../../components/LiveDemo.astro";
+
+<LiveDemo block="realtime-list" />
+
+## Install
+
+```bash
+npx shadcn add @mantle/realtime-list
+```
+
+Needs a React Aria shadcn project and the `@mantle` registry in `components.json` — see
+[Install](/blocks/#install). The block lands in `components/mantle/realtime-list.tsx`, yours to edit.
+
+## Usage
+
+The client needs a socket (`mantle({ url, socket: {} })`) and the server a Socket.IO publisher for the service.
+
+```tsx
+import { RealtimeList } from "@/components/mantle/realtime-list";
+
+<RealtimeList<Message>
+  service="messages"
+  aria-label="Messages"
+  query={{ $sort: { createdAt: "desc" }, $limit: 50 }}
+  insert="start"
+  renderItem={(message) => message.text}
+/>;
+```
+
+- Built on React Aria `GridList` — arrow-key navigation, typeahead, and an `onAction` for opening an item.
+- Uses `@mantlejs/react`'s `useFind` with `realtime: { mode: "patch" }`, which writes each event into the cached page instead of invalidating and refetching.
+- `matches` mirrors your query's filter client-side, so a patched record that no longer matches leaves the list.
+
+[View the source](https://github.com/MantleJs/mantle/blob/main/registry/src/components/mantle/realtime-list.tsx).

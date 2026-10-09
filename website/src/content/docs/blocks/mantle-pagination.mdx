@@ -1,0 +1,35 @@
+---
+title: Pagination
+description: "Page links driven by a Paginated<T> envelope."
+sidebar:
+  order: 8
+---
+
+import LiveDemo from "../../../components/LiveDemo.astro";
+
+<LiveDemo block="mantle-pagination" />
+
+## Install
+
+```bash
+npx shadcn add @mantle/mantle-pagination
+```
+
+Needs a React Aria shadcn project and the `@mantle` registry in `components.json` — see
+[Install](/blocks/#install). The block lands in `components/mantle/mantle-pagination.tsx`, yours to edit.
+
+## Usage
+
+Feed it any `{ total, limit, skip }` and handle `onSkipChange`; `data-table` uses it internally.
+
+```tsx
+import { MantlePagination } from "@/components/mantle/mantle-pagination";
+
+<MantlePagination page={result} onSkipChange={(skip) => setQuery({ ...query, $skip: skip })} />;
+```
+
+- Named `mantle-pagination` so it never collides with shadcn's own `pagination` primitive, which it wraps.
+- Pass `getHref` for real, crawlable page URLs; omit it for in-place paging.
+- Renders nothing when everything fits on one page.
+
+[View the source](https://github.com/MantleJs/mantle/blob/main/registry/src/components/mantle/mantle-pagination.tsx).

@@ -1,0 +1,35 @@
+---
+title: OAuth buttons
+description: '"Continue with …" buttons for the seven @mantlejs OAuth strategies.'
+sidebar:
+  order: 4
+---
+
+import LiveDemo from "../../../components/LiveDemo.astro";
+
+<LiveDemo block="oauth-buttons" />
+
+## Install
+
+```bash
+npx shadcn add @mantle/oauth-buttons
+```
+
+Needs a React Aria shadcn project and the `@mantle` registry in `components.json` — see
+[Install](/blocks/#install). The block lands in `components/mantle/oauth-buttons.tsx`, yours to edit.
+
+## Usage
+
+List only the strategies configured on your server. Set each strategy's `redirectUrl` to your frontend so the user comes back signed in.
+
+```tsx
+import { OAuthButtons } from "@/components/mantle/oauth-buttons";
+
+<OAuthButtons apiUrl="https://api.example.com" providers={["google", "github", "apple"]} />;
+```
+
+- Each button is a link (a full-page navigation, as OAuth requires) to `${apiUrl}/auth/<provider>`; override routes with `paths`.
+- Text-only by design: provider logos are each licensed under their own brand guidelines, so add official assets yourself if you want them.
+- Pair with `auth-provider`, which consumes the tokens the provider redirect brings back.
+
+[View the source](https://github.com/MantleJs/mantle/blob/main/registry/src/components/mantle/oauth-buttons.tsx).

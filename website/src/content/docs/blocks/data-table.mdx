@@ -1,0 +1,43 @@
+---
+title: Data table
+description: "Server-side sorting and paging over find(), selecting only the fields it shows."
+sidebar:
+  order: 7
+---
+
+import LiveDemo from "../../../components/LiveDemo.astro";
+
+<LiveDemo block="data-table" />
+
+## Install
+
+```bash
+npx shadcn add @mantle/data-table
+```
+
+Needs a React Aria shadcn project and the `@mantle` registry in `components.json` — see
+[Install](/blocks/#install). The block lands in `components/mantle/data-table.tsx`, yours to edit.
+
+## Usage
+
+Works with any service that returns `Paginated<T>` (every `RepositoryService` does).
+
+```tsx
+import { DataTable } from "@/components/mantle/data-table";
+
+<DataTable<Article>
+  service="articles"
+  aria-label="Articles"
+  pageSize={20}
+  columns={[
+    { id: "title", header: "Title", sortable: true },
+    { id: "views", header: "Views", sortable: true },
+  ]}
+/>;
+```
+
+- Column sort descriptors become `$sort`, pages become `$skip`/`$limit`, and visible columns become `$select`.
+- Built on shadcn's aria `Table` (React Aria `Table`/`Column`), with sortable headers announced to screen readers.
+- Pagination controls appear automatically when the result is a `Paginated<T>` envelope.
+
+[View the source](https://github.com/MantleJs/mantle/blob/main/registry/src/components/mantle/data-table.tsx).

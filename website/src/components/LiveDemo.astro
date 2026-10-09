@@ -1,0 +1,45 @@
+---
+/**
+ * The live demo island for one UI block. starlight-llms-txt renders every docs page through Astro's
+ * container API, which has no React renderer — so on the /llms*.txt routes no island is rendered (a demo
+ * has nothing to say in plain text anyway), only the caption. The islands are listed explicitly because
+ * `client:only` needs a statically imported component.
+ */
+import { AuthProviderDemo, LoginFormDemo, OAuthButtonsDemo, SignupFormDemo } from "../demos/auth-demos";
+import {
+  DataTableDemo,
+  MantlePaginationDemo,
+  RealtimeListDemo,
+  SearchComboboxDemo,
+} from "../demos/data-demos";
+import { UploadDropzoneDemo } from "../demos/upload-demo";
+
+interface Props {
+  block:
+    | "auth-provider"
+    | "login-form"
+    | "signup-form"
+    | "oauth-buttons"
+    | "upload-dropzone"
+    | "realtime-list"
+    | "data-table"
+    | "mantle-pagination"
+    | "search-combobox";
+}
+
+const { block } = Astro.props;
+const live = !Astro.url.pathname.endsWith(".txt");
+---
+
+{live && block === "auth-provider" && <AuthProviderDemo client:only="react" />}
+{live && block === "login-form" && <LoginFormDemo client:only="react" />}
+{live && block === "signup-form" && <SignupFormDemo client:only="react" />}
+{live && block === "oauth-buttons" && <OAuthButtonsDemo client:only="react" />}
+{live && block === "upload-dropzone" && <UploadDropzoneDemo client:only="react" />}
+{live && block === "realtime-list" && <RealtimeListDemo client:only="react" />}
+{live && block === "data-table" && <DataTableDemo client:only="react" />}
+{live && block === "mantle-pagination" && <MantlePaginationDemo client:only="react" />}
+{live && block === "search-combobox" && <SearchComboboxDemo client:only="react" />}
+<p>
+  <small>A live demo against a mocked server in your browser — the block is the registry's own source.</small>
+</p>

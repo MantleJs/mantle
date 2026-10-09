@@ -1,0 +1,35 @@
+---
+title: Signup form
+description: "Account creation through your users service, followed by an automatic login."
+sidebar:
+  order: 3
+---
+
+import LiveDemo from "../../../components/LiveDemo.astro";
+
+<LiveDemo block="signup-form" />
+
+## Install
+
+```bash
+npx shadcn add @mantle/signup-form
+```
+
+Needs a React Aria shadcn project and the `@mantle` registry in `components.json` — see
+[Install](/blocks/#install). The block lands in `components/mantle/signup-form.tsx`, yours to edit.
+
+## Usage
+
+Render inside `<AuthProvider>`; the users service must accept `create` from unauthenticated callers.
+
+```tsx
+import { SignupForm } from "@/components/mantle/signup-form";
+
+<SignupForm minPasswordLength={12} onSuccess={() => navigate("/welcome")} />;
+```
+
+- `withName` (default `true`) adds a name field sent as `name`.
+- `minPasswordLength` is a client-side check — keep it in line with your server-side schema.
+- Validation errors from `@mantlejs/schema`'s `validate()` hook (`data.errors[].field`) are mapped onto the matching fields.
+
+[View the source](https://github.com/MantleJs/mantle/blob/main/registry/src/components/mantle/signup-form.tsx).

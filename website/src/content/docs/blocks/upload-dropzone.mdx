@@ -1,0 +1,40 @@
+---
+title: Upload dropzone
+description: "Drag-and-drop or picked files, uploaded to a @mantlejs/storage service with progress and typed errors."
+sidebar:
+  order: 5
+---
+
+import LiveDemo from "../../../components/LiveDemo.astro";
+
+<LiveDemo block="upload-dropzone" />
+
+## Install
+
+```bash
+npx shadcn add @mantle/upload-dropzone
+```
+
+Needs a React Aria shadcn project and the `@mantle` registry in `components.json` — see
+[Install](/blocks/#install). The block lands in `components/mantle/upload-dropzone.tsx`, yours to edit.
+
+## Usage
+
+Point `service` at a service whose `create` runs `@mantlejs/storage`'s `handleUpload()` hook — or pass `id` to upload into an existing record through its `patch`.
+
+```tsx
+import { UploadDropzone } from "@/components/mantle/upload-dropzone";
+
+<UploadDropzone
+  service="attachments"
+  acceptedFileTypes={["image/*"]}
+  maxFileSize={5_000_000}
+  onUploaded={(attachment) => console.log("stored", attachment)}
+/>;
+```
+
+- React Aria `DropZone` + `FileTrigger`: the zone is keyboard-focusable, pasting works, and the picker is a real button.
+- Type and size are checked before upload, with the reason shown per file; the server's own limits still apply.
+- Each file goes through `client.service(service).upload()`, so it gets the client's bearer token, its 401 refresh-and-retry, and typed `MantleClientError`s, with progress events.
+
+[View the source](https://github.com/MantleJs/mantle/blob/main/registry/src/components/mantle/upload-dropzone.tsx).
