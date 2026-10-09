@@ -1,4 +1,12 @@
-import type { AgentContext, CapabilityScope, HookContext, HookFunction, Logger, Paginated, Repository } from "@mantlejs/mantle";
+import type {
+  AgentContext,
+  CapabilityScope,
+  HookContext,
+  HookFunction,
+  Logger,
+  Paginated,
+  Repository,
+} from "@mantlejs/mantle";
 import { MantleError } from "@mantlejs/mantle";
 
 /**
@@ -23,6 +31,12 @@ export interface AuditRecord {
    * or other sensitive claims, and identity already has its own field (`principal`).
    */
   params?: Record<string, unknown>;
+  /**
+   * `ctx.params.mcp` — origin metadata for an MCP-originated call. Under `@mantlejs/mcp-code`'s
+   * code mode this is `{ mode: "code", executionId, scriptHash, script? }`, so every service call
+   * one agent script made shares an `executionId` ("what did this script do" is one `find()`).
+   */
+  mcp?: Record<string, unknown>;
   status: "success" | "error";
   /** A short, non-exhaustive description of the outcome — never the full result payload. */
   resultSummary: string;
@@ -82,6 +96,7 @@ export function auditLog(options: AuditLogOptions): HookFunction {
 function buildRecord(ctx: HookContext): AuditRecord {
   const agent = ctx.agent as AgentContext | undefined;
   const { status, resultSummary } = summarize(ctx);
+  const mcp = ctx.params["mcp"];
 
   return {
     principal: ctx.params.user,
@@ -89,6 +104,7 @@ function buildRecord(ctx: HookContext): AuditRecord {
     path: ctx.path,
     method: ctx.method,
     ...(ctx.params.query ? { params: ctx.params.query as Record<string, unknown> } : {}),
+    ...(mcp !== null && typeof mcp === "object" && !Array.isArray(mcp) ? { mcp: { ...mcp } } : {}),
     status,
     resultSummary,
     timestamp: new Date().toISOString(),

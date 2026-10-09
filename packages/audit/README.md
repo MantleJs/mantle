@@ -48,6 +48,7 @@ interface AuditRecord {
   path: string;
   method: string;
   params?: Record<string, unknown>; // ctx.params.query — filters/pagination/sort/select
+  mcp?: Record<string, unknown>; // ctx.params.mcp — MCP origin metadata (code mode: executionId, scriptHash)
   status: "success" | "error";
   resultSummary: string; // short outcome description, never the full result payload
   timestamp: string; // ISO 8601
@@ -57,6 +58,8 @@ interface AuditRecord {
 `params` is `ctx.params.query` only — **never** `ctx.params.headers` or the raw `ctx.params.user` object. Headers can carry bearer tokens; identity already has its own field (`principal`). `resultSummary` is deliberately a short description (record count, an id, or an error name+message), not the full result — avoids duplicating potentially large or sensitive payloads into the audit trail.
 
 When the call was authorized via [`@mantlejs/auth`'s `authorizeAgent()`](../auth/README.md#agent-tokens) (`HookContext.agent` set), the entry additionally carries `agentId`, `agentScope`, and `delegatingUserId` — the "as which identity, delegated by whom" half of an agent-originated call.
+
+When the call came from an agent script under [`@mantlejs/mcp-code`](../mcp-code/README.md)'s code mode, the entry also carries `mcp: { mode: "code", executionId, scriptHash }` (plus `script` when the deployment opts in with `auditScriptSource: true`). Every service call one script made shares the same `executionId`, so "what did this script do" is one `find({ where: { "mcp.executionId": id } })` on the sink (on adapters that support nested paths), or a filter in your own query.
 
 ### Sink failures never fail the primary operation
 

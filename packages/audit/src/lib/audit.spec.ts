@@ -82,6 +82,18 @@ describe("auditLog()", () => {
     expect(record?.params).toBeUndefined();
   });
 
+  it("records MCP origin metadata (params.mcp) so code-mode calls correlate by executionId", async () => {
+    const sink = new MemoryRepository<AuditRecord>();
+    const mcp = { mode: "code", executionId: "exec-1", scriptHash: "abc" };
+    await auditLog({ sink })(makeCtx({ params: { provider: "mcp", headers: {}, mcp }, result: [] }));
+    await auditLog({ sink })(makeCtx({ params: { provider: "rest", headers: {} }, result: [] }));
+
+    const [codeModeRecord, restRecord] = await sink.findAll();
+    expect(codeModeRecord?.mcp).toEqual(mcp);
+    expect(codeModeRecord?.mcp).not.toBe(mcp); // copied, not aliased to the live params object
+    expect(restRecord?.mcp).toBeUndefined();
+  });
+
   it("summarizes a paginated result", async () => {
     const sink = new MemoryRepository<AuditRecord>();
     const ctx = makeCtx({ result: { data: [{ id: "1" }], total: 10, limit: 1, skip: 0 } });
@@ -112,7 +124,9 @@ describe("auditLog()", () => {
   });
 
   it("does not fail the primary operation when the sink write throws", async () => {
-    const sink = { save: vi.fn().mockRejectedValue(new Error("sink is down")) } as unknown as MemoryRepository<AuditRecord>;
+    const sink = {
+      save: vi.fn().mockRejectedValue(new Error("sink is down")),
+    } as unknown as MemoryRepository<AuditRecord>;
     const ctx = makeCtx({ error: new BadRequest("bad input") });
 
     await expect(auditLog({ sink })(ctx)).resolves.toBe(ctx);
@@ -142,7 +156,9 @@ describe("auditLog()", () => {
   });
 
   it("is silent (no throw) when the sink fails, no onSinkError is given, and no logger is configured", async () => {
-    const sink = { save: vi.fn().mockRejectedValue(new Error("sink is down")) } as unknown as MemoryRepository<AuditRecord>;
+    const sink = {
+      save: vi.fn().mockRejectedValue(new Error("sink is down")),
+    } as unknown as MemoryRepository<AuditRecord>;
     const ctx = makeCtx({ result: [] });
     (ctx.app.get as ReturnType<typeof vi.fn>).mockReturnValue(undefined);
 

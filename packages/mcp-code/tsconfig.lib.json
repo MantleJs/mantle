@@ -14,6 +14,15 @@
       "path": "../memory/tsconfig.lib.json"
     },
     {
+      "path": "../http/tsconfig.lib.json"
+    },
+    {
+      "path": "../auth/tsconfig.lib.json"
+    },
+    {
+      "path": "../audit/tsconfig.lib.json"
+    },
+    {
       "path": "../mcp/tsconfig.lib.json"
     },
     {
