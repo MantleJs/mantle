@@ -6,7 +6,10 @@ import { describe, expect, it, vi } from "vitest";
 import { createHarness, expectNoAxeViolations } from "@/test/harness";
 import { UploadDropzone, type UploadDropzoneProps } from "@/components/mantle/upload-dropzone";
 
-/** Minimal XMLHttpRequest double: records the request, lets the test drive progress and completion. */
+/**
+ * Minimal XMLHttpRequest double — `@mantlejs/client`'s `upload()` uses XHR when progress is requested.
+ * Records the request and lets the test drive progress and completion.
+ */
 class FakeXhr {
   static instances: FakeXhr[] = [];
   method = "";
@@ -21,6 +24,7 @@ class FakeXhr {
   };
   onload: (() => void) | null = null;
   onerror: (() => void) | null = null;
+  onabort: (() => void) | null = null;
 
   constructor() {
     FakeXhr.instances.push(this);
@@ -32,8 +36,14 @@ class FakeXhr {
   setRequestHeader(name: string, value: string) {
     this.headers[name] = value;
   }
+  getResponseHeader() {
+    return "application/json";
+  }
   send(body: FormData) {
     this.body = body;
+  }
+  abort() {
+    this.onabort?.();
   }
   progress(loaded: number, total: number) {
     act(() => this.upload.onprogress?.({ lengthComputable: true, loaded, total }));
@@ -52,7 +62,7 @@ function setup(props: Partial<UploadDropzoneProps> = {}) {
   const onUploaded = vi.fn();
   const onError = vi.fn();
   const view = harness.render(
-    <UploadDropzone url="http://api.test/attachments" onUploaded={onUploaded} onError={onError} {...props} />,
+    <UploadDropzone service="attachments" onUploaded={onUploaded} onError={onError} {...props} />,
   );
   const input = view.container.querySelector<HTMLInputElement>('input[type="file"]');
   if (!input) throw new Error("FileTrigger input not rendered");
@@ -85,6 +95,17 @@ describe("UploadDropzone", () => {
     xhr.respond(201, { id: 9, key: "123-photo.png" });
     await waitFor(() => expect(onUploaded).toHaveBeenCalledWith({ id: 9, key: "123-photo.png" }, expect.any(File)));
     expect(screen.getByText("Uploaded")).toBeTruthy();
+  });
+
+  it("uploads into an existing record with PATCH /:service/:id when given an id", async () => {
+    const { input, onUploaded } = setup({ id: 7 });
+    pick(input, png());
+    await waitFor(() => expect(FakeXhr.instances).toHaveLength(1));
+    const xhr = FakeXhr.instances[0];
+    expect(xhr.method).toBe("PATCH");
+    expect(xhr.url).toBe("http://api.test/attachments/7");
+    xhr.respond(200, { id: 7 });
+    await waitFor(() => expect(onUploaded).toHaveBeenCalledWith({ id: 7 }, expect.any(File)));
   });
 
   it("shows a server-side MantleError (e.g. handleUpload's size limit) and reports it", async () => {

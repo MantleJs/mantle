@@ -30,7 +30,7 @@ export default function App() {
           <LoginForm />
           <SignupForm />
           <OAuthButtons apiUrl={apiUrl} />
-          <UploadDropzone url={`${apiUrl}/attachments`} acceptedFileTypes={["image/*"]} maxFileSize={5_000_000} />
+          <UploadDropzone service="attachments" acceptedFileTypes={["image/*"]} maxFileSize={5_000_000} />
           <RealtimeList<Article> service="articles" aria-label="Articles" renderItem={(article) => article.title} />
           <DataTable<Article>
             service="articles"

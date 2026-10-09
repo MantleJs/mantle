@@ -1,8 +1,7 @@
-import { useEffect, useRef, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import { GridList, GridListItem } from "react-aria-components";
 import type { ClientParams, Id, Paginated } from "@mantlejs/client";
-import { useFind, useMantleClient } from "@mantlejs/react";
-import { useQueryClient, type QueryClient, type QueryKey } from "@tanstack/react-query";
+import { useFind } from "@mantlejs/react";
 import { cn } from "cn";
 import { Spinner } from "@/components/ui/spinner";
 
@@ -33,10 +32,9 @@ export interface RealtimeListProps<T> {
 
 /**
  * A live `find()` result as a React Aria `GridList` (arrow-key navigation, typeahead, announced
- * updates). Service events (`created`/`updated`/`patched`/`removed` over the client's socket) are
- * written straight into the TanStack Query cache entry — the list changes in place with no refetch,
- * unlike `useFind({ realtime: true })`, which invalidates and refetches. With no socket configured it
- * is an ordinary static list.
+ * updates). Uses `useFind`'s `realtime: { mode: "patch" }`: service events (`created`/`updated`/
+ * `patched`/`removed` over the client's socket) are written straight into the cached result, so the
+ * list changes in place with no refetch. With no socket configured it is an ordinary static list.
  */
 export function RealtimeList<T extends object>({
   service,
@@ -52,11 +50,7 @@ export function RealtimeList<T extends object>({
   className,
 }: RealtimeListProps<T>) {
   const params: ClientParams | undefined = query ? { query } : undefined;
-  // realtime: false — this component applies events itself instead of invalidating.
-  const result = useFind<T>(service, params, { realtime: false });
-  // The same key useFind caches under; TanStack Query compares keys by value.
-  const queryKey: QueryKey = params === undefined ? [service, "find"] : [service, "find", params];
-  useApplyServiceEvents<T>({ service, queryKey, idField, matches, insert });
+  const result = useFind<T>(service, params, { realtime: { mode: "patch", idField, matches, insert } });
 
   const items = toArray(result.data);
   const keyOf = (item: T) => item[idField] as unknown as Id;
@@ -110,66 +104,6 @@ export function RealtimeList<T extends object>({
 
 function acceptAll(): boolean {
   return true;
-}
-
-interface ApplyOptions<T> {
-  service: string;
-  queryKey: QueryKey;
-  idField: keyof T & string;
-  matches: (item: T) => boolean;
-  insert: "start" | "end";
-}
-
-function useApplyServiceEvents<T extends object>({ service, queryKey, idField, matches, insert }: ApplyOptions<T>) {
-  const client = useMantleClient();
-  const queryClient = useQueryClient();
-  // Listeners read the latest props through this ref, so they don't resubscribe on every render.
-  const latest = useRef({ queryKey, matches, insert });
-  latest.current = { queryKey, matches, insert };
-  const keyHash = JSON.stringify(queryKey);
-
-  useEffect(() => {
-    const serviceClient = client.service<T>(service);
-    if (!serviceClient.realtime) return;
-    const sameId = (a: T, b: T) => String(a[idField]) === String(b[idField]);
-    const write = (change: (items: T[]) => T[]) => updateCache<T>(queryClient, latest.current.queryKey, change);
-
-    const onCreated = (record: T) => {
-      if (!latest.current.matches(record)) return;
-      write((items) => {
-        if (items.some((item) => sameId(item, record))) return items;
-        return latest.current.insert === "start" ? [record, ...items] : [...items, record];
-      });
-    };
-    const onChanged = (record: T) => {
-      const keep = latest.current.matches(record);
-      write((items) =>
-        keep
-          ? items.map((item) => (sameId(item, record) ? record : item))
-          : items.filter((item) => !sameId(item, record)),
-      );
-    };
-    const onRemoved = (record: T) => write((items) => items.filter((item) => !sameId(item, record)));
-
-    serviceClient.on("created", onCreated).on("updated", onChanged).on("patched", onChanged).on("removed", onRemoved);
-    return () => {
-      serviceClient
-        .off("created", onCreated)
-        .off("updated", onChanged)
-        .off("patched", onChanged)
-        .off("removed", onRemoved);
-    };
-  }, [client, queryClient, service, keyHash, idField]);
-}
-
-/** Applies `change` to a cached find() result, keeping a `Paginated<T>` envelope's `total` in step. */
-function updateCache<T>(queryClient: QueryClient, queryKey: QueryKey, change: (items: T[]) => T[]) {
-  queryClient.setQueryData<T[] | Paginated<T>>(queryKey, (current) => {
-    if (current === undefined) return current;
-    if (Array.isArray(current)) return change(current);
-    const data = change(current.data);
-    return { ...current, data, total: current.total + (data.length - current.data.length) };
-  });
 }
 
 function toArray<T>(data: T[] | Paginated<T> | undefined): T[] {

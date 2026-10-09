@@ -73,7 +73,7 @@ export function ArticleDetailPage({ articleId, onBack }: ArticleDetailPageProps)
         </ul>
         {/* handleUpload("file") on attachments.create; articleId rides along as an ordinary form field. */}
         <UploadDropzone
-          url={`${apiUrl}/attachments`}
+          service="attachments"
           fields={{ articleId: String(articleId) }}
           label="Drop a file to attach it"
           onUploaded={() => void attachments.refetch()}

@@ -1,14 +1,16 @@
 import { useCallback, useRef, useState } from "react";
 import { DropZone, FileTrigger, Text, isFileDropItem } from "react-aria-components";
-import { errorFromResponse, type MantleClientError } from "@mantlejs/client";
+import type { Id, MantleClientError } from "@mantlejs/client";
 import { useMantleClient } from "@mantlejs/react";
 import { cn } from "cn";
 import { Button } from "@/components/ui/button";
 import { Progress, ProgressLabel, ProgressValue } from "@/components/ui/progress";
 
 export interface UploadDropzoneProps<R = unknown> {
-  /** Absolute URL of the service method guarded by `handleUpload()`, e.g. `${apiUrl}/attachments`. */
-  url: string;
+  /** Service path whose `create` runs `handleUpload()`, e.g. `"attachments"`. */
+  service: string;
+  /** Upload into an existing record instead — `PATCH /:service/:id` (its `patch` must run `handleUpload()`). */
+  id?: Id;
   /** Multipart field name `handleUpload(field)` reads. @default "file" */
   field?: string;
   /** Extra form fields sent with every file (merged into `context.data` by `handleUpload()`). */
@@ -42,11 +44,12 @@ interface UploadEntry {
  * Drag-and-drop or pick a file, then `POST` it as `multipart/form-data` to a service whose `create`
  * (or `patch`) runs `@mantlejs/storage`'s `handleUpload()`. Built on React Aria `DropZone` +
  * `FileTrigger`, so the zone is keyboard-focusable (paste works too) and the picker button is a real
- * button. Uploads go over `XMLHttpRequest` for progress events — `@mantlejs/client` speaks JSON only —
- * with the client's current bearer token attached.
+ * button. Each file goes through `client.service(service).upload()`, so it gets the client's bearer
+ * token, its one refresh-and-retry on 401, typed `MantleClientError`s, and progress events.
  */
 export function UploadDropzone<R = unknown>({
-  url,
+  service,
+  id: recordId,
   field = "file",
   fields,
   acceptedFileTypes,
@@ -66,10 +69,7 @@ export function UploadDropzone<R = unknown>({
   }, []);
 
   const start = useCallback(
-    async (files: File[]) => {
-      // isAuthenticated() hydrates the persisted token; getAccessToken() alone may still be empty.
-      await client.isAuthenticated();
-      const token = client.getAccessToken();
+    (files: File[]) => {
       for (const file of allowsMultiple ? files : files.slice(0, 1)) {
         const id = nextId.current++;
         const problem = rejectReason(file, acceptedFileTypes, maxFileSize);
@@ -81,19 +81,41 @@ export function UploadDropzone<R = unknown>({
           onError?.(new Error(problem), file);
           continue;
         }
-        uploadFile<R>({ url, field, fields, file, token, onProgress: (progress) => update(id, { progress }) }).then(
-          (result) => {
-            update(id, { status: "done", progress: 100 });
-            onUploaded?.(result, file);
-          },
-          (error: MantleClientError | Error) => {
-            update(id, { status: "error", error: error.message });
-            onError?.(error, file);
-          },
-        );
+        client
+          .service<R>(service)
+          .upload(file, {
+            id: recordId,
+            field,
+            fields,
+            onProgress: ({ percent }) => {
+              if (percent !== undefined) update(id, { progress: percent });
+            },
+          })
+          .then(
+            (result) => {
+              update(id, { status: "done", progress: 100 });
+              onUploaded?.(result, file);
+            },
+            (error: MantleClientError | Error) => {
+              update(id, { status: "error", error: error.message });
+              onError?.(error, file);
+            },
+          );
       }
     },
-    [client, allowsMultiple, acceptedFileTypes, maxFileSize, url, field, fields, update, onUploaded, onError],
+    [
+      client,
+      allowsMultiple,
+      acceptedFileTypes,
+      maxFileSize,
+      service,
+      recordId,
+      field,
+      fields,
+      update,
+      onUploaded,
+      onError,
+    ],
   );
 
   return (
@@ -163,41 +185,4 @@ function formatBytes(bytes: number): string {
   if (bytes >= 1024 * 1024) return `${Math.round((bytes / (1024 * 1024)) * 10) / 10} MB`;
   if (bytes >= 1024) return `${Math.round(bytes / 1024)} KB`;
   return `${bytes} bytes`;
-}
-
-interface UploadRequest {
-  url: string;
-  field: string;
-  fields?: Record<string, string>;
-  file: File;
-  token?: string;
-  onProgress: (percent: number) => void;
-}
-
-function uploadFile<R>({ url, field, fields, file, token, onProgress }: UploadRequest): Promise<R> {
-  return new Promise<R>((resolve, reject) => {
-    const body = new FormData();
-    // Ordinary fields first: busboy streams parts in order, and handleUpload() merges them into
-    // context.data alongside the file.
-    for (const [name, value] of Object.entries(fields ?? {})) body.append(name, value);
-    body.append(field, file);
-
-    const xhr = new XMLHttpRequest();
-    xhr.open("POST", url);
-    if (token) xhr.setRequestHeader("authorization", `Bearer ${token}`);
-    xhr.upload.onprogress = (event) => {
-      if (event.lengthComputable) onProgress(Math.round((event.loaded / event.total) * 100));
-    };
-    xhr.onload = () => {
-      if (xhr.status >= 200 && xhr.status < 300) {
-        resolve((xhr.responseText ? JSON.parse(xhr.responseText) : undefined) as R);
-        return;
-      }
-      // Same MantleError JSON → MantleClientError mapping every other client call gets.
-      const response = new Response(xhr.responseText || null, { status: xhr.status, statusText: xhr.statusText });
-      void errorFromResponse(response).then(reject);
-    };
-    xhr.onerror = () => reject(new Error("Upload failed: couldn't reach the server."));
-    xhr.send(body);
-  });
 }
