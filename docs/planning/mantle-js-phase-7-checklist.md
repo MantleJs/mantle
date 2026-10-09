@@ -417,7 +417,7 @@ runs in four stages, in order:
 
 ## Stage 3 — Website
 
-- [ ] **12. Starlight scaffold + content pipeline** _(PRD spec 12)_
+- [x] **12. Starlight scaffold + content pipeline** _(PRD spec 12)_
   - Scaffold `website/` as an unpublished Astro Starlight app, exempt from package boundaries like `examples/*`.
   - Write the guides: getting started, architecture, adapters + capability matrix, auth, agents (tool mode vs code
     mode, agent identity, audit), storage, realtime, deployment.
@@ -432,8 +432,29 @@ runs in four stages, in order:
   - Every published package has a reference page.
   - `llms.txt` is generated.
   - A README edit shows up after a rebuild.
+    **Done (2026-10-09):**
+  - **Site:** `website/`, Astro 7.3 + Starlight 0.42, Nx `website`, `type:app` (matrix row added).
+  - **Guides:** landing page, getting started, architecture, and six guides (adapters & queries, auth, agents/MCP,
+    storage, realtime, deployment). Storage and realtime document `service.upload()` and `useFind`'s patch mode.
+  - **README ingestion:** a custom loader layered on Starlight's own (`src/loaders/docs-with-readmes.ts`) pulls in all
+    40 package READMEs plus the registry README at build time. Relative links are rewritten and edit links point at
+    the README. Proven live: a README edit showed up in the next build's page and `llms-full.txt`.
+  - **Matrices:** `CLAUDE.md`'s two matrices are rendered from the file itself, not copied.
+  - **API reference:** TypeDoc (`starlight-typedoc` 0.23, packages mode, each package's `tsconfig.lib.json`). The
+    output is gitignored and regenerated every build. A single sidebar link instead of a per-symbol sidebar keeps
+    the site at 27 MB rather than 87 MB.
+  - **`llms.txt`:** `llms.txt`/`llms-full.txt`/`llms-small.txt` via `starlight-llms-txt` 0.12.
+  - **Link checking:** `starlight-links-validator` 0.26 fails the build on any broken internal link or anchor.
+  - **Versioning:** docs track latest (PRD Decision #24).
+  - **README fixes:**
+    - Fixed by the agent: `cli`/`create-mantlejs` `--auth` lists were missing `twitter`; the mantle README's
+      `HookContext.provider` row was wrong; the sync README still called `client`/`react` "planned".
+    - Fixed at merge: `CLAUDE.md`'s `HookContext.provider` comment, and the auth README's login examples, which
+      omitted the `refreshToken` every local/OAuth login actually returns.
+  - **Results:** build ~16 s, 452 pages, 27 MB. Full workspace `build,test,lint,typecheck` green on 46 projects
+    (Node 22.17).
 
-- [ ] **13. Registry hosting, live demos, deploy** _(PRD spec 13)_
+- [x] **13. Registry hosting, live demos, deploy** _(PRD spec 13)_
   - Serve the registry at `/r/*.json`.
   - Add React-island demos for every block against a mocked client transport.
   - Decide the domain (`mantlejs.com` vs `mantlejs.org`) and the hosting target, and record both in the PRD's
@@ -444,6 +465,32 @@ runs in four stages, in order:
   - The deployed site is reachable.
   - `npx shadcn add https://<domain>/r/login-form.json` works in a fresh app.
   - Every block page renders a working demo.
+
+  **Done (2026-10-09):**
+  - **Registry hosting:** served at `mantlejs.com/r/{style}/{name}.json`, copied in from `ui-registry:build-registry`
+    with the per-style layout intact. Non-aria styles still get a 404 (PRD Decision #19).
+  - **Block demos:** nine block pages, each with a live React-island demo that runs the registry's own block
+    sources against a mocked server in the browser. No backend.
+  - **Deploy:** `.github/workflows/website.yml` (GitHub Pages: `upload-pages-artifact` + `deploy-pages`) plus
+    `public/CNAME`. It triggers on a published non-prerelease release and on manual dispatch. CI builds the site,
+    with link validation, on every push and PR.
+  - **Production URLs:** `registry/README.md` and `examples/knowledge-base/web` now point at the production registry
+    URL, with local-serve instructions kept for development.
+  - **Install proof (local):** with the built `dist/` served locally, `shadcn add` of all nine blocks into a fresh
+    `shadcn@4.21.4` aria-nova app, then `tsc -b && vite build`, passed. That used the `label.tsx` workaround and
+    `npm pack` tarballs of `client`/`react`, because 0.2.0 on npm predates `upload()` and patch mode; this is the
+    PRD's release coupling.
+  - **Browser check:** login-form (including its 401 alert), data-table (server sort + pagination), and
+    realtime-list were checked by hand in a local preview, with no console errors. The realtime "simulate" buttons,
+    search-combobox, and the upload demo build but weren't clicked through.
+  - **Decisions:** domain, hosting, versioning, and deploy triggers are recorded as PRD Decisions #22–25.
+  - **Still open (needs the user plus the release):** the real deploy, and `shadcn add` against the production URL.
+    Manual one-time steps:
+    1. Pages source = GitHub Actions.
+    2. Custom domain `mantlejs.com`, then Enforce HTTPS.
+    3. DNS: apex `A` records `185.199.108.153`/`.109.153`/`.110.153`/`.111.153` (optional `AAAA`
+       `2606:50c0:8000::153`–`8003::153`), and `www` `CNAME` → `mantlejs.github.io`.
+    4. Verify the domain for the org.
 
 ---
 
