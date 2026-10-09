@@ -9,13 +9,7 @@
       "title": "Mantle form errors",
       "description": "Maps @mantlejs/client errors onto React Aria form state: Unprocessable field errors to fields, everything else to a form-level message.",
       "dependencies": ["@mantlejs/client"],
-      "files": [
-        {
-          "path": "src/lib/mantle-errors.ts",
-          "type": "registry:lib",
-          "target": "@lib/mantle-errors.ts"
-        }
-      ]
+      "files": [{ "path": "src/lib/mantle-errors.ts", "type": "registry:lib", "target": "@lib/mantle-errors.ts" }]
     },
     {
       "name": "auth-provider",
@@ -76,6 +70,93 @@
           "path": "src/components/mantle/oauth-buttons.tsx",
           "type": "registry:component",
           "target": "@components/mantle/oauth-buttons.tsx"
+        }
+      ]
+    },
+    {
+      "name": "upload-dropzone",
+      "type": "registry:block",
+      "title": "Upload dropzone",
+      "description": "Drag-and-drop or pick files and upload them to a @mantlejs/storage handleUpload() service, with progress and typed errors. React Aria DropZone + FileTrigger.",
+      "categories": ["storage"],
+      "dependencies": ["react-aria-components", "@mantlejs/client", "@mantlejs/react", "cn"],
+      "registryDependencies": ["button", "progress"],
+      "files": [
+        {
+          "path": "src/components/mantle/upload-dropzone.tsx",
+          "type": "registry:component",
+          "target": "@components/mantle/upload-dropzone.tsx"
+        }
+      ]
+    },
+    {
+      "name": "realtime-list",
+      "type": "registry:block",
+      "title": "Realtime list",
+      "description": "A live find() result as a React Aria GridList; service events update it in place with no refetch.",
+      "categories": ["data", "realtime"],
+      "dependencies": ["react-aria-components", "@mantlejs/client", "@mantlejs/react", "@tanstack/react-query", "cn"],
+      "registryDependencies": ["spinner"],
+      "files": [
+        {
+          "path": "src/components/mantle/realtime-list.tsx",
+          "type": "registry:component",
+          "target": "@components/mantle/realtime-list.tsx"
+        }
+      ]
+    },
+    {
+      "name": "mantle-pagination",
+      "type": "registry:block",
+      "title": "Pagination",
+      "description": "Page navigation for a Paginated<T> result, driving $skip. Named mantle-pagination to stay distinct from shadcn's own pagination primitive it builds on.",
+      "categories": ["data"],
+      "dependencies": ["@mantlejs/client"],
+      "registryDependencies": ["pagination"],
+      "files": [
+        {
+          "path": "src/components/mantle/mantle-pagination.tsx",
+          "type": "registry:component",
+          "target": "@components/mantle/mantle-pagination.tsx"
+        }
+      ]
+    },
+    {
+      "name": "data-table",
+      "type": "registry:block",
+      "title": "Data table",
+      "description": "A server-sorted, server-paged find() result in shadcn's React Aria Table: column sort maps to $sort, pages to $skip.",
+      "categories": ["data"],
+      "dependencies": [
+        "react-aria-components",
+        "@mantlejs/client",
+        "@mantlejs/react",
+        "@tanstack/react-query",
+        "lucide-react",
+        "cn"
+      ],
+      "registryDependencies": ["table", "spinner", "@mantle/mantle-pagination"],
+      "files": [
+        {
+          "path": "src/components/mantle/data-table.tsx",
+          "type": "registry:component",
+          "target": "@components/mantle/data-table.tsx"
+        }
+      ]
+    },
+    {
+      "name": "search-combobox",
+      "type": "registry:block",
+      "title": "Search combobox",
+      "description": "Server-side type-ahead search over find() with $ilike (falling back to $like), in shadcn's React Aria Combobox.",
+      "categories": ["data"],
+      "dependencies": ["react-aria-components", "@mantlejs/client", "@mantlejs/react", "@tanstack/react-query", "cn"],
+      "registryDependencies": ["combobox", "label"],
+      "files": [
+        {
+          "path": "src/components/mantle/search-combobox.tsx",
+          "type": "registry:component",
+          "target": "@components/mantle/search-combobox.tsx"
         }
       ]
     }
