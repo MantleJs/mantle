@@ -329,57 +329,69 @@ export function describeServiceMethod(
   }
 }
 
+/**
+ * Executes one service method from tool-style arguments (`{ query }`, `{ id, query }`, `{ data }`,
+ * `{ id, data }`) through `service.dispatch()` with the given params — find-limit clamping,
+ * structured-query → REST-query translation, and id checks included. The generated tools run
+ * exactly this; exported so a code-mode bridge dispatches through the identical path.
+ */
+export type McpMethodRunner = (
+  args: Record<string, unknown>,
+  params: ServiceParams,
+) => Promise<{ result: unknown; note?: string }>;
+
+/** See `McpMethodRunner`. `limits` are the effective find() guardrails (pass `McpCodeModeInput.query`). */
+export function createServiceMethodRunner(
+  app: MantleApplication,
+  descriptor: ServiceDescriptor,
+  method: string,
+  limits: Required<McpQueryOptions>,
+): McpMethodRunner {
+  const path = descriptor.path;
+  const name = toolName(path, method);
+  const dispatch = (data: unknown, id: unknown, params: ServiceParams): Promise<unknown> =>
+    app.service(path).dispatch(method, data as Partial<unknown> | undefined, id as string | number | undefined, params);
+
+  switch (method) {
+    case "find":
+      return async (args, params) => {
+        const query = (args["query"] ?? {}) as QueryArg;
+        const requested = typeof query.limit === "number" ? query.limit : undefined;
+        const limit = Math.min(requested ?? limits.defaultLimit, limits.maxLimit);
+        const result = await dispatch(undefined, undefined, {
+          ...params,
+          query: toRestQuery(query, limit),
+        });
+        return { result, note: truncationNote(result) };
+      };
+    case "get":
+    case "remove":
+      return async (args, params) => ({
+        result: await dispatch(undefined, requireId(args, name), {
+          ...params,
+          query: toRestQuery((args["query"] ?? {}) as QueryArg),
+        }),
+      });
+    case "create":
+      return async (args, params) => ({ result: await dispatch(args["data"], undefined, params) });
+    case "update":
+    case "patch":
+      return async (args, params) => ({ result: await dispatch(args["data"], requireId(args, name), params) });
+    default:
+      return async (args, params) => ({ result: await dispatch(args["data"] ?? {}, undefined, params) });
+  }
+}
+
 function buildServiceTool(
   app: MantleApplication,
   descriptor: ServiceDescriptor,
   method: string,
   limits: FindLimits,
 ): ToolEntry {
-  const path = descriptor.path;
-  const schema = describeServiceMethod(descriptor, method, limits);
-  const dispatch = (data: unknown, id: unknown, params: ServiceParams): Promise<unknown> =>
-    app.service(path).dispatch(method, data as Partial<unknown> | undefined, id as string | number | undefined, params);
-
-  switch (method) {
-    case "find":
-      return {
-        ...schema,
-        run: async (args, params) => {
-          const query = (args["query"] ?? {}) as QueryArg;
-          const requested = typeof query.limit === "number" ? query.limit : undefined;
-          const limit = Math.min(requested ?? limits.defaultLimit, limits.maxLimit);
-          const result = await dispatch(undefined, undefined, {
-            ...params,
-            query: toRestQuery(query, limit),
-          });
-          return { result, note: truncationNote(result) };
-        },
-      };
-    case "get":
-    case "remove":
-      return {
-        ...schema,
-        run: async (args, params) => ({
-          result: await dispatch(undefined, requireId(args, schema.name), {
-            ...params,
-            query: toRestQuery((args["query"] ?? {}) as QueryArg),
-          }),
-        }),
-      };
-    case "create":
-      return { ...schema, run: async (args, params) => ({ result: await dispatch(args["data"], undefined, params) }) };
-    case "update":
-    case "patch":
-      return {
-        ...schema,
-        run: async (args, params) => ({ result: await dispatch(args["data"], requireId(args, schema.name), params) }),
-      };
-    default:
-      return {
-        ...schema,
-        run: async (args, params) => ({ result: await dispatch(args["data"] ?? {}, undefined, params) }),
-      };
-  }
+  return {
+    ...describeServiceMethod(descriptor, method, limits),
+    run: createServiceMethodRunner(app, descriptor, method, limits),
+  };
 }
 
 function buildCustomTool(app: MantleApplication, definition: McpToolDefinition): ToolEntry {

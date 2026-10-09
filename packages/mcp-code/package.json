@@ -1,0 +1,56 @@
+{
+  "name": "@mantlejs/mcp-code",
+  "version": "0.2.0-experimental",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    "./package.json": "./package.json",
+    ".": {
+      "@mantle/source": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "!**/*.tsbuildinfo"
+  ],
+  "nx": {
+    "name": "mcp-code",
+    "tags": [
+      "pkg:mcp-code",
+      "type:lib"
+    ]
+  },
+  "dependencies": {
+    "@jitl/quickjs-wasmfile-release-sync": "^0.32.0",
+    "quickjs-emscripten-core": "^0.32.0",
+    "tslib": "^2.3.0"
+  },
+  "description": "MCP code mode for Mantle JS — agents write a script against a typed API of your services, run in a QuickJS sandbox through the full hook pipeline",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MantleJs/mantle.git",
+    "directory": "packages/mcp-code"
+  },
+  "homepage": "https://github.com/MantleJs/mantle/tree/main/packages/mcp-code#readme",
+  "publishConfig": {
+    "access": "public"
+  },
+  "keywords": [
+    "mantle",
+    "mcp",
+    "model-context-protocol",
+    "code-mode",
+    "sandbox",
+    "quickjs"
+  ],
+  "peerDependencies": {
+    "@mantlejs/mantle": "^0.2.0",
+    "@mantlejs/mcp": "^0.2.0"
+  }
+}

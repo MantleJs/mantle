@@ -41,6 +41,7 @@ export const dependencyMatrix = {
   socketio: ["mantle"],
   openapi: ["mantle"],
   mcp: ["mantle"],
+  "mcp-code": ["mantle", "mcp"],
   sync: ["mantle"],
   client: [],
   react: ["client"],
@@ -60,6 +61,9 @@ export const testOnlyDependencies = {
   // agent-authorization / hook-pipeline-equivalence / mcp-http / mcp specs: real HTTP transport,
   // in-memory repository, and auth engine behind the MCP server
   mcp: ["http", "memory", "auth"],
+  // code-mode / equivalence / agent-scope / audit specs: real HTTP transport, in-memory repository,
+  // auth engine (agent tokens + authorizeAgent), and audit sink behind the code-mode bridge
+  "mcp-code": ["http", "memory", "auth", "audit"],
   // audit.spec.ts (memory sink) and audit-real-adapter.spec.ts (knex/sqlite sink)
   audit: ["memory", "knex"],
   // embed.spec.ts: in-memory source + vector repositories

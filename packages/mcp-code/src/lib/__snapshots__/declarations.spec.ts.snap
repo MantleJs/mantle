@@ -1,0 +1,169 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`declaration generation > matches the snapshot for a schema'd service, a schema-less custom-method service, and a nested path 1`] = `
+"/**
+ * Mantle API — your session's exposed services. Call as \`await mantle[path].method(...)\`
+ * (e.g. \`mantle.users.find({ where: { active: true } })\`). Every call runs the service's full
+ * hook pipeline (authentication, authorization, validation, audit) as the current session —
+ * a rejected call throws an Error carrying the service error's name/message/code/data/hint.
+ * Values cross as JSON. Return the result from your script; console.log output is captured.
+ */
+type Id = string | number;
+interface Paginated<T> {
+  total: number;
+  limit: number;
+  skip: number;
+  data: T[];
+}
+
+/** A \`users\` record. */
+type UsersRecord = {
+  id?: string;
+  /** Display name. */
+  name: string;
+  email: string;
+  role?: "admin" | "member";
+  age?: number | null;
+  tags?: string[];
+  profile?: {
+    bio?: string;
+    "favorite-color"?: string;
+  };
+};
+/** Query for \`mantle.users.find()\`. */
+type UsersQuery = {
+  /** Filter clause. Keys are field names; values are literals or operator objects. */
+  where?: {
+    /** Any clause may match. */
+    $or?: { [key: string]: unknown }[];
+  } & { [key: string]: unknown | {
+      $lt?: unknown;
+      $gt?: unknown;
+      $in?: unknown;
+      $like?: unknown;
+    } };
+  /** Number of records to skip (offset pagination). */
+  skip?: number;
+  /** Sort order per field. */
+  sort?: { [key: string]: "asc" | "desc" };
+  /** Fields to return. Use to keep results small. */
+  select?: string[];
+  /** Maximum records to return. Default 25; requests above 100 are clamped. Page with skip. */
+  limit?: number;
+};
+/** Query for \`get\`/\`remove\` (field selection). */
+type UsersIdQuery = {
+  /** Filter clause. Keys are field names; values are literals or operator objects. */
+  where?: {
+    /** Any clause may match. */
+    $or?: { [key: string]: unknown }[];
+  } & { [key: string]: unknown | {
+      $lt?: unknown;
+      $gt?: unknown;
+      $in?: unknown;
+      $like?: unknown;
+    } };
+  /** Number of records to skip (offset pagination). */
+  skip?: number;
+  /** Sort order per field. */
+  sort?: { [key: string]: "asc" | "desc" };
+  /** Fields to return. Use to keep results small. */
+  select?: string[];
+};
+/** Data for \`create\`/\`update\`. */
+type UsersData = {
+  id?: string;
+  /** Display name. */
+  name: string;
+  email: string;
+  role?: "admin" | "member";
+  age?: number | null;
+  tags?: string[];
+  profile?: {
+    bio?: string;
+    "favorite-color"?: string;
+  };
+};
+/** Data for \`patch\` (every field optional). */
+type UsersPatch = {
+  id?: string;
+  /** Display name. */
+  name?: string;
+  email?: string;
+  role?: "admin" | "member";
+  age?: number | null;
+  tags?: string[];
+  profile?: {
+    bio?: string;
+    "favorite-color"?: string;
+  };
+};
+
+/** A \`blog-posts\` record. */
+type BlogPostsRecord = { [key: string]: unknown };
+/** Query for \`mantle["blog-posts"].find()\`. */
+type BlogPostsQuery = {
+  /** Filter clause. Keys are field names; values are literals or operator objects. */
+  where?: {
+    /** Any clause may match. */
+    $or?: { [key: string]: unknown }[];
+    /** All clauses must match. */
+    $and?: { [key: string]: unknown }[];
+  } & { [key: string]: unknown };
+  /** Number of records to skip (offset pagination). */
+  skip?: number;
+  /** Sort order per field. */
+  sort?: { [key: string]: "asc" | "desc" };
+  /** Fields to return. Use to keep results small. */
+  select?: string[];
+  /** Maximum records to return. Default 25; requests above 100 are clamped. Page with skip. */
+  limit?: number;
+};
+
+/** A \`admin/reports\` record. */
+type AdminReportsRecord = { [key: string]: unknown };
+/** Query for \`get\`/\`remove\` (field selection). */
+type AdminReportsIdQuery = {
+  /** Filter clause. Keys are field names; values are literals or operator objects. */
+  where?: {
+    /** Any clause may match. */
+    $or?: { [key: string]: unknown }[];
+    /** All clauses must match. */
+    $and?: { [key: string]: unknown }[];
+  } & { [key: string]: unknown };
+  /** Number of records to skip (offset pagination). */
+  skip?: number;
+  /** Sort order per field. */
+  sort?: { [key: string]: "asc" | "desc" };
+  /** Fields to return. Use to keep results small. */
+  select?: string[];
+};
+
+declare const mantle: {
+  users: {
+    /** Find users records matching a query. Results are paginated — check the returned total and page with query.skip/query.limit. */
+    find(query?: UsersQuery): Promise<UsersRecord[] | Paginated<UsersRecord>>;
+    /** Get a single users record by id. */
+    get(id: Id, query?: UsersIdQuery): Promise<UsersRecord>;
+    /** Create a new users record. */
+    create(data: UsersData): Promise<UsersRecord>;
+    /** Update a users record by id. Replaces the entire record — omitted fields are lost; use mantle.users.patch() for partial changes. */
+    update(id: Id, data: UsersData): Promise<UsersRecord>;
+    /** Patch a users record by id. Partial update — only the provided fields change. */
+    patch(id: Id, data: UsersPatch): Promise<UsersRecord>;
+    /** Remove a users record by id. Permanently deletes the record. */
+    remove(id: Id, query?: UsersIdQuery): Promise<UsersRecord>;
+  };
+  "blog-posts": {
+    /** Find blog-posts records matching a query. Results are paginated — check the returned total and page with query.skip/query.limit. */
+    find(query?: BlogPostsQuery): Promise<BlogPostsRecord[] | Paginated<BlogPostsRecord>>;
+    /** Call the custom 'publish' method on the blog-posts service. */
+    publish(data?: Record<string, unknown>): Promise<unknown>;
+  };
+  "admin/reports": {
+    /** Get a single admin/reports record by id. */
+    get(id: Id, query?: AdminReportsIdQuery): Promise<AdminReportsRecord>;
+  };
+};
+"
+`;
