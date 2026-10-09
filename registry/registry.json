@@ -1,0 +1,21 @@
+{
+  "$schema": "https://ui.shadcn.com/schema/registry.json",
+  "name": "mantle",
+  "homepage": "https://github.com/MantleJs/mantle/tree/main/registry",
+  "items": [
+    {
+      "name": "mantle-errors",
+      "type": "registry:lib",
+      "title": "Mantle form errors",
+      "description": "Maps @mantlejs/client errors onto React Aria form state: Unprocessable field errors to fields, everything else to a form-level message.",
+      "dependencies": ["@mantlejs/client"],
+      "files": [
+        {
+          "path": "src/lib/mantle-errors.ts",
+          "type": "registry:lib",
+          "target": "@lib/mantle-errors.ts"
+        }
+      ]
+    }
+  ]
+}

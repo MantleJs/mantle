@@ -4,7 +4,8 @@ import nx from "@nx/eslint-plugin";
  * Package dependency matrix: which workspace packages each package may import. Mirrors CLAUDE.md's
  * "Package Dependency Rules" table row for row. `tools/check-dependency-matrix.mjs` fails CI if the
  * two diverge. Keys and values are Nx project names; every packages/* project is tagged
- * `pkg:<name>` + `type:lib`, every examples/* project `type:app`. An empty list means "nothing".
+ * `pkg:<name>` + `type:lib`, the registry/ project `pkg:ui-registry` + `type:registry`, every
+ * examples/* project `type:app`. An empty list means "nothing".
  */
 export const dependencyMatrix = {
   mantle: [],
@@ -47,6 +48,8 @@ export const dependencyMatrix = {
   react: ["client"],
   cli: [],
   "create-mantlejs": ["cli"],
+  // registry/ — the unpublished Mantle UI shadcn registry (tagged pkg:ui-registry + type:registry)
+  "ui-registry": ["client", "react"],
 };
 
 /**

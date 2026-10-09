@@ -1,0 +1,68 @@
+{
+  "name": "mantle-ui-registry",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "description": "Mantle UI — React Aria blocks for shadcn/ui, distributed as a shadcn registry (never published to npm)",
+  "nx": {
+    "name": "ui-registry",
+    "tags": [
+      "pkg:ui-registry",
+      "type:registry"
+    ],
+    "targets": {
+      "build-registry": {
+        "executor": "nx:run-commands",
+        "options": {
+          "commands": [
+            "npx shadcn registry validate",
+            "npx shadcn build --output public/r",
+            "node scripts/fan-out-styles.mjs"
+          ],
+          "parallel": false,
+          "cwd": "registry"
+        },
+        "inputs": [
+          "{projectRoot}/registry.json",
+          "{projectRoot}/scripts/**/*",
+          "{projectRoot}/src/**/*"
+        ],
+        "outputs": [
+          "{projectRoot}/public/r"
+        ],
+        "cache": true
+      },
+      "e2e-install": {
+        "executor": "nx:run-commands",
+        "options": {
+          "command": "node e2e/install-smoke.mjs",
+          "cwd": "registry"
+        },
+        "dependsOn": [
+          "build-registry",
+          {
+            "projects": [
+              "client",
+              "react"
+            ],
+            "target": "build"
+          }
+        ]
+      }
+    }
+  },
+  "dependencies": {
+    "@mantlejs/client": "^0.2.0",
+    "@mantlejs/react": "^0.2.0",
+    "@tanstack/react-query": "^5.101.2",
+    "class-variance-authority": "^0.7.1",
+    "cn": "^0.4.0",
+    "lucide-react": "^1.53.0",
+    "react": "^19.2.7",
+    "react-aria-components": "^1.22.0",
+    "react-dom": "^19.2.7"
+  },
+  "devDependencies": {
+    "shadcn": "4.21.4"
+  }
+}

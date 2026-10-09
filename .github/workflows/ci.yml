@@ -2,7 +2,8 @@ name: CI
 
 # Runs on every push/PR: build, test, lint, typecheck across the workspace (checklist item 9's
 # release-plan gate), plus the create-mantlejs scaffold smoke test (checklist item 8's e2e-scaffold
-# target). Separate from release-publish.yml, which is manual-only and actually publishes to npm.
+# target) and the Mantle UI registry install smoke test (Phase 7 item 8). Separate from
+# release-publish.yml, which is manual-only and actually publishes to npm.
 
 on:
   push:
@@ -53,3 +54,8 @@ jobs:
 
       - name: create-mantlejs scaffold smoke test
         run: npx nx run create-mantlejs:e2e-scaffold
+
+      # Phase 7 item 8: build the Mantle UI shadcn registry, `shadcn add` every block into fresh
+      # aria-nova and aria-vega apps and build them, and confirm a radix project is refused.
+      - name: Mantle UI registry install smoke test
+        run: npx nx run ui-registry:e2e-install

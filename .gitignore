@@ -51,6 +51,9 @@ vitest.config.*.timestamp*
 examples/realtime-chat/public/app.js
 examples/realtime-chat/chat.db
 examples/knowledge-base/**/uploads
+
+# Mantle UI registry — `nx run ui-registry:build-registry` output (hosted by the website, not committed)
+registry/public/r
 vite.config.*.timestamp*
 
 # local env files (copied from .env.example — never commit real secrets)

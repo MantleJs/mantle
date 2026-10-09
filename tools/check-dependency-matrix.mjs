@@ -9,8 +9,8 @@
  *     vice versa; same for the "test-only:" exceptions vs testOnlyDependencies
  *   - the production and spec-file boundary rules actually configured in eslint.config.mjs's default
  *     export equal the constraints derived from the table (catches hand-edited depConstraints)
- *   - every packages/* project has a row and is tagged exactly ["pkg:<name>", "type:lib"]; every
- *     examples/* project is tagged ["type:app"]
+ *   - every packages/* project has a row and is tagged exactly ["pkg:<name>", "type:lib"]; the
+ *     registry/ project likewise with "type:registry"; every examples/* project is tagged ["type:app"]
  *   - every package's @mantlejs/* dependencies/peerDependencies are allowed by its row, and its
  *     @mantlejs/* devDependencies by its row plus its test-only exceptions
  */
@@ -44,7 +44,8 @@ function parseMatrixTable() {
     const [pkg, deps] = line
       .split("|")
       .slice(1, -1)
-      .map((cell) => cell.trim());
+      // Prettier escapes markdown metacharacters in table cells (`examples/*` → `examples/\*`).
+      .map((cell) => cell.trim().replace(/\\(.)/g, "$1"));
     rows.push({ pkg, deps });
   }
 
@@ -128,26 +129,41 @@ function loadProjects(dir) {
     }));
 }
 
+/** Constrained projects outside packages/*: [directory, expected kind tag]. Same row/tag/dep rules. */
+const STANDALONE_PROJECTS = [["registry", "type:registry"]];
+
+function checkConstrainedProject(dir, pkg, kindTag, documented, errors) {
+  const name = pkg.nx?.name;
+  if (!(name in documented.matrix)) {
+    errors.push(`${dir}: project "${name}" has no row in CLAUDE.md's dependency matrix`);
+    return;
+  }
+  if (!same(pkg.nx?.tags ?? [], [`pkg:${name}`, kindTag]))
+    errors.push(`${dir}: nx.tags must be ["pkg:${name}", "${kindTag}"], found ${JSON.stringify(pkg.nx?.tags ?? [])}`);
+
+  const allowed = new Set(documented.matrix[name]);
+  const allowedInTests = new Set([...allowed, ...(documented.testOnly[name] ?? [])]);
+  const internal = (deps) => Object.keys(deps ?? {}).filter((dep) => namesIn(dep).length && dep !== pkg.name);
+  for (const dep of [...internal(pkg.dependencies), ...internal(pkg.peerDependencies)]) {
+    if (!allowed.has(projectName(dep))) errors.push(`${dir}: depends on ${dep}, which its matrix row does not allow`);
+  }
+  for (const dep of internal(pkg.devDependencies)) {
+    if (!allowedInTests.has(projectName(dep)))
+      errors.push(`${dir}: devDepends on ${dep}, which neither its matrix row nor its test-only exceptions allow`);
+  }
+}
+
 function checkProjects(documented, errors) {
   for (const { dir, pkg } of loadProjects("packages")) {
-    const name = pkg.nx?.name;
-    if (!(name in documented.matrix)) {
-      errors.push(`${dir}: project "${name}" has no row in CLAUDE.md's dependency matrix`);
+    checkConstrainedProject(dir, pkg, "type:lib", documented, errors);
+  }
+  for (const [dir, kindTag] of STANDALONE_PROJECTS) {
+    const path = join(REPO_ROOT, dir, "package.json");
+    if (!existsSync(path)) {
+      errors.push(`${dir}: expected a project here (listed in STANDALONE_PROJECTS)`);
       continue;
     }
-    if (!same(pkg.nx?.tags ?? [], [`pkg:${name}`, "type:lib"]))
-      errors.push(`${dir}: nx.tags must be ["pkg:${name}", "type:lib"], found ${JSON.stringify(pkg.nx?.tags ?? [])}`);
-
-    const allowed = new Set(documented.matrix[name]);
-    const allowedInTests = new Set([...allowed, ...(documented.testOnly[name] ?? [])]);
-    const internal = (deps) => Object.keys(deps ?? {}).filter((dep) => namesIn(dep).length && dep !== pkg.name);
-    for (const dep of [...internal(pkg.dependencies), ...internal(pkg.peerDependencies)]) {
-      if (!allowed.has(projectName(dep))) errors.push(`${dir}: depends on ${dep}, which its matrix row does not allow`);
-    }
-    for (const dep of internal(pkg.devDependencies)) {
-      if (!allowedInTests.has(projectName(dep)))
-        errors.push(`${dir}: devDepends on ${dep}, which neither its matrix row nor its test-only exceptions allow`);
-    }
+    checkConstrainedProject(dir, JSON.parse(readFileSync(path, "utf8")), kindTag, documented, errors);
   }
 
   const examples = [

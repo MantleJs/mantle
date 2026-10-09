@@ -4,3 +4,6 @@
 /.nx/cache
 /.nx/workspace-data/node_modules
 *.min.js
+# Vendored verbatim from shadcn's aria-nova style — keep byte-identical to upstream
+/registry/src/components/ui
+/registry/public

@@ -86,6 +86,7 @@ mantle/
 │   ├── react/           @mantlejs/react        React hooks over the client SDK (TanStack Query v5)
 │   ├── cli/             @mantlejs/cli          Command-line interface — scaffold projects/services/hooks
 │   └── create-mantlejs/ create-mantlejs        `npm create mantlejs` project initializer
+├── registry/           Mantle UI — React Aria blocks as a shadcn registry (`shadcn add @mantle/…`), unpublished
 ├── examples/           Runnable apps, unpublished, npm-workspace-linked (not part of the release)
 │   ├── todo-minimal/    @mantlejs/http + @mantlejs/memory, single file, README quick-start source
 │   ├── realtime-chat/   Express + socketio + knex/sqlite + auth-local, static HTML client
@@ -138,11 +139,12 @@ mantle/
 | @mantlejs/react          | @mantlejs/client (peers: react, @tanstack/react-query)                                                                                                                         |
 | @mantlejs/cli            | nothing (standalone code generator)                                                                                                                                            |
 | create-mantlejs          | @mantlejs/cli                                                                                                                                                                  |
-| examples/*               | anything (apps, not libraries — exempt from the boundary rules above, never depended on)                                                                                       |
+| ui-registry              | @mantlejs/client, @mantlejs/react (`registry/`, unpublished; peers: react, react-aria-components, @tanstack/react-query)                                                       |
+| examples/\*              | anything (apps, not libraries — exempt from the boundary rules above, never depended on)                                                                                       |
 
-Enforced for real: every `packages/*` project is tagged `pkg:<name>` + `type:lib` and every `examples/*` project
-`type:app` (in its `package.json` `nx.tags`). The root `eslint.config.mjs` builds one `depConstraints` entry per row
-above from its `dependencyMatrix` export. "test-only" packages may be imported only from `*.spec.ts(x)` files (the
+Enforced for real: every `packages/*` project is tagged `pkg:<name>` + `type:lib`, the `registry/` project
+`pkg:ui-registry` + `type:registry`, and every `examples/*` project `type:app` (in its `package.json` `nx.tags`).
+The root `eslint.config.mjs` builds one `depConstraints` entry per row above from its `dependencyMatrix` export. "test-only" packages may be imported only from `*.spec.ts(x)` files (the
 `testOnlyDependencies` export, applied by a spec-file override), never from production sources. Parenthesized npm
 packages (`+ @modelcontextprotocol/sdk`, peers) are informational and not checked. `npm run check-dependency-matrix`
 (`tools/check-dependency-matrix.mjs`, run in CI) fails if this table, the eslint config, the project tags, or any
@@ -214,19 +216,19 @@ support) and a `nestedPaths: boolean` flag. Support is uneven by design, not ove
 are architectural (a backend that genuinely cannot represent nested data), not a missing
 translator feature:
 
-| Adapter | `$contains` | Nested paths (`"a.b.c"`) |
-| --- | --- | --- |
-| `memory` | ✅ full (reference implementation) | ✅ full |
-| `supabase` | ✅ jsonb `@>` (Postgres) | ✅ PostgREST `->`/`->>` |
-| `mongodb` | ✅ native | ✅ native |
-| `knex` — PostgreSQL | ✅ jsonb `@>` | ✅ `jsonb_path_query_first` (via `whereJsonPath`) |
-| `knex` — MySQL | ✅ `JSON_CONTAINS` | ✅ `JSON_EXTRACT` (via `whereJsonPath`) |
-| `knex` — SQLite | ❌ no native JSON-superset function | ✅ `json_extract` (via `whereJsonPath`) |
-| `knex` — MSSQL | ❌ no native JSON-superset function | ✅ `JSON_VALUE` (via `whereJsonPath`) |
-| `dynamodb` | ✅ `contains()`, ANDed per element/leaf for array/object operands | ✅ multi-segment `#name0.#name1` attribute paths |
-| `qdrant` | ✅ `match.value`, ANDed per element/leaf (arrays auto-match-any-element) | ✅ native (dot-path payload keys) |
-| `neo4j` | ❌ node properties can't hold nested objects at all | ❌ same — architectural, not a gap |
-| `pinecone` | ❌ metadata values are flat scalars/scalar-arrays only | ❌ same — architectural, not a gap |
+| Adapter             | `$contains`                                                              | Nested paths (`"a.b.c"`)                          |
+| ------------------- | ------------------------------------------------------------------------ | ------------------------------------------------- |
+| `memory`            | ✅ full (reference implementation)                                       | ✅ full                                           |
+| `supabase`          | ✅ jsonb `@>` (Postgres)                                                 | ✅ PostgREST `->`/`->>`                           |
+| `mongodb`           | ✅ native                                                                | ✅ native                                         |
+| `knex` — PostgreSQL | ✅ jsonb `@>`                                                            | ✅ `jsonb_path_query_first` (via `whereJsonPath`) |
+| `knex` — MySQL      | ✅ `JSON_CONTAINS`                                                       | ✅ `JSON_EXTRACT` (via `whereJsonPath`)           |
+| `knex` — SQLite     | ❌ no native JSON-superset function                                      | ✅ `json_extract` (via `whereJsonPath`)           |
+| `knex` — MSSQL      | ❌ no native JSON-superset function                                      | ✅ `JSON_VALUE` (via `whereJsonPath`)             |
+| `dynamodb`          | ✅ `contains()`, ANDed per element/leaf for array/object operands        | ✅ multi-segment `#name0.#name1` attribute paths  |
+| `qdrant`            | ✅ `match.value`, ANDed per element/leaf (arrays auto-match-any-element) | ✅ native (dot-path payload keys)                 |
+| `neo4j`             | ❌ node properties can't hold nested objects at all                      | ❌ same — architectural, not a gap                |
+| `pinecone`          | ❌ metadata values are flat scalars/scalar-arrays only                   | ❌ same — architectural, not a gap                |
 
 On `knex`, capability depends on the **connected client** (`describe()` is computed from it, not
 a static per-package constant) — check `describe().capabilities` rather than assuming every knex
