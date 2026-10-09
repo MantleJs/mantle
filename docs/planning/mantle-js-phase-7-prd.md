@@ -636,12 +636,30 @@ Builds on the pipeline Phase 5 built and Phase 6 exercised. No new tooling is ex
 - **Client-SDK follow-ups found during items 8–11** (the blocks work around these; decide before release whether to
   fix in `@mantlejs/client`/`@mantlejs/react` or record them as known issues):
   - ~~**Bug:** `@mantlejs/client`'s `authenticate()` accepts a 200 response with no `accessToken`.~~ **Fixed (2026-10-08, `fe31721`):** `authenticate()` now throws a `GeneralError` and stores and emits nothing. The same hole in the 401-refresh path now counts as a failed rotation. `setTokens()` rejects an empty token.
-  - `@mantlejs/client` has no multipart upload support and doesn't expose `baseUrl`. `tryRefresh` is private.
-    Because of this, `upload-dropzone` takes an absolute `url` and sends the bearer token over XHR itself, which
-    means it can't use the client's 401-refresh retry.
-  - `@mantlejs/react`'s `realtime: true` always invalidates and refetches. `realtime-list` writes events into the
-    query cache itself to meet spec 10's "no refetch" requirement. An opt-in cache-patch mode in `useFind` would
-    let other consumers do the same.
+  - ~~`@mantlejs/client` has no multipart upload support and doesn't expose `baseUrl`.~~ **Fixed (2026-10-08):**
+    - New `ServiceClient.upload(file, { id?, field?, fields?, filename?, onProgress?, signal?, headers? })`.
+      - It sends `POST /:service`, or `PATCH /:service/:id` with `id`, as `multipart/form-data`.
+      - It goes through the client's bearer auth, one refresh-and-retry on 401 (the body is rebuilt for the retry),
+        and typed errors.
+      - It uses `XMLHttpRequest` when `onProgress` is set and XHR exists (looked up structurally, since the package
+        compiles without the DOM lib), and `fetch` otherwise.
+      - It's never batched.
+    - New `MantleClient.url` getter.
+    - `upload-dropzone` now takes `service` (+ optional `id`) instead of an absolute `url`, and calls
+      `service.upload()`. Its private XHR code is gone.
+  - ~~`@mantlejs/react`'s `realtime: true` always invalidates and refetches.~~ **Fixed (2026-10-08):**
+    - `useFind` accepts `realtime: { mode: "patch", idField?, matches?, insert? }`. Events are written into that
+      hook's own cache entry with no refetch, and a `Paginated<T>` envelope's `total` stays in step.
+    - A changed record that stops or starts matching is removed or inserted.
+    - Missed events are still recovered by the provider's invalidate-on-reconnect.
+    - `realtime-list` now uses it, and its private cache-writing code is gone.
+  - **Release coupling (required):** both fixes are new API in `@mantlejs/client`/`@mantlejs/react`, so the
+    `upload-dropzone`/`realtime-list` blocks only work against the next release.
+    - The blocks' `registry.json` `dependencies` currently name `@mantlejs/client`/`@mantlejs/react` with no
+      range. They must be pinned to the release that ships these APIs (e.g. `"@mantlejs/client@^0.3.0"`) when
+      that version is cut.
+    - The site/registry must not be deployed before that release is on npm.
+    - The install smoke test isn't affected, because it installs `npm pack` tarballs of the workspace build.
   - Service capabilities (`describe().capabilities`) aren't reachable over HTTP, only as prose in the OpenAPI
     description. That's why `search-combobox` probes for `$ilike` (Decision #20). Exposing capabilities to clients
     would remove the probe.
