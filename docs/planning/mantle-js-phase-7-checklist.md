@@ -183,7 +183,7 @@ runs in four stages, in order:
 
 ### Code mode track
 
-- [ ] **4. `@mantlejs/mcp-code`: scaffold + typed API generation** _(PRD spec 2)_
+- [x] **4. `@mantlejs/mcp-code`: scaffold + typed API generation** _(PRD spec 2)_
       Generate the package with the `nx-generate` skill (`@nx/js:library`, tsc, vitest, publishable,
       `@mantlejs/mcp-code`). Add it to `CLAUDE.md`'s monorepo tree and dependency matrix (`@mantlejs/mantle`,
       `@mantlejs/mcp`) and to the module-boundary config.
@@ -202,8 +202,23 @@ runs in four stages, in order:
   - The generated output compiles with the TypeScript compiler API, with zero diagnostics.
   - Agent-narrowing spec.
   - Drift spec: code-mode parameter types and tool-mode input schemas come from the same helper.
+    **Done (2026-10-08):**
+  - **Scaffold:** `@mantlejs/mcp-code`, tagged `pkg:mcp-code`/`type:lib`, in `nx.json`'s `experimental` group.
+    `CLAUDE.md` tree and matrix row plus the `dependencyMatrix` entry are added (test-only extras:
+    `http`/`memory`/`auth`/`audit`).
+  - **Declarations:** generated from `describeServiceMethod()`'s JSON Schemas via a small schema-to-TS converter.
+    - Where-operators are narrowed to the adapter's capabilities.
+    - Doc comments carry the destructive-op and find-limit notes.
+    - Only the type aliases the visible methods actually use are emitted.
+  - **Path mapping:** paths are used verbatim as keys (PRD Decision #15).
+  - **Agent narrowing:** filters by the token's `CapabilityScope`, resolved through the duck-typed `app.get("auth")`
+    engine. Display-only (PRD Decision #16).
+  - **`@mantlejs/mcp` change:** it now also exports `createServiceMethodRunner`, and tool mode runs through it too,
+    so code-mode calls share the exact find-clamp, query-translation, and id-check path.
+  - **Specs (25):** snapshot, TS compiler API compile with zero diagnostics, correct and incorrect usage
+    type-checked, narrowing, drift.
 
-- [ ] **5. `@mantlejs/mcp-code`: `quickJsExecutor` + `search_api`/`execute` tools** _(PRD specs 3, 4)_
+- [x] **5. `@mantlejs/mcp-code`: `quickJsExecutor` + `search_api`/`execute` tools** _(PRD specs 3, 4)_
   - Implement the `CodeExecutor` interface and `quickJsExecutor()`, following PRD Decisions #12–13:
     - sync build + promise bridge
     - module compiled once, a fresh bounded-memory instance per execution
@@ -223,8 +238,23 @@ runs in four stages, in order:
   - `search_api` filter and index specs.
   - `execute` specs: happy path, log capture, caught `MantleError`, uncaught → tool-error shape, truncation note.
   - `mode: "code"` lists exactly two tools.
+    **Done (2026-10-08):**
+  - **Executor:** `quickJsExecutor()` follows PRD Decisions #12–13:
+    - sync build + promise bridge
+    - a fresh bounded `WebAssembly.Memory` per execution
+    - pending deferreds disposed before the context
+    - instances killed by a host fault are abandoned to the garbage collector rather than torn down, since tearing
+      them down tripped QuickJS's leak assertion
+    - strict mode, line numbers preserved
+  - **Typed limit errors:** `CodeTimeout` (408), `CodeLimitExceeded` (422), `CodeOutputTooLarge` (413),
+    `CodeScriptError` (422), `CodeExecutorFault` (500). See PRD Decision #18 for the error and output policy.
+  - **Provider:** `codeMode({ executor?, limits?, auditScriptSource? })` provides `search_api`, `execute` (with
+    host-side TS stripping), and the `mantle://code/api.d.ts` resource.
+  - **Conformance:** `CODE_EXECUTOR_CONFORMANCE_CASES` (33 cases) and `conformanceBridge()` are exported. The 3-way
+    `Promise.all` case passes its faster-than-serial timing check.
+  - **Specs:** 37 executor + 19 provider specs green.
 
-- [ ] **6. Code mode: security, equivalence, agent scope, audit** _(PRD spec 5)_
+- [x] **6. Code mode: security, equivalence, agent scope, audit** _(PRD spec 5)_
   - **Escape specs:** `process`/`require`/`fetch`/host `globalThis`/`Function`-constructor reach nothing.
   - **Limit specs:** infinite loop, memory bomb, call cap, oversized output. Each fails with a typed error, and
     the host process survives.
@@ -236,8 +266,20 @@ runs in four stages, in order:
   PRD's Decisions.
   **Accept:** all spec groups green. Any bug they surface gets fixed before moving on, not just documented (same
   rule as Phase 6 item 3).
+  **Done (2026-10-08):**
+  - **Equivalence:** HTTP, tool mode, and code mode give identical 401/403/200 decisions from the same hook chain,
+    and the 403 is catchable inside a script.
+  - **Agent scope:** an out-of-scope agent call gets a catchable `Forbidden` identical to `authorizeAgent()`'s and
+    tool mode's. Narrowing is display-only (PRD Decision #16). A revoked token is shown the full API but still
+    rejected on every call.
+  - **Audit:** N calls produce N audit records sharing `executionId` and `scriptHash` (PRD Decision #17). This
+    required adding an optional `AuditRecord.mcp` to `@mantlejs/audit`. Script source is recorded only when
+    opted in.
+  - **Unexposed services:** registered but unexposed services don't exist inside the sandbox.
+  - **Escapes and limits:** covered by the conformance suite.
+  - No bugs found in existing packages.
 
-- [ ] **7. Code mode: example + README** _(PRD spec 6)_
+- [x] **7. Code mode: example + README** _(PRD spec 6)_
       Add a code-mode MCP entry point to `examples/knowledge-base/api` next to the existing MCP setup, plus a
       walkthrough script (multi-service filter + aggregate in one `execute`). Write the `@mantlejs/mcp-code` README:
   - quick start
@@ -250,6 +292,19 @@ runs in four stages, in order:
 
   **Accept:** the example boots and the walkthrough runs end to end. The README quick start is
   copy-paste-correct.
+  **Done (2026-10-08):**
+  - `examples/knowledge-base/api` serves code mode at `/mcp-code` next to the existing `/mcp`, with a bootstrap
+    spec.
+  - The example README has a walkthrough. The script is verified word for word by a spec against in-memory
+    services with the same return shapes. It wasn't run against live Postgres, because Docker wasn't running at
+    the time; a live run is still worth doing before release.
+  - New `@mantlejs/mcp-code` README (quick start, mode table, script contract, limits, security model, custom
+    executors + conformance suite, when to prefer tool mode). The `@mantlejs/mcp` README is updated.
+  - Two follow-ups are recorded in the PRD's Release Plan: `search_api` string results get JSON-quoted, and a
+    second `mcp()` overwrites `mcp:server` for stdio.
+  - Full workspace `build,test,lint,typecheck` green on 44 projects (Node 22.17), and
+    `check-dependency-matrix` green on 40 package rows. Test counts: `mcp-code` 90, `mcp` 67 (existing specs
+    unmodified), `audit` 14, `knowledge-base-api` 32.
 
 ### UI registry track
 
