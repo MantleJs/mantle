@@ -199,6 +199,34 @@ describe("authentication", () => {
     expect(await storage.getItem("mantle-access-token")).toBeNull();
   });
 
+  it.each([
+    ["missing", { user: { id: 1 } }],
+    ["empty", { accessToken: "", user: { id: 1 } }],
+    ["non-string", { accessToken: 42 }],
+    ["null-body", null],
+  ])(
+    "authenticate() with a 2xx but %s accessToken throws GeneralError, stores nothing, emits nothing",
+    async (_, body) => {
+      const authenticated = vi.fn();
+      client.on("authenticated", authenticated);
+      fetchMock.mockResolvedValueOnce(jsonResponse(body, 201));
+      const error = await client.authenticate({ strategy: "local" }).catch((e: unknown) => e);
+      expect(error).toBeInstanceOf(MantleClientError);
+      expect(error).toMatchObject({ name: "GeneralError", code: 500 });
+      expect(client.getAccessToken()).toBeUndefined();
+      expect(await storage.getItem("mantle-access-token")).toBeNull();
+      expect(authenticated).not.toHaveBeenCalled();
+    },
+  );
+
+  it("setTokens() without an accessToken throws TypeError and emits nothing", async () => {
+    const authenticated = vi.fn();
+    client.on("authenticated", authenticated);
+    await expect(client.setTokens({ accessToken: "" })).rejects.toBeInstanceOf(TypeError);
+    expect(await storage.getItem("mantle-access-token")).toBeNull();
+    expect(authenticated).not.toHaveBeenCalled();
+  });
+
   it("attaches Authorization: Bearer to requests after authenticating", async () => {
     fetchMock.mockResolvedValueOnce(jsonResponse({ accessToken: "at-1", refreshToken: "rt-1", user: {} }, 201));
     await client.authenticate({ strategy: "local" });
@@ -317,6 +345,20 @@ describe("401 refresh-and-retry", () => {
       .find()
       .catch((e: unknown) => e as MantleClientError);
     expect(error).toMatchObject({ name: "NotAuthenticated", code: 401, message: "expired" });
+    expect(logout).toHaveBeenCalledTimes(1);
+    expect(client.getAccessToken()).toBeUndefined();
+    expect(await storage.getItem("mantle-refresh-token")).toBeNull();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("a 2xx refresh without an accessToken counts as a failed rotation: clears tokens, emits 'logout'", async () => {
+    const logout = vi.fn();
+    client.on("logout", logout);
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse({ name: "NotAuthenticated", message: "expired", code: 401 }, 401))
+      .mockResolvedValueOnce(jsonResponse({ refreshToken: "rt-2" }, 201));
+
+    await expect(client.service("messages").find()).rejects.toMatchObject({ code: 401, message: "expired" });
     expect(logout).toHaveBeenCalledTimes(1);
     expect(client.getAccessToken()).toBeUndefined();
     expect(await storage.getItem("mantle-refresh-token")).toBeNull();

@@ -1,6 +1,6 @@
 import { BatchScheduler } from "./batch-scheduler.js";
 import { Emitter } from "./emitter.js";
-import { errorFromResponse } from "./errors.js";
+import { errorFromResponse, MantleClientError } from "./errors.js";
 import { serializeQuery } from "./serialize-query.js";
 import { ServiceClient } from "./service-client.js";
 import { SocketManager } from "./socket-manager.js";
@@ -59,7 +59,12 @@ export class MantleClient {
   async authenticate(credentials: AuthCredentials): Promise<AuthResult> {
     const response = await this.send("POST", "authentication", credentials, undefined, false);
     if (!response.ok) throw await errorFromResponse(response);
-    const result = (await response.json()) as AuthResult;
+    const result: unknown = await response.json();
+    if (!hasAccessToken(result)) {
+      throw new MantleClientError("Authentication response carried no accessToken", 500, "GeneralError", {
+        hint: "The server answered 2xx without a token pair — check the authentication service's response shape.",
+      });
+    }
     await this.storeTokens(result);
     this.emitter.emit("authenticated");
     return result;
@@ -71,6 +76,7 @@ export class MantleClient {
    * emits `'authenticated'`, same as a successful `authenticate()` call.
    */
   async setTokens(tokens: { accessToken: string; refreshToken?: string }): Promise<void> {
+    if (!hasAccessToken(tokens)) throw new TypeError("setTokens() requires a non-empty 'accessToken'");
     await this.storeTokens(tokens);
     this.emitter.emit("authenticated");
   }
@@ -162,12 +168,14 @@ export class MantleClient {
     const refreshToken = await this.storage.getItem(REFRESH_TOKEN_KEY);
     if (!refreshToken) return false;
     const response = await this.send("POST", "authentication", { strategy: "refresh", refreshToken }, undefined, false);
-    if (!response.ok) {
+    // A 2xx without a usable token pair is a failed rotation too — storing it would leave
+    // the client "authenticated" with no token.
+    const pair: unknown = response.ok ? await response.json() : undefined;
+    if (!hasAccessToken(pair)) {
       await this.clearTokens();
       this.emitter.emit("logout");
       return false;
     }
-    const pair = (await response.json()) as AuthResult;
     await this.storeTokens(pair);
     return true;
   }
@@ -193,4 +201,11 @@ export class MantleClient {
     await this.storage.removeItem(ACCESS_TOKEN_KEY);
     await this.storage.removeItem(REFRESH_TOKEN_KEY);
   }
+}
+
+/** Narrow an authentication response body to one that actually carries an access token. */
+function hasAccessToken(value: unknown): value is AuthResult {
+  if (value === null || typeof value !== "object") return false;
+  const token = (value as Record<string, unknown>)["accessToken"];
+  return typeof token === "string" && token.length > 0;
 }
