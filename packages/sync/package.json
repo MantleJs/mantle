@@ -19,7 +19,11 @@
     "!**/*.tsbuildinfo"
   ],
   "nx": {
-    "name": "sync"
+    "name": "sync",
+    "tags": [
+      "pkg:sync",
+      "type:lib"
+    ]
   },
   "dependencies": {
     "tslib": "^2.3.0"

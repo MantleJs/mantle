@@ -19,7 +19,11 @@
     "!**/*.tsbuildinfo"
   ],
   "nx": {
-    "name": "koa"
+    "name": "koa",
+    "tags": [
+      "pkg:koa",
+      "type:lib"
+    ]
   },
   "dependencies": {
     "@koa/cors": "^5.0.0",

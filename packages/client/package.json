@@ -19,7 +19,11 @@
     "!**/*.tsbuildinfo"
   ],
   "nx": {
-    "name": "client"
+    "name": "client",
+    "tags": [
+      "pkg:client",
+      "type:lib"
+    ]
   },
   "dependencies": {
     "tslib": "^2.3.0"

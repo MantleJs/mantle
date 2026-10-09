@@ -19,7 +19,11 @@
     "!**/*.tsbuildinfo"
   ],
   "nx": {
-    "name": "auth-apple"
+    "name": "auth-apple",
+    "tags": [
+      "pkg:auth-apple",
+      "type:lib"
+    ]
   },
   "description": "Apple Sign-In strategy for Mantle JS",
   "license": "MIT",

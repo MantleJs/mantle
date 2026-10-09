@@ -6,6 +6,9 @@
   "description": "Express + Socket.IO + Knex/SQLite + auth-local, with a static HTML client bundled via esbuild.",
   "nx": {
     "name": "realtime-chat",
+    "tags": [
+      "type:app"
+    ],
     "targets": {
       "build-web": {
         "executor": "nx:run-commands",

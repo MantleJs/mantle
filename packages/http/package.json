@@ -19,7 +19,11 @@
     "!**/*.tsbuildinfo"
   ],
   "nx": {
-    "name": "http"
+    "name": "http",
+    "tags": [
+      "pkg:http",
+      "type:lib"
+    ]
   },
   "dependencies": {
     "tslib": "^2.3.0"

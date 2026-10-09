@@ -19,7 +19,11 @@
     "!**/*.tsbuildinfo"
   ],
   "nx": {
-    "name": "auth"
+    "name": "auth",
+    "tags": [
+      "pkg:auth",
+      "type:lib"
+    ]
   },
   "dependencies": {
     "tslib": "^2.3.0"

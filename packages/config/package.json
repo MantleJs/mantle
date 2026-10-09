@@ -19,7 +19,11 @@
     "!**/*.tsbuildinfo"
   ],
   "nx": {
-    "name": "config"
+    "name": "config",
+    "tags": [
+      "pkg:config",
+      "type:lib"
+    ]
   },
   "dependencies": {
     "ajv": "^8.17.0",

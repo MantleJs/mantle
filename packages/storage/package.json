@@ -19,7 +19,11 @@
     "!**/*.tsbuildinfo"
   ],
   "nx": {
-    "name": "storage"
+    "name": "storage",
+    "tags": [
+      "pkg:storage",
+      "type:lib"
+    ]
   },
   "dependencies": {
     "tslib": "^2.3.0"

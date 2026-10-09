@@ -19,7 +19,11 @@
     "!**/*.tsbuildinfo"
   ],
   "nx": {
-    "name": "dynamodb"
+    "name": "dynamodb",
+    "tags": [
+      "pkg:dynamodb",
+      "type:lib"
+    ]
   },
   "dependencies": {
     "tslib": "^2.3.0"

@@ -19,7 +19,11 @@
     "!**/*.tsbuildinfo"
   ],
   "nx": {
-    "name": "auth-linkedin"
+    "name": "auth-linkedin",
+    "tags": [
+      "pkg:auth-linkedin",
+      "type:lib"
+    ]
   },
   "description": "LinkedIn Sign-In strategy for Mantle JS",
   "license": "MIT",

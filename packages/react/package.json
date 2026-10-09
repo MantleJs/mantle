@@ -19,7 +19,11 @@
     "!**/*.tsbuildinfo"
   ],
   "nx": {
-    "name": "react"
+    "name": "react",
+    "tags": [
+      "pkg:react",
+      "type:lib"
+    ]
   },
   "dependencies": {
     "tslib": "^2.3.0"

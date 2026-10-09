@@ -43,6 +43,11 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # Phase 7 item 3a: CLAUDE.md's dependency matrix, the eslint depConstraints that enforce it,
+      # and every project's nx.tags must agree — lint alone can't notice the table itself drifting.
+      - name: Dependency matrix cross-check
+        run: npm run check-dependency-matrix
+
       - name: Build, test, lint, typecheck
         run: npx nx run-many -t build,test,lint,typecheck
 

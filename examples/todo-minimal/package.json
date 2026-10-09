@@ -6,6 +6,9 @@
   "description": "The smallest possible Mantle app: @mantlejs/http + @mantlejs/memory, one service, no external infra.",
   "nx": {
     "name": "todo-minimal",
+    "tags": [
+      "type:app"
+    ],
     "targets": {
       "serve": {
         "executor": "nx:run-commands",

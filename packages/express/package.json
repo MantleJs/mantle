@@ -19,7 +19,11 @@
     "!**/*.tsbuildinfo"
   ],
   "nx": {
-    "name": "express"
+    "name": "express",
+    "tags": [
+      "pkg:express",
+      "type:lib"
+    ]
   },
   "dependencies": {
     "cors": "^2.8.5",

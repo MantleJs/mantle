@@ -19,7 +19,11 @@
     "!**/*.tsbuildinfo"
   ],
   "nx": {
-    "name": "qdrant"
+    "name": "qdrant",
+    "tags": [
+      "pkg:qdrant",
+      "type:lib"
+    ]
   },
   "dependencies": {
     "tslib": "^2.3.0"

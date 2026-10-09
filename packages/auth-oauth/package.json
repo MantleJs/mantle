@@ -19,7 +19,11 @@
     "!**/*.tsbuildinfo"
   ],
   "nx": {
-    "name": "auth-oauth"
+    "name": "auth-oauth",
+    "tags": [
+      "pkg:auth-oauth",
+      "type:lib"
+    ]
   },
   "description": "Shared OAuth 2.0 base for Mantle JS auth strategies",
   "license": "MIT",

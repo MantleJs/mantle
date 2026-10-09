@@ -19,7 +19,11 @@
     "!**/*.tsbuildinfo"
   ],
   "nx": {
-    "name": "audit"
+    "name": "audit",
+    "tags": [
+      "pkg:audit",
+      "type:lib"
+    ]
   },
   "dependencies": {
     "tslib": "^2.3.0"

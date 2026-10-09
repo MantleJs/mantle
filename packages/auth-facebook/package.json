@@ -19,7 +19,11 @@
     "!**/*.tsbuildinfo"
   ],
   "nx": {
-    "name": "auth-facebook"
+    "name": "auth-facebook",
+    "tags": [
+      "pkg:auth-facebook",
+      "type:lib"
+    ]
   },
   "description": "Facebook OAuth 2.0 strategy for Mantle JS",
   "license": "MIT",

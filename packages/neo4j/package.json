@@ -19,7 +19,11 @@
     "!**/*.tsbuildinfo"
   ],
   "nx": {
-    "name": "neo4j"
+    "name": "neo4j",
+    "tags": [
+      "pkg:neo4j",
+      "type:lib"
+    ]
   },
   "dependencies": {
     "tslib": "^2.3.0"

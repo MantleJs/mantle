@@ -19,7 +19,11 @@
     "!**/*.tsbuildinfo"
   ],
   "nx": {
-    "name": "memory"
+    "name": "memory",
+    "tags": [
+      "pkg:memory",
+      "type:lib"
+    ]
   },
   "dependencies": {
     "tslib": "^2.3.0"

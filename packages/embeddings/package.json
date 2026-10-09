@@ -19,7 +19,11 @@
     "!**/*.tsbuildinfo"
   ],
   "nx": {
-    "name": "embeddings"
+    "name": "embeddings",
+    "tags": [
+      "pkg:embeddings",
+      "type:lib"
+    ]
   },
   "dependencies": {
     "tslib": "^2.3.0"

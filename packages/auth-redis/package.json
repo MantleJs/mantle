@@ -19,7 +19,11 @@
     "!**/*.tsbuildinfo"
   ],
   "nx": {
-    "name": "auth-redis"
+    "name": "auth-redis",
+    "tags": [
+      "pkg:auth-redis",
+      "type:lib"
+    ]
   },
   "description": "Redis-backed session and token storage for Mantle JS auth",
   "license": "MIT",

@@ -19,7 +19,11 @@
     "!**/*.tsbuildinfo"
   ],
   "nx": {
-    "name": "schema"
+    "name": "schema",
+    "tags": [
+      "pkg:schema",
+      "type:lib"
+    ]
   },
   "dependencies": {
     "@sinclair/typebox": "^0.34.0",

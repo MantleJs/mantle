@@ -19,7 +19,11 @@
     "!**/*.tsbuildinfo"
   ],
   "nx": {
-    "name": "mcp"
+    "name": "mcp",
+    "tags": [
+      "pkg:mcp",
+      "type:lib"
+    ]
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",

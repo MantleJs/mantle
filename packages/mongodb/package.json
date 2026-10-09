@@ -19,7 +19,11 @@
     "!**/*.tsbuildinfo"
   ],
   "nx": {
-    "name": "mongodb"
+    "name": "mongodb",
+    "tags": [
+      "pkg:mongodb",
+      "type:lib"
+    ]
   },
   "dependencies": {
     "tslib": "^2.3.0"

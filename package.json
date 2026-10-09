@@ -6,7 +6,8 @@
     "node": ">=22"
   },
   "scripts": {
-    "check-publish-fields": "node tools/check-publish-fields.mjs"
+    "check-publish-fields": "node tools/check-publish-fields.mjs",
+    "check-dependency-matrix": "node tools/check-dependency-matrix.mjs"
   },
   "private": true,
   "devDependencies": {

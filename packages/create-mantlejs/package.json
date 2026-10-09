@@ -23,6 +23,10 @@
   ],
   "nx": {
     "name": "create-mantlejs",
+    "tags": [
+      "pkg:create-mantlejs",
+      "type:lib"
+    ],
     "targets": {
       "e2e-scaffold": {
         "executor": "nx:run-commands",

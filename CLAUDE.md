@@ -95,48 +95,57 @@ mantle/
 
 ### Package Dependency Rules (enforced by @nx/enforce-module-boundaries)
 
-| Package                  | May depend on                                                                               |
-| ------------------------ | ------------------------------------------------------------------------------------------- |
-| @mantlejs/mantle         | nothing                                                                                     |
-| @mantlejs/express        | @mantlejs/mantle                                                                            |
-| @mantlejs/koa            | @mantlejs/mantle                                                                            |
-| @mantlejs/http           | @mantlejs/mantle                                                                            |
-| @mantlejs/knex           | @mantlejs/mantle                                                                            |
-| @mantlejs/dynamodb       | @mantlejs/mantle                                                                            |
-| @mantlejs/supabase       | @mantlejs/mantle                                                                            |
-| @mantlejs/pinecone       | @mantlejs/mantle                                                                            |
-| @mantlejs/qdrant         | @mantlejs/mantle                                                                            |
-| @mantlejs/neo4j          | @mantlejs/mantle                                                                            |
-| @mantlejs/mongodb        | @mantlejs/mantle                                                                            |
-| @mantlejs/auth           | @mantlejs/mantle                                                                            |
-| @mantlejs/auth-local     | @mantlejs/mantle, @mantlejs/auth                                                            |
-| @mantlejs/auth-oauth     | @mantlejs/mantle, @mantlejs/auth                                                            |
-| @mantlejs/auth-google    | @mantlejs/mantle, @mantlejs/auth-oauth                                                      |
-| @mantlejs/auth-github    | @mantlejs/mantle, @mantlejs/auth-oauth                                                      |
-| @mantlejs/auth-facebook  | @mantlejs/mantle, @mantlejs/auth-oauth                                                      |
-| @mantlejs/auth-apple     | @mantlejs/mantle, @mantlejs/auth-oauth                                                      |
-| @mantlejs/auth-microsoft | @mantlejs/mantle, @mantlejs/auth-oauth                                                      |
-| @mantlejs/auth-linkedin  | @mantlejs/mantle, @mantlejs/auth-oauth                                                      |
-| @mantlejs/auth-twitter   | @mantlejs/mantle, @mantlejs/auth-oauth                                                      |
-| @mantlejs/auth-redis     | @mantlejs/mantle, @mantlejs/auth, @mantlejs/auth-oauth                                      |
-| @mantlejs/storage        | @mantlejs/mantle                                                                            |
-| @mantlejs/storage-s3     | @mantlejs/mantle, @mantlejs/storage                                                         |
-| @mantlejs/storage-gcs    | @mantlejs/mantle, @mantlejs/storage                                                         |
-| @mantlejs/logger         | @mantlejs/mantle                                                                            |
-| @mantlejs/audit          | @mantlejs/mantle                                                                            |
-| @mantlejs/embeddings     | @mantlejs/mantle                                                                            |
-| @mantlejs/schema         | @mantlejs/mantle                                                                            |
-| @mantlejs/memory         | @mantlejs/mantle                                                                            |
-| @mantlejs/config         | @mantlejs/mantle                                                                            |
-| @mantlejs/socketio       | @mantlejs/mantle                                                                            |
-| @mantlejs/openapi        | @mantlejs/mantle                                                                            |
-| @mantlejs/mcp            | @mantlejs/mantle (+ @modelcontextprotocol/sdk)                                              |
-| @mantlejs/sync           | @mantlejs/mantle                                                                            |
-| @mantlejs/client         | nothing (optional peer: socket.io-client; dev-only: @mantlejs/mantle for conformance specs) |
-| @mantlejs/react          | @mantlejs/client (peers: react, @tanstack/react-query)                                      |
-| @mantlejs/cli            | nothing (standalone code generator)                                                         |
-| create-mantlejs          | @mantlejs/cli                                                                               |
-| examples/*               | anything (apps, not libraries — exempt from the boundary rules above, never depended on)    |
+| Package                  | May depend on                                                                                               |
+| ------------------------ | ----------------------------------------------------------------------------------------------------------- |
+| @mantlejs/mantle         | nothing                                                                                                     |
+| @mantlejs/express        | @mantlejs/mantle                                                                                            |
+| @mantlejs/koa            | @mantlejs/mantle                                                                                            |
+| @mantlejs/http           | @mantlejs/mantle                                                                                            |
+| @mantlejs/knex           | @mantlejs/mantle                                                                                            |
+| @mantlejs/dynamodb       | @mantlejs/mantle                                                                                            |
+| @mantlejs/supabase       | @mantlejs/mantle                                                                                            |
+| @mantlejs/pinecone       | @mantlejs/mantle                                                                                            |
+| @mantlejs/qdrant         | @mantlejs/mantle                                                                                            |
+| @mantlejs/neo4j          | @mantlejs/mantle                                                                                            |
+| @mantlejs/mongodb        | @mantlejs/mantle                                                                                            |
+| @mantlejs/auth           | @mantlejs/mantle                                                                                            |
+| @mantlejs/auth-local     | @mantlejs/mantle, @mantlejs/auth                                                                            |
+| @mantlejs/auth-oauth     | @mantlejs/mantle, @mantlejs/auth                                                                            |
+| @mantlejs/auth-google    | @mantlejs/mantle, @mantlejs/auth-oauth                                                                      |
+| @mantlejs/auth-github    | @mantlejs/mantle, @mantlejs/auth-oauth                                                                      |
+| @mantlejs/auth-facebook  | @mantlejs/mantle, @mantlejs/auth-oauth                                                                      |
+| @mantlejs/auth-apple     | @mantlejs/mantle, @mantlejs/auth-oauth                                                                      |
+| @mantlejs/auth-microsoft | @mantlejs/mantle, @mantlejs/auth-oauth                                                                      |
+| @mantlejs/auth-linkedin  | @mantlejs/mantle, @mantlejs/auth-oauth                                                                      |
+| @mantlejs/auth-twitter   | @mantlejs/mantle, @mantlejs/auth-oauth                                                                      |
+| @mantlejs/auth-redis     | @mantlejs/mantle, @mantlejs/auth, @mantlejs/auth-oauth                                                      |
+| @mantlejs/storage        | @mantlejs/mantle                                                                                            |
+| @mantlejs/storage-s3     | @mantlejs/mantle, @mantlejs/storage                                                                         |
+| @mantlejs/storage-gcs    | @mantlejs/mantle, @mantlejs/storage                                                                         |
+| @mantlejs/logger         | @mantlejs/mantle                                                                                            |
+| @mantlejs/audit          | @mantlejs/mantle (test-only: @mantlejs/memory, @mantlejs/knex)                                              |
+| @mantlejs/embeddings     | @mantlejs/mantle (test-only: @mantlejs/memory)                                                              |
+| @mantlejs/schema         | @mantlejs/mantle                                                                                            |
+| @mantlejs/memory         | @mantlejs/mantle                                                                                            |
+| @mantlejs/config         | @mantlejs/mantle                                                                                            |
+| @mantlejs/socketio       | @mantlejs/mantle                                                                                            |
+| @mantlejs/openapi        | @mantlejs/mantle                                                                                            |
+| @mantlejs/mcp            | @mantlejs/mantle (+ @modelcontextprotocol/sdk; test-only: @mantlejs/http, @mantlejs/memory, @mantlejs/auth) |
+| @mantlejs/sync           | @mantlejs/mantle                                                                                            |
+| @mantlejs/client         | nothing (optional peer: socket.io-client; test-only: @mantlejs/mantle for conformance specs)                |
+| @mantlejs/react          | @mantlejs/client (peers: react, @tanstack/react-query)                                                      |
+| @mantlejs/cli            | nothing (standalone code generator)                                                                         |
+| create-mantlejs          | @mantlejs/cli                                                                                               |
+| examples/*               | anything (apps, not libraries — exempt from the boundary rules above, never depended on)                    |
+
+Enforced for real: every `packages/*` project is tagged `pkg:<name>` + `type:lib` and every `examples/*` project
+`type:app` (in its `package.json` `nx.tags`). The root `eslint.config.mjs` builds one `depConstraints` entry per row
+above from its `dependencyMatrix` export. "test-only" packages may be imported only from `*.spec.ts(x)` files (the
+`testOnlyDependencies` export, applied by a spec-file override), never from production sources. Parenthesized npm
+packages (`+ @modelcontextprotocol/sdk`, peers) are informational and not checked. `npm run check-dependency-matrix`
+(`tools/check-dependency-matrix.mjs`, run in CI) fails if this table, the eslint config, the project tags, or any
+package's `@mantlejs/*` dependencies drift apart, so **edit this table and `dependencyMatrix` together** when adding
+a package or changing what it may depend on.
 
 ---
 

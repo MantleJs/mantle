@@ -19,7 +19,11 @@
     "!**/*.tsbuildinfo"
   ],
   "nx": {
-    "name": "openapi"
+    "name": "openapi",
+    "tags": [
+      "pkg:openapi",
+      "type:lib"
+    ]
   },
   "dependencies": {
     "tslib": "^2.3.0"

@@ -19,7 +19,11 @@
     "!**/*.tsbuildinfo"
   ],
   "nx": {
-    "name": "auth-twitter"
+    "name": "auth-twitter",
+    "tags": [
+      "pkg:auth-twitter",
+      "type:lib"
+    ]
   },
   "description": "Sign in with X (Twitter) strategy for Mantle JS",
   "license": "MIT",

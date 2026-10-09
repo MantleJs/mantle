@@ -19,7 +19,11 @@
     "!**/*.tsbuildinfo"
   ],
   "nx": {
-    "name": "storage-s3"
+    "name": "storage-s3",
+    "tags": [
+      "pkg:storage-s3",
+      "type:lib"
+    ]
   },
   "dependencies": {
     "tslib": "^2.3.0"

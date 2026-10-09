@@ -19,7 +19,11 @@
     "!**/*.tsbuildinfo"
   ],
   "nx": {
-    "name": "knex"
+    "name": "knex",
+    "tags": [
+      "pkg:knex",
+      "type:lib"
+    ]
   },
   "dependencies": {
     "tslib": "^2.3.0"

@@ -19,7 +19,11 @@
     "!**/*.tsbuildinfo"
   ],
   "nx": {
-    "name": "auth-local"
+    "name": "auth-local",
+    "tags": [
+      "pkg:auth-local",
+      "type:lib"
+    ]
   },
   "dependencies": {
     "tslib": "^2.3.0"

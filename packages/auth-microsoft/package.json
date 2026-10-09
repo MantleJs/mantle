@@ -19,7 +19,11 @@
     "!**/*.tsbuildinfo"
   ],
   "nx": {
-    "name": "auth-microsoft"
+    "name": "auth-microsoft",
+    "tags": [
+      "pkg:auth-microsoft",
+      "type:lib"
+    ]
   },
   "description": "Microsoft Sign-In (Entra ID) strategy for Mantle JS",
   "license": "MIT",

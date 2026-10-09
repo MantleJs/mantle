@@ -19,7 +19,11 @@
     "!**/*.tsbuildinfo"
   ],
   "nx": {
-    "name": "socketio"
+    "name": "socketio",
+    "tags": [
+      "pkg:socketio",
+      "type:lib"
+    ]
   },
   "description": "Socket.IO transport adapter for Mantle JS",
   "license": "MIT",

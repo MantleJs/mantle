@@ -6,6 +6,9 @@
   "description": "Mantle JS canonical example — team knowledge base API (Express, Postgres/pgvector, Redis).",
   "nx": {
     "name": "knowledge-base-api",
+    "tags": [
+      "type:app"
+    ],
     "targets": {
       "serve": {
         "executor": "nx:run-commands",

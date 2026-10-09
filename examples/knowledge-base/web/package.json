@@ -3,7 +3,10 @@
   "version": "0.0.1",
   "private": true,
   "nx": {
-    "name": "knowledge-base-web"
+    "name": "knowledge-base-web",
+    "tags": [
+      "type:app"
+    ]
   },
   "dependencies": {
     "@mantlejs/client": "^0.2.0",
