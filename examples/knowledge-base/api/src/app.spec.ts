@@ -93,4 +93,34 @@ describe("knowledge-base-api bootstrap", () => {
       expect(names.some((n) => n.startsWith("users_"))).toBe(false);
     });
   });
+
+  it("serves MCP code mode at /mcp-code: two tools, a typed API, and a working sandbox", async () => {
+    await withServer(async (baseUrl) => {
+      const rpc = async (method: string, params: Record<string, unknown>) => {
+        const res = await fetch(`${baseUrl}/mcp-code`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }),
+        });
+        expect(res.status).toBe(200);
+        return (await res.json()) as {
+          result?: { tools?: Array<{ name: string }>; content?: Array<{ text: string }>; isError?: boolean };
+        };
+      };
+
+      const listed = await rpc("tools/list", {});
+      expect((listed.result?.tools ?? []).map((t) => t.name).sort()).toEqual(["execute", "search_api"]);
+
+      const index = await rpc("tools/call", { name: "search_api", arguments: {} });
+      const text = JSON.parse(index.result?.content?.[0]?.text ?? '""') as string;
+      expect(text).toContain("articles — find, get");
+      expect(text).not.toContain("users");
+
+      // No database here — a script that doesn't touch a service still proves the sandbox runs.
+      const code = "return [1, 2, 3].map((n) => n * 2);";
+      const run = await rpc("tools/call", { name: "execute", arguments: { code } });
+      expect(run.result?.isError).toBeUndefined();
+      expect(JSON.parse(run.result?.content?.[0]?.text ?? "{}")).toMatchObject({ result: [2, 4, 6], calls: 0 });
+    });
+  });
 });

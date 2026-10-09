@@ -270,3 +270,48 @@ describe("codeMode() — execute", () => {
     expect(error).toMatchObject({ name: "CodeLimitExceeded" });
   });
 });
+
+describe("codeMode() — knowledge-base README walkthrough", () => {
+  // Mirrors examples/knowledge-base: `articles.find` returns a plain array (ArticlesService
+  // overrides find), `comments.find` is paginated. The script is the README's, verbatim.
+  const WALKTHROUGH = `const articles = await mantle.articles.find({ sort: { updatedAt: "desc" }, limit: 5 });
+const { data: comments } = await mantle.comments.find({
+  where: { articleId: { $in: articles.map((a) => a.id) } },
+  limit: 100,
+  select: ["articleId"],
+});
+const counts = {};
+for (const c of comments) counts[c.articleId] = (counts[c.articleId] ?? 0) + 1;
+return articles.map((a) => ({ title: a.title, comments: counts[a.id] ?? 0 }));`;
+
+  it("answers the task in one execute call", async () => {
+    const articleRows = Array.from({ length: 7 }, (_, i) => ({
+      id: i + 1,
+      title: `Article ${i + 1}`,
+      updatedAt: `2026-10-0${i + 1}T00:00:00.000Z`,
+    }));
+    const commentRows = [
+      { id: 1, articleId: 7 },
+      { id: 2, articleId: 7 },
+      { id: 3, articleId: 5 },
+      { id: 4, articleId: 1 },
+    ];
+    const articleService = new RepositoryService(new MemoryRepository().seed(articleRows));
+    const app = mantle();
+    app.configure(
+      mcp({ services: { articles: ["find"], comments: ["find"] }, transport: "stdio", codeMode: codeMode() }),
+    );
+    app.use("articles", { find: async (params?: ServiceParams) => (await articleService.find(params)).data });
+    app.use("comments", new RepositoryService(new MemoryRepository().seed(commentRows)), {});
+
+    const report = await execute(await connect(app), WALKTHROUGH);
+    expect(report.result).toEqual([
+      { title: "Article 7", comments: 2 },
+      { title: "Article 6", comments: 0 },
+      { title: "Article 5", comments: 1 },
+      { title: "Article 4", comments: 0 },
+      { title: "Article 3", comments: 0 },
+    ]);
+    expect(report.calls).toBe(2);
+  });
+});

@@ -116,6 +116,55 @@ curl -s http://localhost:3030/mcp -H 'content-type: application/json' \
 Lists `articles_find`, `articles_get`, `articles_create`, `articles_update`, `search_similar`,
 `comments_find`, `comments_get`, `activity_find`, `activity_get` — never anything under `users_*`.
 
+## MCP code mode
+
+The same services are also served read-only in **code mode** ([`@mantlejs/mcp-code`](../../packages/mcp-code/README.md))
+at `/mcp-code`. Instead of nine tools, the agent sees two — `search_api` (the typed `mantle` API,
+loaded piece by piece) and `execute` (run a script against it in a QuickJS sandbox) — and does a
+multi-step task in one round trip. Every call inside a script runs the service's hooks exactly
+like the tools at `/mcp` (e.g. `activity` still requires a logged-in user).
+
+```bash
+# The typed API, as an index …
+curl -s http://localhost:3030/mcp-code -H 'content-type: application/json' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"search_api","arguments":{}}}' \
+  | jq -r '.result.content[0].text | fromjson'
+
+# … and as TypeScript declarations for the services a task needs
+curl -s http://localhost:3030/mcp-code -H 'content-type: application/json' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"search_api","arguments":{"paths":["articles","comments"]}}}' \
+  | jq -r '.result.content[0].text | fromjson'
+```
+
+A walkthrough task — *"the five most recently updated articles, with how many comments each
+has"* — is several tool calls with intermediate results passing through the model in tool mode,
+and one `execute` call in code mode:
+
+```javascript
+const articles = await mantle.articles.find({ sort: { updatedAt: "desc" }, limit: 5 });
+const { data: comments } = await mantle.comments.find({
+  where: { articleId: { $in: articles.map((a) => a.id) } },
+  limit: 100,
+  select: ["articleId"],
+});
+const counts = {};
+for (const c of comments) counts[c.articleId] = (counts[c.articleId] ?? 0) + 1;
+return articles.map((a) => ({ title: a.title, comments: counts[a.id] ?? 0 }));
+```
+
+```bash
+SCRIPT='const articles = await mantle.articles.find({ sort: { updatedAt: "desc" }, limit: 5 }); const { data: comments } = await mantle.comments.find({ where: { articleId: { $in: articles.map((a) => a.id) } }, limit: 100, select: ["articleId"] }); const counts = {}; for (const c of comments) counts[c.articleId] = (counts[c.articleId] ?? 0) + 1; return articles.map((a) => ({ title: a.title, comments: counts[a.id] ?? 0 }));'
+jq -n --arg code "$SCRIPT" '{jsonrpc:"2.0",id:1,method:"tools/call",params:{name:"execute",arguments:{code:$code}}}' \
+  | curl -s http://localhost:3030/mcp-code -H 'content-type: application/json' -d @- \
+  | jq -r '.result.content[0].text | fromjson'
+```
+
+returns `{ "result": [{ "title": "…", "comments": 2 }, …], "executionId": "…", "calls": 2, "logs": [] }`.
+`articles.find` returns a plain array here (`ArticlesService` overrides `find`) while
+`comments.find` is paginated — the declarations say `T[] | Paginated<T>`, so a general-purpose
+script checks `Array.isArray`. The script above is covered verbatim by
+`packages/mcp-code/src/lib/code-mode.spec.ts` against in-memory services of the same shapes.
+
 ## Known scope cuts
 
 - The client-side search embedder only matches the server's *local* default (see above).

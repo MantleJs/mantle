@@ -52,6 +52,7 @@
     "@mantlejs/config": "^0.2.0",
     "@mantlejs/openapi": "^0.2.0",
     "@mantlejs/mcp": "^0.2.0",
+    "@mantlejs/mcp-code": "^0.2.0-experimental",
     "@mantlejs/embeddings": "^0.2.0-experimental",
     "knex": "^3.2.10",
     "pg": "^8.21.0",

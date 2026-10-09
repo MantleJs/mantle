@@ -17,6 +17,9 @@
       "path": "../../../packages/embeddings/tsconfig.lib.json"
     },
     {
+      "path": "../../../packages/mcp-code/tsconfig.lib.json"
+    },
+    {
       "path": "../../../packages/mcp/tsconfig.lib.json"
     },
     {

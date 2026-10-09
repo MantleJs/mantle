@@ -183,7 +183,7 @@ The `prompts` capability is only declared when at least one prompt is defined; d
 
 ### Code mode
 
-Instead of one tool per method, a server can give the agent a typed API it writes a short script against. Many service calls then run in one round trip, and intermediate results stay out of the model's context. The sandbox lives in a separate package, **`@mantlejs/mcp-code`** (forthcoming, experimental), which plugs in through the `codeMode` option. `@mantlejs/mcp` itself has no sandbox dependency.
+Instead of one tool per method, a server can give the agent a typed API it writes a short script against. Many service calls then run in one round trip, and intermediate results stay out of the model's context. The sandbox lives in a separate package, **[`@mantlejs/mcp-code`](../mcp-code/README.md)** (experimental), which plugs in through the `codeMode` option — `mcp({ …, codeMode: codeMode() })`. `@mantlejs/mcp` itself has no sandbox dependency.
 
 | `mode`    | Tools listed                                                                                                  |
 | --------- | ------------------------------------------------------------------------------------------------------------- |
@@ -213,7 +213,7 @@ interface McpCodeModeSurface {
 ```
 
 - **Same rules as app-authored tools and resources.** A provider tool whose name collides with any registered tool fails the boot, and so does a provider resource URI that duplicates another or uses `mantle://events/`. In `"code"` mode the generated tools aren't registered, so their names are free.
-- **Same metadata as tool mode.** `describeServiceMethod(descriptor, method, query)` and `buildQuerySchema(operators, limits)` are exported. They are the exact helpers the generated tools are built from, so a provider's typed API cannot drift from the tool schemas.
+- **Same metadata and dispatch as tool mode.** `describeServiceMethod(descriptor, method, query)` and `buildQuerySchema(operators, limits)` are exported — the exact helpers the generated tools are built from, so a provider's typed API cannot drift from the tool schemas. `createServiceMethodRunner(app, descriptor, method, query)` is the runner every generated tool executes (find-limit clamp, structured-query translation, id checks); a provider dispatching through it behaves exactly like tool mode.
 - **Per-session behavior lives in the handlers.** The surface is built once and shared by every session. Tool handlers and resource `read` functions receive the session's `McpToolContext.params` on every call, which is where a provider narrows what a given agent sees. Enforcement still happens in the hook pipeline, because every inner `dispatch()` runs the target service's hooks.
 
 ---

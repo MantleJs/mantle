@@ -27,6 +27,7 @@ import { validate } from "@mantlejs/schema";
 import { logRequest, logError } from "@mantlejs/logger";
 import { openapi } from "@mantlejs/openapi";
 import { mcp } from "@mantlejs/mcp";
+import { codeMode } from "@mantlejs/mcp-code";
 import { embed } from "@mantlejs/embeddings";
 import { UserRepository } from "./repositories/user-repository.js";
 import { ArticleRepository, ArticleVectorRepository } from "./repositories/article-repository.js";
@@ -80,6 +81,23 @@ export function createApp(config: AppConfig = {}): MantleApplication {
         events: true,
         services: {
           articles: ["find", "get", "create", "update"],
+          search: ["similar"],
+          comments: ["find", "get"],
+          activity: ["find", "get"],
+        },
+      }),
+    )
+    // The same services in MCP code mode (@mantlejs/mcp-code), read-only, on a second endpoint:
+    // the agent gets search_api + execute and writes one script against a typed `mantle` API
+    // instead of chaining tool calls. Every call inside the script still runs each service's
+    // full hook pipeline (requireUser on activity, logging, …), exactly like the tools above.
+    .configure(
+      mcp({
+        transport: "http",
+        path: "/mcp-code",
+        codeMode: codeMode(),
+        services: {
+          articles: ["find", "get"],
           search: ["similar"],
           comments: ["find", "get"],
           activity: ["find", "get"],
