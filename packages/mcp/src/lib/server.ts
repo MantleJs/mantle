@@ -89,7 +89,8 @@ export function createMcpServer(context: McpServerContext, sessionParams: Servic
           : undefined;
       return {
         content: [
-          { type: "text" as const, text: JSON.stringify(result) },
+          // Strings pass through as-is — JSON-quoting them only adds escapes the caller must undo.
+          { type: "text" as const, text: typeof result === "string" ? result : JSON.stringify(result) },
           ...(note !== undefined ? [{ type: "text" as const, text: note }] : []),
         ],
         ...(structured !== undefined ? { structuredContent: structured } : {}),

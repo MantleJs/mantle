@@ -125,7 +125,7 @@ describe("codeMode() — tool surface", () => {
 describe("codeMode() — search_api", () => {
   it("returns a one-line index with no arguments", async () => {
     const response = await call(await connect(buildApp()), "search_api", {});
-    const text = JSON.parse(response.content[0]?.text ?? '""') as string;
+    const text = response.content[0]?.text ?? "";
     expect(text).toContain("articles — find, get, create, update, patch, remove");
     expect(text).toContain("authors — find");
     expect(text).not.toContain("declare const");
@@ -133,14 +133,14 @@ describe("codeMode() — search_api", () => {
 
   it("returns declarations filtered by keyword", async () => {
     const response = await call(await connect(buildApp()), "search_api", { query: "authors" });
-    const text = JSON.parse(response.content[0]?.text ?? '""') as string;
+    const text = response.content[0]?.text ?? "";
     expect(text).toContain("  authors: {");
     expect(text).not.toContain("  articles: {");
   });
 
   it("returns declarations filtered by exact path", async () => {
     const response = await call(await connect(buildApp()), "search_api", { paths: ["articles"] });
-    const text = JSON.parse(response.content[0]?.text ?? '""') as string;
+    const text = response.content[0]?.text ?? "";
     expect(text).toContain("type ArticlesRecord");
     expect(text).not.toContain("authors");
   });

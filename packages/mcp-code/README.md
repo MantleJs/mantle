@@ -4,7 +4,7 @@ MCP **code mode** for [Mantle JS](https://github.com/mantlejs/mantle). Instead o
 
 Every `mantle.<path>.<method>()` call inside a script runs the service's **full hook pipeline** as the MCP session — `authenticate`, `authorizeAgent()`, validation, `@mantlejs/audit` — exactly like [`@mantlejs/mcp`](../mcp/README.md)'s per-method tools. Code mode changes how the agent calls your API, not what it's allowed to do.
 
-> **Experimental.** Ships in the `experimental` release group (`0.2.0-experimental`); the API may change before it's promoted.
+> **Experimental.** Ships in the `experimental` release group (`0.3.0-experimental`, install with `npm install @mantlejs/mcp-code@experimental`); the API may change before it's promoted.
 
 ## Installation
 

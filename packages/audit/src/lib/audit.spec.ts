@@ -155,6 +155,47 @@ describe("auditLog()", () => {
     expect(logError).toHaveBeenCalledWith("Audit sink write failed", expect.objectContaining({ path: "documents" }));
   });
 
+  it("summarizes a single record without an id as '1 record'", async () => {
+    const sink = new MemoryRepository<AuditRecord>();
+
+    await auditLog({ sink })(makeCtx({ method: "create", result: { title: "Untitled" } }));
+
+    const [record] = await sink.findAll();
+    expect(record?.resultSummary).toBe("1 record");
+  });
+
+  it("summarizes a non-record result (a custom method returning a primitive or nothing) as 'ok'", async () => {
+    const sink = new MemoryRepository<AuditRecord>();
+
+    await auditLog({ sink })(makeCtx({ method: "ping", result: "pong" as unknown as HookContext["result"] }));
+    await auditLog({ sink })(makeCtx({ method: "ping", result: null as unknown as HookContext["result"] }));
+
+    expect((await sink.findAll()).map((r) => r.resultSummary)).toEqual(["ok", "ok"]);
+  });
+
+  it("names a plain (non-Mantle) error by its Error.name", async () => {
+    const sink = new MemoryRepository<AuditRecord>();
+
+    await auditLog({ sink })(makeCtx({ error: new TypeError("boom") }));
+
+    const [record] = await sink.findAll();
+    expect(record).toMatchObject({ status: "error", resultSummary: "TypeError: boom" });
+  });
+
+  it("stringifies a non-Error sink failure for the logger", async () => {
+    const sink = { save: vi.fn().mockRejectedValue("connection reset") } as unknown as MemoryRepository<AuditRecord>;
+    const logError = vi.fn();
+    const ctx = makeCtx({ result: [] });
+    (ctx.app.get as ReturnType<typeof vi.fn>).mockReturnValue({ error: logError });
+
+    await auditLog({ sink })(ctx);
+
+    expect(logError).toHaveBeenCalledWith(
+      "Audit sink write failed",
+      expect.objectContaining({ error: "connection reset" }),
+    );
+  });
+
   it("is silent (no throw) when the sink fails, no onSinkError is given, and no logger is configured", async () => {
     const sink = {
       save: vi.fn().mockRejectedValue(new Error("sink is down")),

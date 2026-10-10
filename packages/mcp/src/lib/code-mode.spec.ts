@@ -162,6 +162,24 @@ describe("provider wiring", () => {
     expect(seen).toEqual(["mcp"]);
   });
 
+  it("passes a string tool result through as text without JSON-quoting it", async () => {
+    const declarations = 'declare const mantle: {\n  users: { find(): Promise<"x"> };\n};';
+    const provider = recordingProvider({
+      tools: [
+        {
+          name: "search_api",
+          description: "Search.",
+          inputSchema: { type: "object" },
+          handler: async () => declarations,
+        },
+      ],
+    });
+    const client = await connect(buildApp({ services: { users: ["find"] }, transport: "stdio", codeMode: provider }));
+    const result = await client.callTool({ name: "search_api", arguments: {} });
+    const [first] = result.content as Array<{ type: string; text: string }>;
+    expect(first.text).toBe(declarations);
+  });
+
   it("serves provider resources", async () => {
     const app = buildApp({ services: { users: ["find"] }, transport: "stdio", codeMode: recordingProvider() });
     const client = await connect(app);

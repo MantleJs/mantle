@@ -101,7 +101,9 @@ describe("embed()", () => {
   });
 
   it("does not fail the primary operation when the vector upsert throws", async () => {
-    const vectors = { upsertVector: vi.fn().mockRejectedValue(new Error("vector store is down")) } as unknown as FakeVectorRepository;
+    const vectors = {
+      upsertVector: vi.fn().mockRejectedValue(new Error("vector store is down")),
+    } as unknown as FakeVectorRepository;
     const provider = stubProvider();
     const ctx = makeCtx({ result: { id: "a1", title: "Hello", body: "World" } });
 
@@ -130,6 +132,28 @@ describe("embed()", () => {
     await embed({ vectors, provider, field: ["title", "body"] })(ctx);
 
     expect(logError).toHaveBeenCalledWith("embed() failed", expect.objectContaining({ path: "articles" }));
+  });
+
+  it("stringifies a non-Error failure for the logger", async () => {
+    const vectors = new FakeVectorRepository();
+    const provider: EmbeddingProvider = { embed: vi.fn().mockRejectedValue("rate limited") };
+    const logError = vi.fn();
+    const ctx = makeCtx({ result: { id: "a1", title: "Hello", body: "World" } });
+    (ctx.app.get as ReturnType<typeof vi.fn>).mockReturnValue({ error: logError });
+
+    await embed({ vectors, provider, field: ["title", "body"] })(ctx);
+
+    expect(logError).toHaveBeenCalledWith("embed() failed", expect.objectContaining({ error: "rate limited" }));
+  });
+
+  it("treats a missing field as empty text rather than the string 'undefined'", async () => {
+    const vectors = new FakeVectorRepository();
+    const provider = stubProvider();
+    const ctx = makeCtx({ result: { id: "a1", title: "Hello" } as Article });
+
+    await embed({ vectors, provider, field: ["title", "body"] })(ctx);
+
+    expect(provider.embed).toHaveBeenCalledWith("Hello\n");
   });
 
   it("skips a find result (an array) — nothing embeddable there", async () => {

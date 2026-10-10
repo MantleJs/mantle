@@ -112,7 +112,7 @@ describe("knowledge-base-api bootstrap", () => {
       expect((listed.result?.tools ?? []).map((t) => t.name).sort()).toEqual(["execute", "search_api"]);
 
       const index = await rpc("tools/call", { name: "search_api", arguments: {} });
-      const text = JSON.parse(index.result?.content?.[0]?.text ?? '""') as string;
+      const text = index.result?.content?.[0]?.text ?? "";
       expect(text).toContain("articles — find, get");
       expect(text).not.toContain("users");
 

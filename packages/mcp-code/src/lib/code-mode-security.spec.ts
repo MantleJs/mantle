@@ -54,7 +54,9 @@ async function tool(
     }),
   );
   const json = (await response.json()) as JsonRpcResponse;
-  return { isError: json.result?.isError === true, body: JSON.parse(json.result?.content?.[0]?.text ?? "null") };
+  const text = json.result?.content?.[0]?.text ?? "null";
+  // search_api answers with plain text; every other tool answers with JSON.
+  return { isError: json.result?.isError === true, body: name === "search_api" ? text : JSON.parse(text) };
 }
 
 async function execute(

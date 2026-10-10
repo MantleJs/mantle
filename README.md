@@ -80,9 +80,17 @@ Dependencies always point inward. Nothing in Domain or Application layers knows 
 | `@mantlejs/socketio`       | Socket.IO transport adapter — real-time WebSocket events via the Mantle hook pipeline                                                     |
 | `@mantlejs/openapi`        | OpenAPI 3.1 document generation from registered services, with optional Swagger UI                                                        |
 | `@mantlejs/mcp`            | MCP server — expose services as Model Context Protocol tools (stdio + HTTP), full hook pipeline, deny-by-default                          |
+| `@mantlejs/mcp-code`       | MCP code mode — typed API + QuickJS sandbox so agents run one script instead of many tool calls (experimental)                            |
+| `@mantlejs/audit`          | Audit-trail hook — who did what, as which identity (user or agent), written to any `Repository<T>` sink                                   |
+| `@mantlejs/embeddings`     | Auto-embed-on-write hook — pluggable embedding provider, upserts into a `VectorRepository<T>`                                             |
 | `@mantlejs/client`         | Official client SDK — REST + Socket.IO, auth with token rotation, from browsers/Node.js/React Native                                      |
 | `@mantlejs/react`          | React bindings — hooks and providers over the Mantle client SDK                                                                           |
-| `create-mantlejs`            | Project initializer — scaffold a new Mantle application via `npm create mantlejs`                                                           |
+| `create-mantlejs`          | Project initializer — scaffold a new Mantle application via `npm create mantlejs`                                                         |
+
+Experimental packages publish under the `experimental` npm dist-tag (`npm install @mantlejs/mcp-code@experimental`).
+
+The [Mantle UI registry](./registry/) — React Aria blocks installed with `shadcn add @mantle/<block>` — and the
+[mantlejs.com](https://mantlejs.com) docs site aren't npm packages; they ship by deploy.
 
 ## Quick Start
 

@@ -110,12 +110,14 @@
           "pinecone",
           "qdrant",
           "neo4j",
-          "mongodb"
+          "mongodb",
+          "audit",
+          "embeddings"
         ]
       },
       "experimental": {
         "projectsRelationship": "fixed",
-        "projects": ["audit", "embeddings", "mcp-code"]
+        "projects": ["mcp-code"]
       }
     }
   },
