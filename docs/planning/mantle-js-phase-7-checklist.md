@@ -536,6 +536,30 @@ runs in four stages, in order:
     `e2e-scaffold` and `e2e-install` pass; `check-dependency-matrix` and `check-publish-fields` (40) green.
   - Step 7: `CLAUDE.md` already listed `mcp-code`, `registry/`, and `website/`; root README table gained `mcp-code`,
     `audit`, `embeddings`.
+    **Update (2026-10-10):** pushed `main` + `v0.3.0`/`v0.3.0-experimental`; the maintainer ran `release-publish.yml`
+    (`dry_run: false`). Every `@mantlejs/*` package published (39 stable at `0.3.0`/`latest`, `mcp-code` at
+    `0.3.0-experimental`); `create-mantlejs` hit its expected 403 and the maintainer published it by hand
+    (`0.3.0`/`latest`). Since that 403 turned every release red, `create-mantlejs`'s `nx-release-publish` target now
+    only prints a pointer to the manual step (`b56ff0d`; `--exclude` is ignored with `--groups`, and nx refuses a
+    subset of a fixed group). Two npm dist-tag side effects, both left as-is: `mcp-code`'s first publish also got
+    `latest` (npm requires one), and the promoted packages' old `experimental` tags still point at their last
+    experimental versions.
+
+  **Post-release verification (2026-10-10), all against the live registry:**
+  - Clean project: `mantle`, `memory`, `http`, `auth`, `mcp`, `audit`, `embeddings`, `client`, and
+    `mcp-code@experimental` resolve at the right versions with no peer errors.
+  - The `mcp-code`, `audit`, and `embeddings` quick starts in one app (memory repos for the README placeholders,
+    `http()` for `express()`, a stub embedding provider and vector-repo double for pgvector + OpenAI):
+    - `@mantlejs/client` CRUD round-trip, plus the new `client.url` and `service.upload`.
+    - `embed()` upserted on create and patch.
+    - `search_api` returns unquoted text (the 0.3.0 fix).
+    - `execute` ran a two-call join in QuickJS.
+    - `auditLog()` recorded every call, the code-mode one tagged with `mcp.executionId`.
+  - `create-mantlejs` scaffold smoke test with `MANTLE_REGISTRY=https://registry.npmjs.org/`: scaffold → install →
+    build → test → boot → CRUD → clean `SIGTERM` exit. The published `create-mantlejs@0.3.0` scaffolds `^0.3.0`.
+  - `examples/todo-minimal` copied out of the workspace and installed from npm: boots, create + find round-trip.
+  - **Open:** GitHub releases and the site deploy (creating the `v0.3.0` release triggers `website.yml`), then
+    confirm `https://mantlejs.com/r/` serves the registry with the `^0.3.0` pins.
 
 ---
 
