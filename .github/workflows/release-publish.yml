@@ -53,6 +53,9 @@ jobs:
       - name: Pre-flight publish-field check
         run: npm run check-publish-fields
 
+      # create-mantlejs is in this group but its nx-release-publish target only prints a reminder:
+      # it's unscoped, so this @mantlejs-scoped token can't publish it. The maintainer publishes it
+      # by hand afterwards (docs/releasing.md, "create-mantlejs always needs a separate, manual publish").
       - name: Publish stable group (dist-tag latest)
         run: >
           npx nx release publish

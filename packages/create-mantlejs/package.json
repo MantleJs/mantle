@@ -47,6 +47,13 @@
             "target": "build"
           }
         ]
+      },
+      "nx-release-publish": {
+        "executor": "nx:run-commands",
+        "options": {
+          "command": "echo \"create-mantlejs is unscoped and outside the @mantlejs-scoped NPM_TOKEN, so nx release skips it. Publish it by hand: docs/releasing.md#create-mantlejs-always-needs-a-separate-manual-publish\"",
+          "forwardAllArgs": false
+        }
       }
     }
   },
