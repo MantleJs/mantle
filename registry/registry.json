@@ -8,7 +8,7 @@
       "type": "registry:lib",
       "title": "Mantle form errors",
       "description": "Maps @mantlejs/client errors onto React Aria form state: Unprocessable field errors to fields, everything else to a form-level message.",
-      "dependencies": ["@mantlejs/client"],
+      "dependencies": ["@mantlejs/client@^0.3.0"],
       "files": [{ "path": "src/lib/mantle-errors.ts", "type": "registry:lib", "target": "@lib/mantle-errors.ts" }]
     },
     {
@@ -16,7 +16,7 @@
       "type": "registry:component",
       "title": "Auth provider",
       "description": "Session state for the Mantle auth blocks: persisted-session restore, OAuth redirect handling, login/signup/logout. Exposes useAuth().",
-      "dependencies": ["@mantlejs/client", "@mantlejs/react", "@tanstack/react-query"],
+      "dependencies": ["@mantlejs/client@^0.3.0", "@mantlejs/react@^0.3.0", "@tanstack/react-query"],
       "files": [
         {
           "path": "src/components/mantle/auth-provider.tsx",
@@ -31,7 +31,7 @@
       "title": "Login form",
       "description": "Email/password login against @mantlejs/auth-local, built on React Aria Form + TextField.",
       "categories": ["auth"],
-      "dependencies": ["react-aria-components", "@mantlejs/client", "cn"],
+      "dependencies": ["react-aria-components", "@mantlejs/client@^0.3.0", "cn"],
       "registryDependencies": ["button", "input", "label", "alert", "@mantle/auth-provider", "@mantle/mantle-errors"],
       "files": [
         {
@@ -47,7 +47,7 @@
       "title": "Sign-up form",
       "description": "Account creation through your users service, then local login. Duplicate-email and schema errors shown inline.",
       "categories": ["auth"],
-      "dependencies": ["react-aria-components", "@mantlejs/client", "cn"],
+      "dependencies": ["react-aria-components", "@mantlejs/client@^0.3.0", "cn"],
       "registryDependencies": ["button", "input", "label", "alert", "@mantle/auth-provider", "@mantle/mantle-errors"],
       "files": [
         {
@@ -79,7 +79,7 @@
       "title": "Upload dropzone",
       "description": "Drag-and-drop or pick files and upload them to a @mantlejs/storage handleUpload() service, with progress and typed errors. React Aria DropZone + FileTrigger.",
       "categories": ["storage"],
-      "dependencies": ["react-aria-components", "@mantlejs/client", "@mantlejs/react", "cn"],
+      "dependencies": ["react-aria-components", "@mantlejs/client@^0.3.0", "@mantlejs/react@^0.3.0", "cn"],
       "registryDependencies": ["button", "progress"],
       "files": [
         {
@@ -95,7 +95,7 @@
       "title": "Realtime list",
       "description": "A live find() result as a React Aria GridList; service events update it in place with no refetch.",
       "categories": ["data", "realtime"],
-      "dependencies": ["react-aria-components", "@mantlejs/client", "@mantlejs/react", "@tanstack/react-query", "cn"],
+      "dependencies": ["react-aria-components", "@mantlejs/client@^0.3.0", "@mantlejs/react@^0.3.0", "@tanstack/react-query", "cn"],
       "registryDependencies": ["spinner"],
       "files": [
         {
@@ -111,7 +111,7 @@
       "title": "Pagination",
       "description": "Page navigation for a Paginated<T> result, driving $skip. Named mantle-pagination to stay distinct from shadcn's own pagination primitive it builds on.",
       "categories": ["data"],
-      "dependencies": ["@mantlejs/client"],
+      "dependencies": ["@mantlejs/client@^0.3.0"],
       "registryDependencies": ["pagination"],
       "files": [
         {
@@ -129,8 +129,8 @@
       "categories": ["data"],
       "dependencies": [
         "react-aria-components",
-        "@mantlejs/client",
-        "@mantlejs/react",
+        "@mantlejs/client@^0.3.0",
+        "@mantlejs/react@^0.3.0",
         "@tanstack/react-query",
         "lucide-react",
         "cn"
@@ -150,7 +150,7 @@
       "title": "Search combobox",
       "description": "Server-side type-ahead search over find() with $ilike (falling back to $like), in shadcn's React Aria Combobox.",
       "categories": ["data"],
-      "dependencies": ["react-aria-components", "@mantlejs/client", "@mantlejs/react", "@tanstack/react-query", "cn"],
+      "dependencies": ["react-aria-components", "@mantlejs/client@^0.3.0", "@mantlejs/react@^0.3.0", "@tanstack/react-query", "cn"],
       "registryDependencies": ["combobox", "label"],
       "files": [
         {

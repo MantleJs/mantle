@@ -1,6 +1,6 @@
 {
   "name": "@mantlejs/koa",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "type": "module",
   "main": "./dist/index.js",
   "module": "./dist/index.js",
@@ -47,7 +47,7 @@
     "api"
   ],
   "peerDependencies": {
-    "@mantlejs/mantle": "^0.2.0",
+    "@mantlejs/mantle": "^0.3.0",
     "koa": "^3.0.0",
     "@koa/router": "^15.0.0",
     "@koa/bodyparser": "^6.0.0"

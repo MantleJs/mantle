@@ -6,7 +6,7 @@
  */
 
 /** Version written for every `@mantlejs/*` dependency — matches the workspace's lockstep release version. */
-export const MANTLE_VERSION = "^0.2.0";
+export const MANTLE_VERSION = "^0.3.0";
 
 /** Third-party package versions used across scaffolded templates, kept aligned with peer ranges. */
 export const THIRD_PARTY_VERSIONS = {

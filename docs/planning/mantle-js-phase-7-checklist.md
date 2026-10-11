@@ -515,6 +515,28 @@ runs in four stages, in order:
     clean project and run its README quick start.
   - `npx nx run-many -t build,test,lint,typecheck` green.
 
+  **In progress (2026-10-10):** local prep done; push, publish, and deploy wait on the maintainer.
+  - Step 1: `mcp-code` was already in the `experimental` group.
+  - Step 2: `audit` (96%/87% stmt/branch) and `embeddings` (100%/92.6%) were under the `openapi` bar. The gaps were
+    reachable branches (primitive results, plain errors, non-`Error` failures, missing fields), so they got tests:
+    both now 100%/100%, with README-vs-code accurate. **Both promoted to `stable`**; `mcp-code` is alone in
+    `experimental`.
+  - Step 3: `bump-peer-ranges.mjs stable 0.3.0` does rewrite `mcp-code`'s cross-group peer on `@mantlejs/mcp` (36
+    files). Dry run: 39 stable projects, no leakage.
+  - Step 4: no exact pins in `examples/*`; all caret ranges, bumped to `^0.3.0` (`mcp-code` `^0.3.0-experimental`)
+    after the real version landed, plus `website/` and `registry/` package ranges, `registry.json`'s block pins,
+    and the CLI's `MANTLE_VERSION`.
+  - Step 5 (local half): `stable` → `0.3.0`, `experimental` → `0.3.0-experimental`, tagged `v0.3.0` /
+    `v0.3.0-experimental`. The experimental lockfile step 404'd on the never-published `mcp-code` exactly as
+    `docs/releasing.md` predicts, and left stray nested `node_modules/@mantlejs` 0.2.0 copies in three examples and
+    `website/` (the website's made `nx sync` want to drop its client/react references); removed and re-hoisted.
+  - Code-mode follow-ups: string tool results fixed in `@mantlejs/mcp`; the second-`mcp()` stdio overwrite shipped
+    as a known issue (PRD Release Plan).
+  - Clean rebuild (no `dist`/`.tsbuildinfo`) + `run-many -t build,test,lint,typecheck` green on 46 projects;
+    `e2e-scaffold` and `e2e-install` pass; `check-dependency-matrix` and `check-publish-fields` (40) green.
+  - Step 7: `CLAUDE.md` already listed `mcp-code`, `registry/`, and `website/`; root README table gained `mcp-code`,
+    `audit`, `embeddings`.
+
 ---
 
 ## Reference

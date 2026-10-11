@@ -52,8 +52,8 @@
     }
   },
   "dependencies": {
-    "@mantlejs/client": "^0.2.0",
-    "@mantlejs/react": "^0.2.0",
+    "@mantlejs/client": "^0.3.0",
+    "@mantlejs/react": "^0.3.0",
     "@tanstack/react-query": "^5.101.2",
     "class-variance-authority": "^0.7.1",
     "cn": "^0.4.0",

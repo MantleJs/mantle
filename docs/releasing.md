@@ -14,8 +14,8 @@ Publishing is handled by [`nx release`](https://nx.dev/features/manage-releases)
 
 | Group          | Projects                                                                | Version              | npm dist-tag   |
 | -------------- | ------------------------------------------------------------------------ | --------------------- | -------------- |
-| `stable`       | 37 packages (as of Phase 6) — everything except `audit`/`embeddings`   | `0.2.0`               | `latest`       |
-| `experimental` | `audit`, `embeddings`                                                   | `0.2.0-experimental`  | `experimental` |
+| `stable`       | 39 packages (as of Phase 7) — everything except `mcp-code`              | `0.3.0`               | `latest`       |
+| `experimental` | `mcp-code`                                                              | `0.3.0-experimental`  | `experimental` |
 
 The `experimental` group's membership isn't fixed across releases — Phase 5's `experimental` group
 (`dynamodb`/`pinecone`/`qdrant`/`neo4j`/`mongodb`) promoted into `stable` and the group was removed
@@ -383,7 +383,7 @@ packages actually work for a consumer. From an empty scratch directory (not this
 ```bash
 mkdir /tmp/release-check && cd /tmp/release-check && npm init -y
 npm install @mantlejs/mantle @mantlejs/memory   # every stable package should resolve this way
-npm install @mantlejs/audit@experimental @mantlejs/embeddings@experimental
+npm install @mantlejs/mcp-code@experimental   # whatever the experimental group holds this release
 ```
 
 Then the same two live checks as the Verdaccio rehearsal (step 3 there), just without

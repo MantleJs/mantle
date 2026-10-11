@@ -1,6 +1,6 @@
 {
   "name": "@mantlejs/mcp-code",
-  "version": "0.2.0-experimental",
+  "version": "0.3.0-experimental",
   "type": "module",
   "main": "./dist/index.js",
   "module": "./dist/index.js",
@@ -50,7 +50,7 @@
     "quickjs"
   ],
   "peerDependencies": {
-    "@mantlejs/mantle": "^0.2.0",
-    "@mantlejs/mcp": "^0.2.0"
+    "@mantlejs/mantle": "^0.3.0",
+    "@mantlejs/mcp": "^0.3.0"
   }
 }

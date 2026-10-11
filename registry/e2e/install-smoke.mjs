@@ -57,6 +57,21 @@ function capture(command, args, options = {}) {
 }
 
 /** Serves public/r at /r/* on an ephemeral port — what the website will host in production. */
+/**
+ * Items pin `@mantlejs/client@^x`/`@mantlejs/react@^x` to the release that ships the APIs they use.
+ * Before that release is on npm, `shadcn add` can't resolve the pin, so drop the range for the
+ * packages this test installs from workspace tarballs anyway — what's tested is the workspace build.
+ */
+function unpinPacked(json) {
+  const item = JSON.parse(json);
+  if (Array.isArray(item.dependencies)) {
+    item.dependencies = item.dependencies.map((dep) =>
+      PACKED.some((name) => dep.startsWith(`@mantlejs/${name}@`)) ? dep.slice(0, dep.lastIndexOf("@")) : dep,
+    );
+  }
+  return JSON.stringify(item);
+}
+
 async function serveRegistry() {
   const server = createServer(async (req, res) => {
     const path = decodeURIComponent(new URL(req.url ?? "/", "http://localhost").pathname);
@@ -65,7 +80,7 @@ async function serveRegistry() {
       res.writeHead(404).end();
       return;
     }
-    res.writeHead(200, { "content-type": "application/json" }).end(await readFile(file));
+    res.writeHead(200, { "content-type": "application/json" }).end(unpinPacked(await readFile(file, "utf8")));
   });
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
   // `{style}` exactly as consumers are told to register it — so this also proves aria presets

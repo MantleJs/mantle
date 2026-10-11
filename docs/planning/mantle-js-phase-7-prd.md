@@ -628,11 +628,12 @@ Builds on the pipeline Phase 5 built and Phase 6 exercised. No new tooling is ex
   groups (experimental → stable). `mcp-code` currently peers on `^0.2.0`, but the published `@mantlejs/mcp`
   0.2.0 has no extension point, so this bump is **required**, not just tidying.
 - **Code-mode follow-ups found during items 4–7** (fix before release, or record as known issues):
-  - `@mantlejs/mcp`'s server passes string tool results through `JSON.stringify`, so `search_api` declarations
-    arrive as a quoted string with escaped newlines. That works, but it wastes tokens. Pass strings through
-    unquoted.
-  - Configuring `mcp()` twice on one app (as the example does for `/mcp` and `/mcp-code`) works over HTTP, but
-    the second call overwrites `app.get("mcp:server")`. Only `startMcp()` over stdio is affected.
+  - ~~`@mantlejs/mcp`'s server passes string tool results through `JSON.stringify`.~~ **Fixed (2026-10-09,
+    `1481d8e`):** string results are sent as-is; every other result is still JSON.
+  - **Known issue (shipped in 0.3.0):** configuring `mcp()` twice on one app (as the example does for `/mcp` and
+    `/mcp-code`) works over HTTP, but the second call overwrites `app.get("mcp:server")`, so `startMcp()` over
+    stdio serves whichever `mcp()` was configured last. Workaround: build a separate app for the stdio entry
+    point with one `mcp()` call.
 - **Client-SDK follow-ups found during items 8–11** (the blocks work around these; decide before release whether to
   fix in `@mantlejs/client`/`@mantlejs/react` or record them as known issues):
   - ~~**Bug:** `@mantlejs/client`'s `authenticate()` accepts a 200 response with no `accessToken`.~~ **Fixed (2026-10-08, `fe31721`):** `authenticate()` now throws a `GeneralError` and stores and emits nothing. The same hole in the 401-refresh path now counts as a failed rotation. `setTokens()` rejects an empty token.
@@ -659,7 +660,9 @@ Builds on the pipeline Phase 5 built and Phase 6 exercised. No new tooling is ex
       range. They must be pinned to the release that ships these APIs (e.g. `"@mantlejs/client@^0.3.0"`) when
       that version is cut.
     - The site/registry must not be deployed before that release is on npm.
-    - The install smoke test isn't affected, because it installs `npm pack` tarballs of the workspace build.
+    - **Done (2026-10-10):** pinned to `^0.3.0`. The pin did break the install smoke test before 0.3.0 was on npm
+      (`shadcn add` resolves item dependencies from npm: `ETARGET`), so its local registry server now strips the
+      range from the `@mantlejs/*` packages it installs from workspace tarballs anyway.
   - Service capabilities (`describe().capabilities`) aren't reachable over HTTP, only as prose in the OpenAPI
     description. That's why `search-combobox` probes for `$ilike` (Decision #20). Exposing capabilities to clients
     would remove the probe.
