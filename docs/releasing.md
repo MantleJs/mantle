@@ -423,6 +423,97 @@ go-ahead rather than running it unprompted.
 
 ---
 
+## Website deploy (mantlejs.com)
+
+Publishing the stable group's (non-prerelease) GitHub release triggers `.github/workflows/website.yml`,
+which builds `website/` (docs, API reference, demos, and the Mantle UI registry at `/r/`) and deploys it
+to GitHub Pages. The `--prerelease` experimental release is skipped on purpose. For docs-only fixes
+between releases, run it by hand: `gh workflow run website.yml`.
+
+After every deploy, confirm the registry serves the pins for the release just published:
+
+```bash
+curl -s https://mantlejs.com/r/registry.json | head -c 300
+curl -s https://mantlejs.com/r/aria-nova/login-form.json | grep -o '"@mantlejs/[a-z]*@[^"]*"'
+```
+
+### One-time setup: GitHub Pages + Squarespace DNS
+
+Needed once per repository/domain. Until it's done, the `build` job passes but `deploy` fails with
+`Failed to create deployment (status: 404) … Ensure GitHub Pages has been enabled` (what happened on the
+first 0.3.0 release). The domain is registered at Squarespace
+(<https://account.squarespace.com/domains/managed/mantlejs.com>), whose nameservers are
+`ns-cloud-d{1..4}.googledomains.com` (carried over from Google Domains). Keep those nameservers and edit
+the records in Squarespace's DNS panel.
+
+**1. Verify the domain for the `MantleJs` org.** Recommended: it stops anyone else's Pages site from
+claiming `mantlejs.com` if this repo's Pages config is ever removed.
+
+- GitHub → `MantleJs` org → Settings → Pages → **Add a domain** → `mantlejs.com`. GitHub shows a TXT
+  record named `_github-pages-challenge-MantleJs` with a one-off value.
+- Add that TXT record in Squarespace (step 2), then click **Verify** in GitHub. It can take a few minutes
+  to resolve.
+
+**2. Add the DNS records in Squarespace.** Go to Domains → `mantlejs.com` → **DNS** → DNS Settings.
+First delete any Squarespace default records (the "Squarespace Defaults" preset: `@` A records to
+Squarespace and a `www` CNAME to `ext-sq.squarespace.com`), because they conflict with Pages. Then add
+these **custom records**:
+
+| Host                               | Type  | Data                  |
+| ---------------------------------- | ----- | --------------------- |
+| `@`                                | A     | `185.199.108.153`     |
+| `@`                                | A     | `185.199.109.153`     |
+| `@`                                | A     | `185.199.110.153`     |
+| `@`                                | A     | `185.199.111.153`     |
+| `@`                                | AAAA  | `2606:50c0:8000::153` |
+| `@`                                | AAAA  | `2606:50c0:8001::153` |
+| `@`                                | AAAA  | `2606:50c0:8002::153` |
+| `@`                                | AAAA  | `2606:50c0:8003::153` |
+| `www`                              | CNAME | `mantlejs.github.io`  |
+| `_github-pages-challenge-MantleJs` | TXT   | _(value from step 1)_ |
+
+The A/AAAA addresses are GitHub Pages' published apex IPs
+([GitHub docs](https://docs.github.com/en/pages/configuring-a-custom-domain-for-your-github-pages-site/managing-a-custom-domain-for-your-github-pages-site#configuring-an-apex-domain)).
+Re-check them there if this is ever redone. Never add a wildcard (`*`) record. Check the records
+propagated:
+
+```bash
+dig +short mantlejs.com A        # the four 185.199.10x.153 addresses
+dig +short www.mantlejs.com      # mantlejs.github.io. then the same IPs
+```
+
+**3. Enable Pages on the repo.** GitHub → `MantleJs/mantle` → Settings → **Pages**:
+
+- **Build and deployment → Source: GitHub Actions** (not "Deploy from a branch").
+- **Custom domain: `mantlejs.com`** → Save. With the Actions source, GitHub ignores
+  `website/public/CNAME` for routing; the domain must be set here. The file stays in the build anyway,
+  harmlessly. GitHub then runs a DNS check. It passes once step 2 has propagated, and the `www` → apex
+  redirect works automatically.
+- **Enforce HTTPS**: tick it once it stops being greyed out. GitHub has to issue the Let's Encrypt
+  certificate first, which can take up to about an hour after the DNS check passes.
+
+Equivalent from the CLI (only the HTTPS toggle has to wait for the certificate):
+
+```bash
+gh api -X POST repos/MantleJs/mantle/pages -f build_type=workflow
+gh api -X PUT  repos/MantleJs/mantle/pages -f cname=mantlejs.com
+gh api -X PUT  repos/MantleJs/mantle/pages -F https_enforced=true   # after the cert exists
+gh api repos/MantleJs/mantle/pages   # status, cname, https_certificate.state
+```
+
+**4. Allow release tags to deploy.** Enabling Pages creates the `github-pages` environment that the
+workflow's `deploy` job targets. Its default deployment rule allows only the default branch, but a
+release-triggered run executes on the **tag** ref (`v0.3.0`), so without a tag rule it is rejected with
+`Tag "v0.3.0" is not allowed to deploy to github-pages due to environment protection rules`. Go to
+Settings → Environments → `github-pages` → Deployment branches and tags → **Add deployment branch or tag
+rule** → Ref type **Tag**, pattern `v*`. Keep the `main` branch rule too, for `workflow_dispatch`.
+
+**5. Deploy.** Re-run the failed release run's deploy job (`gh run rerun <run-id> --failed`). If the
+Pages artifact has already expired (`upload-pages-artifact` keeps it for one day), dispatch a fresh
+build instead with `gh workflow run website.yml`. Then run the `curl` checks above.
+
+---
+
 ## Peer dependency ranges
 
 Every package that depends on another `@mantlejs/*` package as a `peerDependency` must declare a
@@ -490,3 +581,6 @@ setting without re-verifying both groups version independently (`nx release vers
 | `nx release version`'s lockfile-update step 404s on a package that was never published before | An `examples/*/package.json` still declares the *old* range for that package, and the old range can't be satisfied locally (already bumped) or from the registry (never published) | Bump that example's range to the new version *after* (not before) the real version bump lands — see [`examples/*` dependency ranges](#examples-dependency-ranges) |
 | An agent's `gh workflow run ... -f dry_run=false` for the publish workflow is refused despite your go-ahead | Claude Code's own auto-mode permission classifier, not the agent declining — "Create Public Surface" actions need you to trigger them directly | Run the command yourself, or use the Actions tab UI — see [Publishing (CI)](#publishing-ci) |
 | CI's `build, test, lint, typecheck` step fails on `tsc` errors a local run never showed | A long-running local session's leftover `dist/`/`.tsbuildinfo` masked a real, already-committed error — `nx reset` alone doesn't clear those | Reproduce CI's clean-slate build locally before trusting green — see [Local `build`/`typecheck` passing isn't proof CI will](#local-buildtypecheck-passing-isnt-proof-ci-will) |
+| Website workflow's `deploy` job fails with `Failed to create deployment (status: 404) … Ensure GitHub Pages has been enabled` | GitHub Pages isn't enabled on the repo (the `build` job passes regardless) | See [One-time setup: GitHub Pages + Squarespace DNS](#one-time-setup-github-pages--squarespace-dns), then re-run the deploy |
+| Website `deploy` job fails with `Tag "v…" is not allowed to deploy to github-pages` | The `github-pages` environment only allows the default branch; release runs execute on the tag | Add a `v*` tag rule to the environment (step 4 of the one-time setup) |
+| `mantlejs.com` doesn't resolve, or GitHub's custom-domain DNS check fails | The A/AAAA/`www` records are missing, or Squarespace's default records are still present | Fix the records in Squarespace (step 2 of the one-time setup) and check with `dig` |

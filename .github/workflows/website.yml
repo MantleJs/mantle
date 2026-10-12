@@ -9,8 +9,9 @@ name: Website
 # between releases. It deliberately does not deploy on every push to main: that would document APIs
 # that aren't on npm yet. Every push and PR still builds the site (link validation included) in ci.yml.
 #
-# One-time repository setup (Settings → Pages): Source = "GitHub Actions", custom domain mantlejs.com,
-# "Enforce HTTPS" on. website/public/CNAME carries the domain into every deploy.
+# One-time setup (Pages source = "GitHub Actions", custom domain mantlejs.com, Enforce HTTPS, a `v*` tag
+# rule on the github-pages environment, and the Squarespace DNS records) is spelled out step by step in
+# docs/releasing.md, "One-time setup: GitHub Pages + Squarespace DNS".
 
 on:
   release:
