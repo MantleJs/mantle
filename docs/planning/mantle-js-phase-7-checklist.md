@@ -496,7 +496,7 @@ runs in four stages, in order:
 
 ## Stage 4 — Release
 
-- [ ] **14. Release + post-release verification** _(PRD Release Plan)_
+- [x] **14. Release + post-release verification** _(PRD Release Plan)_
       Release steps:
   1. Add `mcp-code` to `nx.json`'s `experimental` group.
   2. Run the tier-list review for `audit`/`embeddings` against the Phase 6 promotion bar (promote per package, or
@@ -558,8 +558,13 @@ runs in four stages, in order:
   - `create-mantlejs` scaffold smoke test with `MANTLE_REGISTRY=https://registry.npmjs.org/`: scaffold → install →
     build → test → boot → CRUD → clean `SIGTERM` exit. The published `create-mantlejs@0.3.0` scaffolds `^0.3.0`.
   - `examples/todo-minimal` copied out of the workspace and installed from npm: boots, create + find round-trip.
-  - **Open:** GitHub releases and the site deploy (creating the `v0.3.0` release triggers `website.yml`), then
-    confirm `https://mantlejs.com/r/` serves the registry with the `^0.3.0` pins.
+  - **Done (2026-10-11):** GitHub releases `v0.3.0` (latest) and `v0.3.0-experimental` (prerelease) created. The
+    first `website.yml` deploy 404'd because GitHub Pages had never been enabled. The one-time Pages + Squarespace
+    DNS setup is now documented step by step in `docs/releasing.md` ("Website deploy (mantlejs.com)"). After the
+    setup, the re-run deployed. `https://mantlejs.com` serves over HTTPS (certificate approved, HTTPS enforced), and
+    `www` and `http` 301 to it. `/r/registry.json` and every `/r/aria-nova/*` item serve `@mantlejs/client@^0.3.0`
+    (and `@mantlejs/react@^0.3.0` where used; `oauth-buttons` has no `@mantlejs` dependency by design).
+    `/r/aria-vega/*` and `/llms.txt` serve too.
 
 ---
 
