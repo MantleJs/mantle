@@ -35,7 +35,7 @@
     "url": "git+https://github.com/MantleJs/mantle.git",
     "directory": "packages/logger"
   },
-  "homepage": "https://github.com/MantleJs/mantle/tree/main/packages/logger#readme",
+  "homepage": "https://mantlejs.com/packages/logger/",
   "publishConfig": {
     "access": "public"
   },

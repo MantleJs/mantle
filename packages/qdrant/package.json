@@ -35,7 +35,7 @@
     "url": "git+https://github.com/MantleJs/mantle.git",
     "directory": "packages/qdrant"
   },
-  "homepage": "https://github.com/MantleJs/mantle/tree/main/packages/qdrant#readme",
+  "homepage": "https://mantlejs.com/packages/qdrant/",
   "publishConfig": {
     "access": "public"
   },

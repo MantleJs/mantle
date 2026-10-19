@@ -35,7 +35,7 @@
     "url": "git+https://github.com/MantleJs/mantle.git",
     "directory": "packages/auth"
   },
-  "homepage": "https://github.com/MantleJs/mantle/tree/main/packages/auth#readme",
+  "homepage": "https://mantlejs.com/packages/auth/",
   "publishConfig": {
     "access": "public"
   },

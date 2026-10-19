@@ -32,7 +32,7 @@
     "url": "git+https://github.com/MantleJs/mantle.git",
     "directory": "packages/socketio"
   },
-  "homepage": "https://github.com/MantleJs/mantle/tree/main/packages/socketio#readme",
+  "homepage": "https://mantlejs.com/packages/socketio/",
   "publishConfig": {
     "access": "public"
   },

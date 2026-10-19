@@ -68,7 +68,7 @@
     "url": "git+https://github.com/MantleJs/mantle.git",
     "directory": "packages/create-mantlejs"
   },
-  "homepage": "https://github.com/MantleJs/mantle/tree/main/packages/create-mantlejs#readme",
+  "homepage": "https://mantlejs.com/packages/create-mantlejs/",
   "publishConfig": {
     "access": "public"
   },

@@ -37,7 +37,7 @@
     "url": "git+https://github.com/MantleJs/mantle.git",
     "directory": "packages/mcp-code"
   },
-  "homepage": "https://github.com/MantleJs/mantle/tree/main/packages/mcp-code#readme",
+  "homepage": "https://mantlejs.com/packages/mcp-code/",
   "publishConfig": {
     "access": "public"
   },

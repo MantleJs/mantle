@@ -32,7 +32,7 @@
     "url": "git+https://github.com/MantleJs/mantle.git",
     "directory": "packages/auth-oauth"
   },
-  "homepage": "https://github.com/MantleJs/mantle/tree/main/packages/auth-oauth#readme",
+  "homepage": "https://mantlejs.com/packages/auth-oauth/",
   "publishConfig": {
     "access": "public"
   },

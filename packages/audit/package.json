@@ -35,7 +35,7 @@
     "url": "git+https://github.com/MantleJs/mantle.git",
     "directory": "packages/audit"
   },
-  "homepage": "https://github.com/MantleJs/mantle/tree/main/packages/audit#readme",
+  "homepage": "https://mantlejs.com/packages/audit/",
   "publishConfig": {
     "access": "public"
   },

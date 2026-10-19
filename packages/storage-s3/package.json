@@ -35,7 +35,7 @@
     "url": "git+https://github.com/MantleJs/mantle.git",
     "directory": "packages/storage-s3"
   },
-  "homepage": "https://github.com/MantleJs/mantle/tree/main/packages/storage-s3#readme",
+  "homepage": "https://mantlejs.com/packages/storage-s3/",
   "publishConfig": {
     "access": "public"
   },

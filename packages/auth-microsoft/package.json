@@ -32,7 +32,7 @@
     "url": "git+https://github.com/MantleJs/mantle.git",
     "directory": "packages/auth-microsoft"
   },
-  "homepage": "https://github.com/MantleJs/mantle/tree/main/packages/auth-microsoft#readme",
+  "homepage": "https://mantlejs.com/packages/auth-microsoft/",
   "publishConfig": {
     "access": "public"
   },

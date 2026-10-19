@@ -32,7 +32,7 @@
     "url": "git+https://github.com/MantleJs/mantle.git",
     "directory": "packages/auth-google"
   },
-  "homepage": "https://github.com/MantleJs/mantle/tree/main/packages/auth-google#readme",
+  "homepage": "https://mantlejs.com/packages/auth-google/",
   "publishConfig": {
     "access": "public"
   },
