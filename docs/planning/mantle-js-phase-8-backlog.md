@@ -9,6 +9,9 @@ these become actionable checklist items.
 those three themes, and none has a current demand signal. See the Phase 7 PRD's Decisions table, #1. Full
 specifications are unchanged from the Phase 7 backlog and are linked rather than duplicated, to avoid drift.
 
+> **Superseded (2026-10-12):** the [Phase 8 PRD](./mantle-js-phase-8-prd.md) took multi-tenancy (item 3) and the
+> rate limiting plugin (item 3); everything else moved to the [Phase 9 backlog](./mantle-js-phase-9-backlog.md).
+
 ---
 
 ## 1. `KnexTimeSeriesRepository` (Q9)
