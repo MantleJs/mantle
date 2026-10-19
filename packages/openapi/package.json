@@ -38,7 +38,7 @@
     "url": "git+https://github.com/MantleJs/mantle.git",
     "directory": "packages/openapi"
   },
-  "homepage": "https://github.com/MantleJs/mantle/tree/main/packages/openapi#readme",
+  "homepage": "https://mantlejs.com/packages/openapi/",
   "publishConfig": {
     "access": "public"
   },

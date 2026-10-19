@@ -35,7 +35,7 @@
     "url": "git+https://github.com/MantleJs/mantle.git",
     "directory": "packages/embeddings"
   },
-  "homepage": "https://github.com/MantleJs/mantle/tree/main/packages/embeddings#readme",
+  "homepage": "https://mantlejs.com/packages/embeddings/",
   "publishConfig": {
     "access": "public"
   },

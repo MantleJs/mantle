@@ -35,7 +35,7 @@
     "url": "git+https://github.com/MantleJs/mantle.git",
     "directory": "packages/mantle"
   },
-  "homepage": "https://github.com/MantleJs/mantle/tree/main/packages/mantle#readme",
+  "homepage": "https://mantlejs.com/packages/mantle/",
   "publishConfig": {
     "access": "public"
   },

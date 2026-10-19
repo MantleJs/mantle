@@ -35,7 +35,7 @@
     "url": "git+https://github.com/MantleJs/mantle.git",
     "directory": "packages/supabase"
   },
-  "homepage": "https://github.com/MantleJs/mantle/tree/main/packages/supabase#readme",
+  "homepage": "https://mantlejs.com/packages/supabase/",
   "publishConfig": {
     "access": "public"
   },

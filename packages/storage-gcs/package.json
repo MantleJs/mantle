@@ -35,7 +35,7 @@
     "url": "git+https://github.com/MantleJs/mantle.git",
     "directory": "packages/storage-gcs"
   },
-  "homepage": "https://github.com/MantleJs/mantle/tree/main/packages/storage-gcs#readme",
+  "homepage": "https://mantlejs.com/packages/storage-gcs/",
   "publishConfig": {
     "access": "public"
   },

@@ -35,7 +35,7 @@
     "url": "git+https://github.com/MantleJs/mantle.git",
     "directory": "packages/sync"
   },
-  "homepage": "https://github.com/MantleJs/mantle/tree/main/packages/sync#readme",
+  "homepage": "https://mantlejs.com/packages/sync/",
   "publishConfig": {
     "access": "public"
   },

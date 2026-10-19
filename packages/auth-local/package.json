@@ -35,7 +35,7 @@
     "url": "git+https://github.com/MantleJs/mantle.git",
     "directory": "packages/auth-local"
   },
-  "homepage": "https://github.com/MantleJs/mantle/tree/main/packages/auth-local#readme",
+  "homepage": "https://mantlejs.com/packages/auth-local/",
   "publishConfig": {
     "access": "public"
   },

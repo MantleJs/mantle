@@ -32,7 +32,7 @@
     "url": "git+https://github.com/MantleJs/mantle.git",
     "directory": "packages/auth-apple"
   },
-  "homepage": "https://github.com/MantleJs/mantle/tree/main/packages/auth-apple#readme",
+  "homepage": "https://mantlejs.com/packages/auth-apple/",
   "publishConfig": {
     "access": "public"
   },

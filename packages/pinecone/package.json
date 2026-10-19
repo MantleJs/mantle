@@ -35,7 +35,7 @@
     "url": "git+https://github.com/MantleJs/mantle.git",
     "directory": "packages/pinecone"
   },
-  "homepage": "https://github.com/MantleJs/mantle/tree/main/packages/pinecone#readme",
+  "homepage": "https://mantlejs.com/packages/pinecone/",
   "publishConfig": {
     "access": "public"
   },

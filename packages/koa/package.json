@@ -36,7 +36,7 @@
     "url": "git+https://github.com/MantleJs/mantle.git",
     "directory": "packages/koa"
   },
-  "homepage": "https://github.com/MantleJs/mantle/tree/main/packages/koa#readme",
+  "homepage": "https://mantlejs.com/packages/koa/",
   "publishConfig": {
     "access": "public"
   },

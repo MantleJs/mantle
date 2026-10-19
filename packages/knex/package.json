@@ -35,7 +35,7 @@
     "url": "git+https://github.com/MantleJs/mantle.git",
     "directory": "packages/knex"
   },
-  "homepage": "https://github.com/MantleJs/mantle/tree/main/packages/knex#readme",
+  "homepage": "https://mantlejs.com/packages/knex/",
   "publishConfig": {
     "access": "public"
   },

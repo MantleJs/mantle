@@ -32,7 +32,7 @@
     "url": "git+https://github.com/MantleJs/mantle.git",
     "directory": "packages/auth-facebook"
   },
-  "homepage": "https://github.com/MantleJs/mantle/tree/main/packages/auth-facebook#readme",
+  "homepage": "https://mantlejs.com/packages/auth-facebook/",
   "publishConfig": {
     "access": "public"
   },

@@ -35,7 +35,7 @@
     "url": "git+https://github.com/MantleJs/mantle.git",
     "directory": "packages/dynamodb"
   },
-  "homepage": "https://github.com/MantleJs/mantle/tree/main/packages/dynamodb#readme",
+  "homepage": "https://mantlejs.com/packages/dynamodb/",
   "publishConfig": {
     "access": "public"
   },

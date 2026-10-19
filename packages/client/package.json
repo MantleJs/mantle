@@ -46,7 +46,7 @@
     "url": "git+https://github.com/MantleJs/mantle.git",
     "directory": "packages/client"
   },
-  "homepage": "https://github.com/MantleJs/mantle/tree/main/packages/client#readme",
+  "homepage": "https://mantlejs.com/packages/client/",
   "publishConfig": {
     "access": "public"
   },

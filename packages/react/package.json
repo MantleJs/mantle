@@ -43,7 +43,7 @@
     "url": "git+https://github.com/MantleJs/mantle.git",
     "directory": "packages/react"
   },
-  "homepage": "https://github.com/MantleJs/mantle/tree/main/packages/react#readme",
+  "homepage": "https://mantlejs.com/packages/react/",
   "publishConfig": {
     "access": "public"
   },
