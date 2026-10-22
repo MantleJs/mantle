@@ -215,11 +215,11 @@ This monorepo is managed with [Nx](https://nx.dev).
 
 ```bash
 # Build
-npx nx build core                   # build one package
+npx nx build mantle                 # build one package
 npx nx run-many -t build            # build all packages
 
 # Test
-npx nx test core                    # test one package
+npx nx test mantle                  # test one package
 npx nx run-many -t test             # test all packages
 
 # Lint

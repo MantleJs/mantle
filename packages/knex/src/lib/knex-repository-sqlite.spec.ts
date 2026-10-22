@@ -55,3 +55,37 @@ describe("KnexRepository on SQLite — duplicate id", () => {
     expect(rejected.every((o) => o.reason instanceof Conflict)).toBe(true);
   });
 });
+
+describe("KnexRepository on SQLite — timestamps", () => {
+  let db: Knex;
+  let app: MantleApplication;
+
+  class StampedRepository extends KnexRepository<Item & { createdAt?: Date; updatedAt?: Date }> {
+    readonly tableName = "stamped";
+  }
+
+  beforeEach(async () => {
+    db = knexLib({ client: "better-sqlite3", connection: { filename: ":memory:" }, useNullAsDefault: true });
+    await db.schema.createTable("stamped", (table) => {
+      table.string("id").primary();
+      table.string("value");
+      table.datetime("createdAt");
+      table.datetime("updatedAt");
+    });
+    app = mantle().set("knex", db);
+  });
+
+  afterEach(async () => {
+    await db.destroy();
+  });
+
+  it("returns createdAt/updatedAt as Dates that serialize as RFC 3339, not epoch numbers", async () => {
+    const repo = new StampedRepository(app);
+    const saved = await repo.save({ id: "s1", value: "x" });
+    const found = await repo.findById("s1");
+    for (const entity of [saved, found]) {
+      expect(entity?.createdAt).toBeInstanceOf(Date);
+      expect(JSON.parse(JSON.stringify(entity))["updatedAt"]).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
+    }
+  });
+});

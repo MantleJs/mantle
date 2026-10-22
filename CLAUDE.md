@@ -369,9 +369,9 @@ implementation of this pattern.
 ## Nx Commands
 
 ```bash
-npx nx build core                   # build one package
+npx nx build mantle                 # build one package
 npx nx run-many -t build            # build all packages
-npx nx test core                    # test one package
+npx nx test mantle                  # test one package
 npx nx run-many -t test             # test all packages
 npx nx run-many -t lint             # lint all packages
 npx nx graph                        # visualise dependency graph
@@ -395,6 +395,12 @@ NX_DAEMON=false npx nx g @nx/js:library   --name=<name> --directory=packages/<na
 | Error handling  | Always throw a typed MantleError subclass   |
 | any             | Banned — use unknown and narrow             |
 | Test files      | Co-located with source, \*.spec.ts suffix   |
+| Dates           | Serialized as RFC 3339 (`toISOString()`)    |
+
+Dates in API output are RFC 3339 (the ISO 8601 profile: `2026-10-21T14:03:00.000Z`). Repositories either write
+`toISOString()` strings or return `Date` objects, which JSON serializes the same way; never locale formats or epoch
+numbers. The one deliberate exception is a value taken from a JWT (`exp`/`iat`, e.g. `IssuedAgentToken.expiresAt`),
+which stays an RFC 7519 NumericDate (epoch seconds). Internal-only epochs (OAuth state, token-store expiry) are fine.
 
 ---
 

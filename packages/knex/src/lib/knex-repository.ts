@@ -141,7 +141,17 @@ export abstract class KnexRepository<T extends Record<string, unknown>, D = Part
 
   /** Renames the keys of a returned row from column names to entity field names. */
   protected mapRowToEntity(row: Record<string, unknown>): T {
-    return Object.fromEntries(Object.entries(row).map(([column, value]) => [this.toEntityField(column), value])) as T;
+    const entity = Object.fromEntries(
+      Object.entries(row).map(([column, value]) => [this.toEntityField(column), value]),
+    );
+    // SQLite has no datetime type: the drivers bind a JS Date as epoch milliseconds and return the number. Restore
+    // the repository-managed timestamps to Dates so they serialize as RFC 3339, like the other clients' do.
+    if (this.timestamps && this.clientName.includes("sqlite")) {
+      for (const field of [this.createdAtField, this.updatedAtField]) {
+        if (typeof entity[field] === "number") entity[field] = new Date(entity[field] as number);
+      }
+    }
+    return entity as T;
   }
 
   private withTimestamps(

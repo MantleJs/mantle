@@ -1,0 +1,28 @@
+name: Feature request
+description: Suggest a new capability or a change to an existing one.
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What are you trying to do, and what gets in the way today?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: How you'd like it to work. Code showing the API you have in mind helps.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Workarounds you use now, or other designs you thought about.
+  - type: input
+    id: packages
+    attributes:
+      label: Package(s) affected
+      placeholder: "@mantlejs/mcp"

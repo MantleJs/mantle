@@ -64,16 +64,23 @@ runs in four stages:
       amended. `knex-repository-postgres.spec.ts` runs it when `MANTLE_PG_URL` is set. Also fixed: SQLSTATE `42501`
       (RLS violation) now maps to `Forbidden`. Open for item 17: ship `forTenant()` as a helper or keep it a recipe.
 
-- [ ] **5. License, community files, metadata** _(PRD spec 15)_
+- [x] **5. License, community files, metadata** _(PRD spec 15)_
   - [x] Root `LICENSE` (MIT) + a copy in all 40 `packages/*`. **Done (2026-10-12):** verified in
         `npm pack --dry-run` for `@mantlejs/audit`.
   - [x] Every package's `homepage` → `https://mantlejs.com/packages/<name>/`. **Done (2026-10-18):** all 40
         pages verified live (HTTP 200) before the change.
-  - [ ] `tools/check-package-metadata.mjs` (LICENSE present, `license: MIT`, homepage) in CI.
-  - [ ] `CONTRIBUTING.md`, `SECURITY.md`, `CODE_OF_CONDUCT.md`, issue templates, PR template.
-  - [ ] Enable GitHub private vulnerability reporting.
-  - [ ] _(manual)_ GitHub repo description, website, and topics.
-  - [ ] RFC 3339 date-serialization audit; conventions table note.
+  - [x] `tools/check-package-metadata.mjs` (LICENSE present, `license: MIT`, homepage) in CI. **Done
+        (2026-10-21):** also checks each LICENSE is identical to the root one; fails on a removed LICENSE.
+  - [x] `CONTRIBUTING.md`, `SECURITY.md`, `CODE_OF_CONDUCT.md`, issue templates, PR template. **Done
+        (2026-10-21):** Contributor Covenant 2.1 with `conduct@mantlejs.com`; bug/feature/adapter-request forms
+        (blank issues off, security routed to private advisories); `adapter-request` label created.
+  - [x] Enable GitHub private vulnerability reporting. **Done (2026-10-21).**
+  - [x] _(manual)_ GitHub repo description, website, and topics. **Done (2026-10-21):** applied via `gh repo edit`
+        (20 topics, website mantlejs.com).
+  - [x] RFC 3339 date-serialization audit; conventions table note. **Done (2026-10-21):** every adapter writes
+        `toISOString()` or returns `Date`s, except knex on SQLite, which returned `createdAt`/`updatedAt` as epoch
+        milliseconds — fixed (converted back to `Date` on read). JWT-derived values (`IssuedAgentToken.expiresAt`)
+        stay RFC 7519 NumericDate, by design. Note added to `CLAUDE.md`'s conventions.
 
   **Accept:** CI guard fails on a package with its `LICENSE` removed; community files render on GitHub's
   community profile page as complete.

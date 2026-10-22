@@ -1,0 +1,51 @@
+name: Adapter request
+description: Ask for support for a new database, vector store, storage backend, transport, or auth provider.
+labels: ["adapter-request"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Mantle adapters implement a Domain interface (`Repository<T>`, `VectorRepository<T>`, `GraphRepository<T>`, a
+        storage adapter, a transport, or an auth strategy). Telling us how you'd use it helps us judge demand and design.
+  - type: dropdown
+    id: kind
+    attributes:
+      label: Kind of adapter
+      options:
+        - Database (Repository<T>)
+        - Vector store (VectorRepository<T>)
+        - Graph database (GraphRepository<T>)
+        - File storage
+        - HTTP or realtime transport
+        - Auth provider (OAuth / sign-in)
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: technology
+    attributes:
+      label: Technology
+      description: The product or library, with a link to its official Node.js driver or SDK.
+      placeholder: "CockroachDB — https://www.npmjs.com/package/pg"
+    validations:
+      required: true
+  - type: textarea
+    id: use-case
+    attributes:
+      label: Your use case
+      description: What you're building, and why the existing adapters don't fit.
+    validations:
+      required: true
+  - type: textarea
+    id: query-support
+    attributes:
+      label: Query capabilities that matter to you
+      description: For databases — which `where` operators, nested paths, `$contains`, transactions, or pagination style you need.
+  - type: dropdown
+    id: contribute
+    attributes:
+      label: Would you help build it?
+      options:
+        - "Yes, I'd like to open a PR"
+        - "I can help test it"
+        - "Not right now"
