@@ -1,8 +1,19 @@
+import type { HttpResponseMeta } from "@mantlejs/mantle";
+
+/** Per-request transport state handed to every route handler. */
+export interface RequestInfo {
+  ip?: string;
+  requestId: string;
+  /** Receives the service call's `context.http`; applied to the response on success and on error. */
+  response: HttpResponseMeta;
+}
+
 export type RouteHandler = (
   params: Record<string, string>,
   body: unknown,
   query: Record<string, string | string[]>,
   headers: Record<string, string>,
+  request: RequestInfo,
 ) => Promise<{
   status: number;
   body: unknown;

@@ -8,6 +8,7 @@ import {
   NotAuthenticated,
   NotFound,
   NotImplemented,
+  PreconditionFailed,
   TooManyRequests,
   Unavailable,
   Unprocessable,
@@ -81,6 +82,7 @@ describe("HTTP status codes", () => {
     [NotFound, 404],
     [MethodNotAllowed, 405],
     [Conflict, 409],
+    [PreconditionFailed, 412],
     [Unprocessable, 422],
     [TooManyRequests, 429],
     [GeneralError, 500],
@@ -90,5 +92,18 @@ describe("HTTP status codes", () => {
 
   it.each(cases)("%s → %i", (Cls, expectedCode) => {
     expect(new Cls().code).toBe(expectedCode);
+  });
+});
+
+describe("MantleError.headers", () => {
+  it("is undefined by default", () => {
+    expect(new TooManyRequests().headers).toBeUndefined();
+  });
+
+  it("can be assigned and is never serialized into the body", () => {
+    const err = Object.assign(new TooManyRequests("Slow down"), { headers: { "Retry-After": "30" } });
+    expect(err.headers).toEqual({ "Retry-After": "30" });
+    expect(err.toJSON()).not.toHaveProperty("headers");
+    expect(JSON.parse(JSON.stringify(err))).not.toHaveProperty("headers");
   });
 });

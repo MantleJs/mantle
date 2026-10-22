@@ -5,6 +5,12 @@ export class MantleError extends Error {
   readonly errors?: unknown[];
   /** Actionable guidance for the caller — what to change so the request succeeds. Serialized in toJSON(). */
   readonly hint?: string;
+  /**
+   * Response headers an HTTP transport sends with this error (e.g. `Retry-After` on a 429), merged over
+   * any `context.http.headers` hooks set earlier. Never serialized into the body; ignored by non-HTTP
+   * transports. Assign after construction: `Object.assign(new TooManyRequests(), { headers: { … } })`.
+   */
+  headers?: Record<string, string>;
 
   constructor(message: string, code: number, className: string, data?: unknown, errors?: unknown[], hint?: string) {
     super(message);
@@ -70,6 +76,12 @@ export class Conflict extends MantleError {
 export class Unprocessable extends MantleError {
   constructor(message = "Unprocessable Entity", data?: unknown, errors?: unknown[], hint?: string) {
     super(message, 422, "unprocessable", data, errors, hint);
+  }
+}
+
+export class PreconditionFailed extends MantleError {
+  constructor(message = "Precondition Failed", data?: unknown, errors?: unknown[], hint?: string) {
+    super(message, 412, "precondition-failed", data, errors, hint);
   }
 }
 

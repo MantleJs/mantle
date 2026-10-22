@@ -5,9 +5,11 @@ import type {
   BatchDispatchOptions,
   BatchResult,
   ChannelPublisher,
+  DispatchOptions,
   HookConfig,
   HookContext,
   HookFunction,
+  HttpResponseMeta,
   Id,
   Logger,
   MantleApplication,
@@ -49,12 +51,20 @@ const SERVICE_EVENTS: Partial<Record<string, string>> = {
   remove: "removed",
 };
 
-async function runHookChain<T>(hooks: HookFunction<T>[], ctx: HookContext<T>): Promise<HookContext<T>> {
-  let current = ctx;
+/**
+ * Runs hooks in order, storing each returned context in `state` as it goes, so when a hook throws the
+ * error path still sees what earlier hooks returned (e.g. a rate-limit hook's response headers).
+ */
+async function runHookChain<T>(hooks: HookFunction<T>[], state: { ctx: HookContext<T> }): Promise<void> {
   for (const hook of hooks) {
-    current = await hook(current);
+    state.ctx = await hook(state.ctx);
   }
-  return current;
+}
+
+function copyHttpResponse(http: HttpResponseMeta | undefined, response: HttpResponseMeta | undefined): void {
+  if (!http || !response) return;
+  if (http.status !== undefined) response.status = http.status;
+  if (http.headers) response.headers = { ...response.headers, ...http.headers };
 }
 
 class ServiceHandleImpl<T> implements ServiceHandle<T> {
@@ -173,29 +183,34 @@ class ServiceHandleImpl<T> implements ServiceHandle<T> {
     params?: ServiceParams,
     id?: Id,
     data?: Partial<T>,
+    options?: DispatchOptions,
   ): Promise<T | T[] | Paginated<T>> {
-    let ctx = this.makeContext(method, params, id, data);
+    const state = { ctx: this.makeContext(method, params, id, data) };
 
     try {
-      ctx = await runHookChain(this.getPhaseHooks("before", method), ctx);
+      try {
+        await runHookChain(this.getPhaseHooks("before", method), state);
 
-      if (ctx.result === undefined) {
-        ctx.result = await this.callServiceMethod(ctx);
+        if (state.ctx.result === undefined) {
+          state.ctx.result = await this.callServiceMethod(state.ctx);
+        }
+
+        await runHookChain(this.getPhaseHooks("after", method), state);
+
+        const serviceEventName = SERVICE_EVENTS[method] ?? (this.options.events.includes(method) ? method : undefined);
+        if (serviceEventName && state.ctx.event !== null) {
+          this.app.emit("service:event", this.path, serviceEventName, state.ctx.result, state.ctx.params);
+        }
+
+        return state.ctx.result as T | T[] | Paginated<T>;
+      } catch (error) {
+        state.ctx.error = error instanceof Error ? error : new GeneralError(String(error));
+        await runHookChain(this.getPhaseHooks("error", method), state);
+        if (state.ctx.error) throw state.ctx.error;
+        return state.ctx.result as T | T[] | Paginated<T>;
       }
-
-      ctx = await runHookChain(this.getPhaseHooks("after", method), ctx);
-
-      const serviceEventName = SERVICE_EVENTS[method] ?? (this.options.events.includes(method) ? method : undefined);
-      if (serviceEventName) {
-        this.app.emit("service:event", this.path, serviceEventName, ctx.result, ctx.params);
-      }
-
-      return ctx.result as T | T[] | Paginated<T>;
-    } catch (error) {
-      ctx.error = error instanceof Error ? error : new GeneralError(String(error));
-      ctx = await runHookChain(this.getPhaseHooks("error", method), ctx);
-      if (ctx.error) throw ctx.error;
-      return ctx.result as T | T[] | Paginated<T>;
+    } finally {
+      copyHttpResponse(state.ctx.http, options?.response);
     }
   }
 
@@ -223,8 +238,14 @@ class ServiceHandleImpl<T> implements ServiceHandle<T> {
     return this.runPipeline("remove", params, id) as Promise<T>;
   }
 
-  async dispatch(method: string, data?: Partial<T>, id?: Id, params?: ServiceParams): Promise<T | T[] | Paginated<T>> {
-    return this.runPipeline(method, params, id, data);
+  async dispatch(
+    method: string,
+    data?: Partial<T>,
+    id?: Id,
+    params?: ServiceParams,
+    options?: DispatchOptions,
+  ): Promise<T | T[] | Paginated<T>> {
+    return this.runPipeline(method, params, id, data, options);
   }
 
   describe(): ServiceDescriptor {

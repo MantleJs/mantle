@@ -1,19 +1,42 @@
 import type { Application, NextFunction, Request, Response } from "express";
-import type { MantleApplication, ServiceHandle, ServiceOptions, ServiceParams } from "@mantlejs/mantle";
-import { parseQueryString } from "@mantlejs/mantle";
+import type { HttpResponseMeta, Id, MantleApplication, ServiceOptions, ServiceParams } from "@mantlejs/mantle";
+import { parseQueryString, successResponse } from "@mantlejs/mantle";
 
 const STANDARD_METHODS = new Set(["find", "get", "create", "update", "patch", "remove"]);
 
-function buildParams(req: Request): ServiceParams {
-  // Express 5's default "simple" parser leaves bracket keys flat; run the canonical
-  // Mantle parser so every transport produces identical params.query.
+/** Params shared by service routes and the batch endpoint. `res.locals` is filled by the request-ID middleware. */
+export function requestParams(req: Request, res: Response): ServiceParams {
   return {
-    query: parseQueryString(req.query as Record<string, string | string[]>),
     provider: "rest",
     headers: req.headers as Record<string, string>,
     request: req,
+    ip: res.locals["ip"] as string | undefined,
+    requestId: res.locals["requestId"] as string,
   };
 }
+
+function buildParams(req: Request, res: Response): ServiceParams {
+  // Express 5's default "simple" parser leaves bracket keys flat; run the canonical
+  // Mantle parser so every transport produces identical params.query.
+  return { ...requestParams(req, res), query: parseQueryString(req.query as Record<string, string | string[]>) };
+}
+
+interface RouteSpec {
+  verb: "get" | "post" | "put" | "patch" | "delete";
+  suffix: string;
+  status: number;
+  withId: boolean;
+  withBody: boolean;
+}
+
+const ROUTES: Record<string, RouteSpec> = {
+  find: { verb: "get", suffix: "", status: 200, withId: false, withBody: false },
+  get: { verb: "get", suffix: "/:__id", status: 200, withId: true, withBody: false },
+  create: { verb: "post", suffix: "", status: 201, withId: false, withBody: true },
+  update: { verb: "put", suffix: "/:__id", status: 200, withId: true, withBody: true },
+  patch: { verb: "patch", suffix: "/:__id", status: 200, withId: true, withBody: true },
+  remove: { verb: "delete", suffix: "/:__id", status: 200, withId: true, withBody: false },
+};
 
 export function mountServiceRoutes(
   expressApp: Application,
@@ -24,88 +47,32 @@ export function mountServiceRoutes(
   const methods = options.methods ?? ["find", "get", "create", "update", "patch", "remove"];
   const routePath = "/" + path.replace(/^\/+/, "");
 
-  if (methods.includes("find")) {
-    expressApp.get(routePath, async (req: Request, res: Response, next: NextFunction) => {
-      try {
-        const result = await app.service(path).find(buildParams(req));
-        res.json(result);
-      } catch (err) {
-        next(err);
-      }
-    });
-  }
-
-  if (methods.includes("get")) {
-    expressApp.get(`${routePath}/:__id`, async (req: Request, res: Response, next: NextFunction) => {
-      try {
-        const result = await app.service(path).get(req.params["__id"] as string, buildParams(req));
-        res.json(result);
-      } catch (err) {
-        next(err);
-      }
-    });
-  }
-
-  if (methods.includes("create")) {
-    expressApp.post(routePath, async (req: Request, res: Response, next: NextFunction) => {
-      try {
-        const result = await app.service(path).create(req.body as Record<string, unknown>, buildParams(req));
-        res.status(201).json(result);
-      } catch (err) {
-        next(err);
-      }
-    });
-  }
-
-  if (methods.includes("update")) {
-    expressApp.put(`${routePath}/:__id`, async (req: Request, res: Response, next: NextFunction) => {
-      try {
-        const result = await app
-          .service(path)
-          .update(req.params["__id"] as string, req.body as Record<string, unknown>, buildParams(req));
-        res.json(result);
-      } catch (err) {
-        next(err);
-      }
-    });
-  }
-
-  if (methods.includes("patch")) {
-    expressApp.patch(`${routePath}/:__id`, async (req: Request, res: Response, next: NextFunction) => {
-      try {
-        const result = await app
-          .service(path)
-          .patch(req.params["__id"] as string, req.body as Record<string, unknown>, buildParams(req));
-        res.json(result);
-      } catch (err) {
-        next(err);
-      }
-    });
-  }
-
-  if (methods.includes("remove")) {
-    expressApp.delete(`${routePath}/:__id`, async (req: Request, res: Response, next: NextFunction) => {
-      try {
-        const result = await app.service(path).remove(req.params["__id"] as string, buildParams(req));
-        res.json(result);
-      } catch (err) {
-        next(err);
-      }
-    });
-  }
-
   for (const method of methods) {
-    if (!STANDARD_METHODS.has(method)) {
-      const customMethod = method;
-      expressApp.post(`${routePath}/${customMethod}`, async (req: Request, res: Response, next: NextFunction) => {
-        try {
-          const handle = app.service(path) as ServiceHandle<unknown>;
-          const result = await handle.dispatch(customMethod, req.body as Record<string, unknown>, undefined, buildParams(req));
-          res.json(result);
-        } catch (err) {
-          next(err);
-        }
-      });
-    }
+    // Custom methods dispatch as (data, params) via POST /path/<method>.
+    const spec: RouteSpec = STANDARD_METHODS.has(method)
+      ? (ROUTES[method] as RouteSpec)
+      : { verb: "post", suffix: `/${method}`, status: 200, withId: false, withBody: true };
+
+    expressApp[spec.verb](routePath + spec.suffix, async (req: Request, res: Response, next: NextFunction) => {
+      const response: HttpResponseMeta = {};
+      try {
+        const result = await app
+          .service(path)
+          .dispatch(
+            method,
+            spec.withBody ? (req.body as Record<string, unknown>) : undefined,
+            spec.withId ? (req.params["__id"] as Id) : undefined,
+            buildParams(req, res),
+            { response },
+          );
+        const { status, headers, bodyless } = successResponse(response, spec.status);
+        res.set(headers).status(status);
+        if (bodyless) res.end();
+        else res.json(result);
+      } catch (err) {
+        res.set(response.headers ?? {});
+        next(err);
+      }
+    });
   }
 }

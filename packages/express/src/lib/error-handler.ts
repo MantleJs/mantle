@@ -1,9 +1,11 @@
 import type { NextFunction, Request, Response } from "express";
-import { MantleError } from "@mantlejs/mantle";
+import { errorResponseHeaders, MantleError } from "@mantlejs/mantle";
 
 export function errorHandler() {
   return (err: unknown, _req: Request, res: Response, _next: NextFunction): void => {
     if (err instanceof MantleError) {
+      // Hook headers were already set by the route (see routes.ts); the error's own headers win.
+      res.set(errorResponseHeaders(undefined, err));
       res.status(err.code).json(err.toJSON());
       return;
     }

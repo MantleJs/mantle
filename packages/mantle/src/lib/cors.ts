@@ -4,6 +4,19 @@ import type { CorsOptions } from "./types.js";
 export const CORS_DEFAULT_METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE"];
 
 /**
+ * Default `Access-Control-Expose-Headers` list, so browser clients can read the headers Mantle emits.
+ * Passing `exposedHeaders` replaces it; spread this constant to extend it instead.
+ */
+export const CORS_DEFAULT_EXPOSED_HEADERS = [
+  "X-Request-Id",
+  "RateLimit",
+  "RateLimit-Policy",
+  "Retry-After",
+  "ETag",
+  "Idempotent-Replayed",
+];
+
+/**
  * Resolve `CorsOptions.origin` against a request's `Origin` header into the concrete value to send back
  * as `Access-Control-Allow-Origin`, or `undefined` when the origin is disallowed (no CORS headers should
  * be sent). Shared by all three HTTP transports so `origin: true` (reflect), a fixed string, an allow-list,

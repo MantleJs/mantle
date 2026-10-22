@@ -1,4 +1,4 @@
-import { withContext, getContext } from "./context.js";
+import { createRequestContext, withContext, getContext } from "./context.js";
 
 describe("withContext / getContext", () => {
   it("returns undefined outside a withContext scope", () => {
@@ -42,5 +42,17 @@ describe("withContext / getContext", () => {
       });
       expect(getContext()?.correlationId).toBe("outer");
     });
+  });
+});
+
+describe("createRequestContext", () => {
+  it("sets requestId", () => {
+    expect(createRequestContext("req-1").requestId).toBe("req-1");
+  });
+
+  it("exposes correlationId as a deprecated alias that loggers spreading the context don't see", () => {
+    const context = createRequestContext("req-1");
+    expect(context.correlationId).toBe("req-1");
+    expect({ ...context }).toEqual({ requestId: "req-1" });
   });
 });
