@@ -81,7 +81,7 @@ abstract class KnexRepository<T, D = Partial<T>> implements Repository<T, D> {
 | ---------------------------------- | ------------------------------------------------ |
 | `findAll(params?)`                 | Returns all rows matching `QueryParams`          |
 | `findById(id)`                     | Returns one row or `null`                        |
-| `save(data)`                       | Inserts a row, returns the inserted record       |
+| `save(data)`                       | Inserts a row, returns the inserted record; `Conflict` on a duplicate primary/unique key (every client) |
 | `saveAll(data[])`                  | Bulk-inserts rows, returns all inserted records  |
 | `updateById(id, data)`             | Replaces a row, throws `NotFound` if missing     |
 | `patchById(id, data)`              | Merges into a row, throws `NotFound` if missing  |

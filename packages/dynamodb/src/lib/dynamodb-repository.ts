@@ -427,16 +427,28 @@ export abstract class DynamoDbRepository<T extends Record<string, unknown>, D = 
         raw[this.partitionKey] = crypto.randomUUID();
       }
       const payload = this.withTimestamps(raw, "create");
-      const item = this.toItem(payload);
+      // save() creates: refuse to overwrite an existing item, atomically, like every other adapter's
+      // duplicate-key insert. With a sort key this still checks the full primary key of the target item.
+      const put = {
+        TableName: this.tableName,
+        Item: this.toItem(payload),
+        ConditionExpression: "attribute_not_exists(#pk)",
+        ExpressionAttributeNames: { "#pk": this.toField(this.partitionKey) },
+      };
 
       if (this._txItems) {
-        this._txItems.push({ Put: { TableName: this.tableName, Item: item } });
+        this._txItems.push({ Put: put });
         return payload as unknown as T;
       }
 
-      await this.client.send(new PutItemCommand({ TableName: this.tableName, Item: item }));
+      await this.client.send(new PutItemCommand(put));
       return payload as unknown as T;
     } catch (err) {
+      if (this.isConditionalCheckFailed(err)) {
+        throw new Conflict(
+          `An item with ${this.partitionKey} = ${String((data as Record<string, unknown>)[this.partitionKey])} already exists`,
+        );
+      }
       throw this.wrapError(err);
     }
   }

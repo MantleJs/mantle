@@ -140,7 +140,7 @@ Implements `Repository<T, D>` for MongoDB. Subclasses must declare `collectionNa
 | ---------------------- | ----------------------------------------------------------------------- |
 | `findAll(params?)`     | Query documents with filtering, sorting, offset pagination, projection  |
 | `findById(id)`         | Fetch a single record by id; returns `null` if not found                |
-| `save(data)`           | Insert a document (`_id` auto-generated unless `data.id` is given)      |
+| `save(data)`           | Insert a document (`_id` auto-generated unless `data.id` is given — it must be a 24-hex ObjectId); `Conflict` on a duplicate `_id` |
 | `saveAll(data[])`      | Batch insert (single `insertMany` call)                                 |
 | `updateById(id, data)` | Replace the full document (`findOneAndReplace`); throws `NotFound` if absent |
 | `patchById(id, data)`  | Merge partial fields (`$set`); `undefined` values are dropped; throws `NotFound` if absent |

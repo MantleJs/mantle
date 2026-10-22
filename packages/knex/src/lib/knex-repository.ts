@@ -86,9 +86,17 @@ export abstract class KnexRepository<T extends Record<string, unknown>, D = Part
     return (this.knex.client as unknown as { config?: { client?: string } }).config?.client ?? "";
   }
 
+  /**
+   * The id to re-fetch a row by on clients without RETURNING. A caller-supplied id wins: MySQL's insert id is
+   * only meaningful for AUTO_INCREMENT columns (it's `0` for a string primary key).
+   */
+  private insertedId(payload: Record<string, unknown>, insertId: unknown): Id {
+    return (payload[this.toColumn(this.idField)] ?? insertId) as Id;
+  }
+
   private get supportsReturning(): boolean {
     const client = this.clientName;
-    return ["pg", "postgresql", "sqlite3", "mssql", "oracledb"].some((c) => client.startsWith(c));
+    return ["pg", "postgresql", "sqlite3", "better-sqlite3", "mssql", "oracledb"].some((c) => client.startsWith(c));
   }
 
   protected buildQuery(params?: QueryParams): Knex.QueryBuilder {
@@ -179,9 +187,9 @@ export abstract class KnexRepository<T extends Record<string, unknown>, D = Part
         const [row] = await this.qb(this.tableName).insert(payload).returning("*");
         return this.mapRowToEntity(row as Record<string, unknown>);
       }
-      const [id] = await this.qb(this.tableName).insert(payload);
+      const [insertId] = await this.qb(this.tableName).insert(payload);
       const row = await this.qb(this.tableName)
-        .where({ [this.toColumn(this.idField)]: id as Id })
+        .where({ [this.toColumn(this.idField)]: this.insertedId(payload, insertId) })
         .first();
       return this.mapRowToEntity(row as Record<string, unknown>);
     } catch (err) {
@@ -202,9 +210,9 @@ export abstract class KnexRepository<T extends Record<string, unknown>, D = Part
       // MySQL/MariaDB: insert rows individually to get each inserted id
       const results = await Promise.all(
         payload.map(async (row) => {
-          const [id] = await this.qb(this.tableName).insert(row);
+          const [insertId] = await this.qb(this.tableName).insert(row);
           return this.qb(this.tableName)
-            .where({ [this.toColumn(this.idField)]: id as Id })
+            .where({ [this.toColumn(this.idField)]: this.insertedId(row, insertId) })
             .first();
         }),
       );
@@ -318,7 +326,10 @@ export abstract class KnexRepository<T extends Record<string, unknown>, D = Part
     // unrelated TypeError, masking the original, already-correct error.
     if (err instanceof MantleError) return err;
     if (!(err instanceof Error)) return new GeneralError("An unknown database error occurred");
+    if (isDuplicateKey(err)) return new Conflict(err.message);
     const code = (err as { code?: string }).code ?? "";
+    // SQLite reports constraint failures by name, not SQLSTATE; the non-duplicate ones mirror Postgres 23xxx.
+    if (code.startsWith("SQLITE_CONSTRAINT")) return new BadRequest(err.message);
     const prefix = code.slice(0, 2);
     switch (prefix) {
       case "08": // Connection errors
@@ -338,4 +349,23 @@ export abstract class KnexRepository<T extends Record<string, unknown>, D = Part
         return new GeneralError(err.message);
     }
   }
+}
+
+/**
+ * A duplicate primary/unique key on insert, across the four supported clients. Postgres reports SQLSTATE
+ * `23505`; the other drivers use their own codes rather than SQLSTATE. `save()` relies on this being
+ * `Conflict` everywhere — it's the atomic insert-if-absent that `@mantlejs/idempotency` builds on.
+ */
+function isDuplicateKey(err: Error): boolean {
+  const { code, errno, number } = err as { code?: unknown; errno?: unknown; number?: unknown };
+  return (
+    code === "23505" || // pg
+    code === "SQLITE_CONSTRAINT_PRIMARYKEY" || // better-sqlite3
+    code === "SQLITE_CONSTRAINT_UNIQUE" ||
+    (code === "SQLITE_CONSTRAINT" && /UNIQUE constraint failed/.test(err.message)) || // sqlite3
+    code === "ER_DUP_ENTRY" || // mysql / mysql2
+    errno === 1062 ||
+    number === 2627 || // mssql (tedious): primary key / unique constraint
+    number === 2601 // mssql: unique index
+  );
 }

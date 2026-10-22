@@ -40,10 +40,13 @@ runs in four stages:
   comes from the error. Transports now dispatch via `ServiceHandle.dispatch(…, { response })` so an internal
   call's `context.http` can't leak into the outer response.
 
-- [ ] **2. Spike: duplicate-id `Conflict` across adapters** _(PRD spec 4, Decision #6)_
+- [x] **2. Spike: duplicate-id `Conflict` across adapters** _(PRD spec 4, Decision #6)_
       For each `Repository<T>` adapter, does `save()` with an existing primary key throw `Conflict` (atomically)?
       **Accept:** per-adapter findings recorded in Decision #6. Adapters that don't are either fixed (if it's a
       bug) or documented as unsupported idempotency stores.
+      **Done (2026-10-21):** findings in Decision #6. Fixed knex (duplicate-key mapping on SQLite/MySQL/MSSQL, plus
+      two `save()` bugs it uncovered) and dynamodb (`save()` overwrote silently); pinecone/qdrant documented as
+      unsupported. Open for item 9: Mongo needs ObjectId-shaped record ids.
 
 - [ ] **3. Spike: MCP SDK mechanics** _(PRD specs 8–11)_
       Against `@modelcontextprotocol/sdk` ^1.29: tool annotations on `registerTool`, reading `_meta` from a
