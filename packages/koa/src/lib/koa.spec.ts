@@ -1,15 +1,25 @@
 import type { AddressInfo } from "node:net";
 import KoaLib from "koa";
-import { mantle, getContext } from "@mantlejs/mantle";
+import {
+  checkTransportConformance,
+  CORS_DEFAULT_EXPOSED_HEADERS,
+  getContext,
+  mantle,
+  registerTransportConformanceServices,
+  TRANSPORT_CONFORMANCE_CASES,
+} from "@mantlejs/mantle";
 import { BadRequest, NotFound } from "@mantlejs/mantle";
 import type { HttpRouterLike, ServiceParams } from "@mantlejs/mantle";
 import { koa } from "./koa.js";
 
-async function startApp(configure: (app: ReturnType<typeof mantle>) => void): Promise<{
+async function startApp(
+  configure: (app: ReturnType<typeof mantle>) => void,
+  options?: Parameters<typeof koa>[0],
+): Promise<{
   port: number;
   stop: () => Promise<void>;
 }> {
-  const app = mantle().configure(koa());
+  const app = mantle().configure(koa(options));
   configure(app);
   const server = app.listen(0);
   await new Promise<void>((resolve) => server.once("listening", resolve));
@@ -206,55 +216,61 @@ describe("koa adapter", () => {
     });
   });
 
-  describe("correlation ID", () => {
-    it("sets x-correlation-id response header on every request", async () => {
-      const { port, stop } = await startApp((app) => {
-        app.use("users", new TestUserService());
-      });
+  describe("transport conformance (shared table)", () => {
+    it.each(TRANSPORT_CONFORMANCE_CASES.map((c) => [c.name, c] as const))("%s", async (_name, testCase) => {
+      const { port, stop } = await startApp(registerTransportConformanceServices, { trustProxy: testCase.trustProxy });
       try {
-        const res = await fetch(`http://localhost:${port}/users`);
-        expect(res.headers.get("x-correlation-id")).toBeTruthy();
-      } finally {
-        await stop();
-      }
-    });
-
-    it("echoes a client-supplied x-correlation-id header", async () => {
-      const { port, stop } = await startApp((app) => {
-        app.use("users", new TestUserService());
-      });
-      try {
-        const res = await fetch(`http://localhost:${port}/users`, {
-          headers: { "x-correlation-id": "my-trace-id" },
+        const { method, path, headers, body } = testCase.request;
+        const res = await fetch(`http://127.0.0.1:${port}${path}`, {
+          method,
+          headers: { "Content-Type": "application/json", ...headers },
+          body: body === undefined ? undefined : JSON.stringify(body),
         });
-        expect(res.headers.get("x-correlation-id")).toBe("my-trace-id");
+        const failures = checkTransportConformance(testCase, {
+          status: res.status,
+          headers: res.headers,
+          body: await res.text(),
+        });
+        expect(failures).toEqual([]);
       } finally {
         await stop();
       }
     });
 
-    it("makes correlationId available via getContext() inside hooks", async () => {
-      let capturedCorrelationId: string | undefined;
-
+    it("keeps getContext().correlationId as a deprecated alias of requestId", async () => {
+      let captured: string | undefined;
       const { port, stop } = await startApp((app) => {
         app.use("users", new TestUserService());
         app.service("users").hooks({
           before: {
             find: [
               (ctx) => {
-                capturedCorrelationId = getContext()?.correlationId;
+                captured = getContext()?.correlationId;
                 return ctx;
               },
             ],
           },
         });
       });
-
       try {
-        await fetch(`http://localhost:${port}/users`, {
-          headers: { "x-correlation-id": "hook-trace-id" },
+        await fetch(`http://localhost:${port}/users`, { headers: { "X-Request-Id": "hook-req-id" } });
+        expect(captured).toBe("hook-req-id");
+      } finally {
+        await stop();
+      }
+    });
+
+    it("puts the request ID on a malformed-body error response", async () => {
+      const { port, stop } = await startApp((app) => {
+        app.use("users", new TestUserService());
+      });
+      try {
+        const res = await fetch(`http://localhost:${port}/users`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "X-Request-Id": "bad-body" },
+          body: "{not json",
         });
-        expect(capturedCorrelationId).toBe("hook-trace-id");
+        expect(res.headers.get("x-request-id")).toBe("bad-body");
       } finally {
         await stop();
       }
@@ -691,6 +707,26 @@ describe("CORS", () => {
       stop: () => new Promise<void>((resolve, reject) => server.close((err) => (err ? reject(err) : resolve()))),
     };
   }
+
+  it("exposes Mantle's response headers by default", async () => {
+    const { port, stop } = await startWith({ cors: true });
+    try {
+      const res = await fetch(`http://localhost:${port}/users`, { headers: { Origin: "https://app.example.com" } });
+      expect(res.headers.get("access-control-expose-headers")).toBe(CORS_DEFAULT_EXPOSED_HEADERS.join(","));
+    } finally {
+      await stop();
+    }
+  });
+
+  it("replaces the default exposed headers when exposedHeaders is set", async () => {
+    const { port, stop } = await startWith({ cors: { exposedHeaders: ["X-Custom"] } });
+    try {
+      const res = await fetch(`http://localhost:${port}/users`, { headers: { Origin: "https://app.example.com" } });
+      expect(res.headers.get("access-control-expose-headers")).toBe("X-Custom");
+    } finally {
+      await stop();
+    }
+  });
 
   it("sends no CORS headers by default", async () => {
     const { port, stop } = await startWith();

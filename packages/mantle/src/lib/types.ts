@@ -47,6 +47,10 @@ export interface ServiceParams {
   rooms?: string | string[];
   /** True on `service:event` emissions that did NOT pass through the hook pipeline — e.g. Supabase change-feed re-emissions of direct DB mutations. */
   external?: boolean;
+  /** Client address, set by the HTTP transports. Read from `X-Forwarded-For` only when the transport's `trustProxy` option allows it. */
+  ip?: string;
+  /** Request ID, set by the HTTP transports from a valid `X-Request-Id` (or a generated UUID) and echoed in the response. */
+  requestId?: string;
   [key: string]: unknown;
 }
 
@@ -216,7 +220,7 @@ export interface CorsOptions {
   methods?: string[];
   /** Allowed request headers for `Access-Control-Allow-Headers`. Default: reflects `Access-Control-Request-Headers`. */
   allowedHeaders?: string[];
-  /** Headers exposed to the browser via `Access-Control-Expose-Headers`. */
+  /** Headers exposed to the browser via `Access-Control-Expose-Headers`. Default: `CORS_DEFAULT_EXPOSED_HEADERS`. */
   exposedHeaders?: string[];
   /** Allow credentials (cookies, `Authorization` header) cross-origin. Default: `false`. */
   credentials?: boolean;
@@ -233,6 +237,17 @@ export interface AgentContext {
   id: string;
   scope: CapabilityScope;
   delegatingUserId: string;
+}
+
+/**
+ * Response metadata a hook can set on `context.http`. The HTTP transports (express, koa, http) apply it:
+ * `status` overrides the route's default on success (`204`/`304` send no body), and `headers` are sent on
+ * success and on error, including headers set by a before hook that ran before a later hook threw.
+ * socket.io and MCP ignore it.
+ */
+export interface HttpResponseMeta {
+  status?: number;
+  headers?: Record<string, string>;
 }
 
 export interface HookContext<T = unknown> {
@@ -253,6 +268,13 @@ export interface HookContext<T = unknown> {
    * `params.user`, and absent entirely for ordinary user/internal calls.
    */
   agent?: AgentContext;
+  /** Response status and headers for the HTTP transports. See `HttpResponseMeta`. */
+  http?: HttpResponseMeta;
+  /**
+   * Set to `null` in a before or after hook to suppress this call's `service:event` emission — e.g. a
+   * replayed idempotent `create` that short-circuits with a stored result must not broadcast `created` twice.
+   */
+  event?: null;
 }
 
 export type HookFunction<T = unknown> = (context: HookContext<T>) => Promise<HookContext<T>> | HookContext<T>;
@@ -328,9 +350,25 @@ export interface ServiceDescriptor {
   authRequired?: boolean;
 }
 
+/** Transport-only options for `ServiceHandle.dispatch()`. */
+export interface DispatchOptions {
+  /**
+   * Receives the call's final `context.http` once the pipeline settles, on success and on error. An HTTP
+   * transport passes a fresh object per request and applies it to the response. Internal calls made from
+   * hooks don't pass one, so their `context.http` never leaks into the outer response.
+   */
+  response?: HttpResponseMeta;
+}
+
 export interface ServiceHandle<T> extends Service<T> {
   hooks(config: HookConfig<T>): this;
-  dispatch(method: string, data?: Partial<T>, id?: Id, params?: ServiceParams): Promise<T | T[] | Paginated<T>>;
+  dispatch(
+    method: string,
+    data?: Partial<T>,
+    id?: Id,
+    params?: ServiceParams,
+    options?: DispatchOptions,
+  ): Promise<T | T[] | Paginated<T>>;
   describe(): ServiceDescriptor;
   readonly schema?: unknown;
   readonly methods: string[];

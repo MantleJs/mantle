@@ -1,4 +1,3 @@
-import { randomUUID } from "crypto";
 import type { Server } from "node:http";
 import KoaLib from "koa";
 import Router from "@koa/router";
@@ -14,9 +13,19 @@ import type {
   MantleApplication,
   MantlePlugin,
   ServiceOptions,
+  TrustProxy,
 } from "@mantlejs/mantle";
-import { CORS_DEFAULT_METHODS, resolveCorsOrigin, withContext } from "@mantlejs/mantle";
-import { mountServiceRoutes } from "./routes.js";
+import {
+  CORS_DEFAULT_EXPOSED_HEADERS,
+  CORS_DEFAULT_METHODS,
+  createRequestContext,
+  requestIdHeaders,
+  resolveClientIp,
+  resolveCorsOrigin,
+  resolveRequestId,
+  withContext,
+} from "@mantlejs/mantle";
+import { mountServiceRoutes, requestParams } from "./routes.js";
 import { errorHandler } from "./error-handler.js";
 
 declare module "@mantlejs/mantle" {
@@ -46,6 +55,12 @@ export interface KoaOptions {
    * origin/methods/headers/credentials. Disabled (no CORS headers) by default.
    */
   cors?: boolean | CorsOptions;
+  /**
+   * Which proxies to trust when resolving `params.ip` from `X-Forwarded-For`. `false` (default) uses the
+   * socket peer; `true` the header's leftmost entry; a number that many proxy hops (e.g. `1` behind one
+   * load balancer). Independent of Koa's own `proxy` setting. See `TrustProxy`.
+   */
+  trustProxy?: TrustProxy;
 }
 
 /** Structural subset of Koa's context used by the HttpRouterLike adapter. */
@@ -115,20 +130,27 @@ export function koa(options: KoaOptions = {}): MantlePlugin {
           origin: (ctx) => resolveCorsOrigin(corsOptions.origin, ctx.get("Origin") || undefined) ?? "",
           allowMethods: corsOptions.methods ?? CORS_DEFAULT_METHODS,
           allowHeaders: corsOptions.allowedHeaders,
-          exposeHeaders: corsOptions.exposedHeaders,
+          exposeHeaders: corsOptions.exposedHeaders ?? CORS_DEFAULT_EXPOSED_HEADERS,
           credentials: corsOptions.credentials ?? false,
           maxAge: corsOptions.maxAge,
         }),
       );
     }
 
+    // Outside the error handler, so every response — errors included — carries the request ID.
+    koaApp.use(async (ctx, next) => {
+      const resolved = resolveRequestId((name) => ctx.req.headers[name]);
+      ctx.state["requestId"] = resolved.requestId;
+      ctx.state["ip"] = resolveClientIp(
+        ctx.req.socket.remoteAddress,
+        ctx.req.headers["x-forwarded-for"],
+        options.trustProxy,
+      );
+      ctx.set(requestIdHeaders(resolved));
+      await withContext(createRequestContext(resolved.requestId), next);
+    });
     koaApp.use(errorHandler);
     koaApp.use(bodyParser());
-    koaApp.use(async (ctx, next) => {
-      const correlationId = (ctx.get("x-correlation-id") as string | undefined) || randomUUID();
-      ctx.set("x-correlation-id", correlationId);
-      await withContext({ correlationId }, next);
-    });
 
     const router = new Router();
     // Transport-neutral contract — plugins mount raw routes via "http:router".
@@ -140,11 +162,9 @@ export function koa(options: KoaOptions = {}): MantlePlugin {
     if (options.batch !== false) {
       const batchOptions = typeof options.batch === "object" ? options.batch : {};
       router.post(batchOptions.path ?? "/batch", async (ctx) => {
-        ctx.body = await app.batch(
-          ctx.request.body as BatchCall[],
-          { provider: "koa", headers: ctx.headers as Record<string, string>, request: ctx.req },
-          { maxSize: batchOptions.maxSize },
-        );
+        ctx.body = await app.batch(ctx.request.body as BatchCall[], requestParams(ctx), {
+          maxSize: batchOptions.maxSize,
+        });
       });
     }
 

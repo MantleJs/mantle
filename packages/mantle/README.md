@@ -296,8 +296,39 @@ app.service("users").hooks({
 | `id`       | `Id \| undefined`                       | Record identifier (get/update/patch/remove)                                                          |
 | `result`   | `T \| T[] \| Paginated<T> \| undefined` | Set by the service or an `after` hook                                                                |
 | `error`    | `Error \| undefined`                    | Set when an error occurs                                                                             |
+| `http`     | `HttpResponseMeta \| undefined`         | Response `status` and `headers` for the HTTP transports — see below                                  |
+| `event`    | `null \| undefined`                     | Set to `null` to suppress this call's `service:event` emission                                       |
 
 Setting `context.result` in a `before` hook skips the service call entirely.
+
+#### Response status and headers — `context.http`
+
+Any hook can set `context.http = { status?, headers? }`. The HTTP transports (express, koa, http) apply it:
+
+- `status` overrides the route's default (`200`, or `201` for `create`) on success. `204` and `304` send no body.
+- `headers` are sent on success **and** on error — headers a before hook set (e.g. `RateLimit`) survive a
+  later hook throwing (e.g. a `429`). An error's own `MantleError.headers` are merged over them.
+- Only the outer call's `context.http` reaches the response: internal calls a hook makes don't affect it.
+- socket.io and MCP ignore it.
+
+```typescript
+const cacheFor = (seconds: number): HookFunction => (context) => {
+  context.http = { ...context.http, headers: { ...context.http?.headers, "Cache-Control": `max-age=${seconds}` } };
+  return context;
+};
+```
+
+#### Suppressing the service event — `context.event`
+
+A before or after hook can set `context.event = null` to stop this call from emitting `service:event` (and so
+from broadcasting to realtime clients) — e.g. when a before hook short-circuits a `create` with a stored result.
+
+#### Request ID and client IP — `params.requestId`, `params.ip`
+
+The HTTP transports set `params.requestId` (from a valid `X-Request-Id`, else a generated UUID, echoed in the
+response) and `params.ip` (the client address; `X-Forwarded-For` is honored only with the transport's
+`trustProxy` option). The request ID is also bound into the request context (`getContext().requestId`). The
+shared logic lives in `resolveRequestId()` and `resolveClientIp()`, exported for custom transports.
 
 ---
 
@@ -313,6 +344,7 @@ Always throw a typed error — never a plain `new Error()`.
 | `NotFound`         | 404         | `not-found`          |
 | `MethodNotAllowed` | 405         | `method-not-allowed` |
 | `Conflict`         | 409         | `conflict`           |
+| `PreconditionFailed` | 412       | `precondition-failed` |
 | `Unprocessable`    | 422         | `unprocessable`      |
 | `TooManyRequests`  | 429         | `too-many-requests`  |
 | `GeneralError`     | 500         | `general-error`      |
@@ -320,6 +352,12 @@ Always throw a typed error — never a plain `new Error()`.
 | `Unavailable`      | 503         | `unavailable`        |
 
 All errors accept `(message?, data?, errors?, hint?)` and serialize via `.toJSON()`.
+
+An error can also carry response headers for the HTTP transports in `headers` — never serialized into the body:
+
+```typescript
+throw Object.assign(new TooManyRequests("Slow down"), { headers: { "Retry-After": "30" } });
+```
 
 ```typescript
 throw new Conflict("Email already exists", { field: "email" });

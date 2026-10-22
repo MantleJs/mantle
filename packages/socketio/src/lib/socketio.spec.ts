@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { mantle, GeneralError, NotFound } from "@mantlejs/mantle";
-import type { MantleChannel } from "@mantlejs/mantle";
+import type { HookContext, MantleChannel } from "@mantlejs/mantle";
 
 // ─── Mock socket.io ────────────────────────────────────────────────────────────
 
@@ -301,6 +301,25 @@ describe("socketio() — standard service methods", () => {
     const cb = vi.fn();
     await invoke("remove", "messages", "1", {}, cb);
     expect(svc.remove).toHaveBeenCalledWith("1", expect.objectContaining({ provider: "socket.io" }));
+  });
+
+  it("ignores context.http — a hook-set 304 status and headers don't change the ack", async () => {
+    const svc = makeService();
+    app.use("messages", svc as never);
+    app.service("messages").hooks({
+      before: {
+        get: [
+          (context: HookContext) => ({
+            ...context,
+            http: { status: 304, headers: { ETag: '"v1"' } },
+            result: { id: "cached" },
+          }),
+        ],
+      },
+    });
+    const cb = vi.fn();
+    await invoke("get", "messages", "42", {}, cb);
+    expect(cb).toHaveBeenCalledWith(null, { id: "cached" });
   });
 
   it("ignores events that have no callback as last arg", async () => {

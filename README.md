@@ -72,7 +72,7 @@ Dependencies always point inward. Nothing in Domain or Application layers knows 
 | `@mantlejs/storage-s3`     | AWS S3 storage adapter for `@mantlejs/storage` (supports MinIO, R2, and other S3-compatible stores)                                       |
 | `@mantlejs/storage-gcs`    | Google Cloud Storage adapter for `@mantlejs/storage`                                                                                      |
 | `@mantlejs/cli`            | Command-line interface — scaffold projects, services, repositories, and hooks                                                             |
-| `@mantlejs/logger`         | Structured logging — pino adapter, `logRequest` / `logError` hooks, correlation ID                                                        |
+| `@mantlejs/logger`         | Structured logging — pino adapter, `logRequest` / `logError` hooks, request ID                                                            |
 | `@mantlejs/schema`         | TypeBox schema validation (`validate`) and field resolution (`resolver`) hooks                                                            |
 | `@mantlejs/memory`         | In-memory `Repository<T>` implementation for testing and prototyping                                                                      |
 | `@mantlejs/config`         | Environment-aware configuration loading with optional schema validation                                                                   |

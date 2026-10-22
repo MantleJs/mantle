@@ -45,15 +45,15 @@ LOG_LEVEL=warn npm start    # warn + error only
 
 Records emitted by Mantle packages include a `component` field — currently `mantle:core` (service registration/teardown), `mantle:request` and `mantle:error` (this package's `logRequest`/`logError` hooks), and `mantle:sync` (`@mantlejs/sync`). Use this field in your log aggregation tool (CloudWatch, Datadog, Grafana Loki) to filter framework-internal logs without restarting the process.
 
-### Correlation ID
+### Request ID
 
-When you use `pinoAdapter` with the `express()` transport, every log record emitted during a request automatically includes a `correlationId` field. No manual threading required.
+When you use `pinoAdapter` with any HTTP transport (express, koa, http), every log record emitted during a request automatically includes a `requestId` field. No manual threading required.
 
-The `express()` plugin reads the `X-Correlation-ID` request header (or generates a UUID) and stores it in `@mantlejs/mantle`'s `AsyncLocalStorage` context via `withContext`. `pinoAdapter` calls `getContext()` on every log call and merges the result into the pino object.
+The transport reads a valid `X-Request-Id` request header (or generates a UUID) and stores it in `@mantlejs/mantle`'s `AsyncLocalStorage` context via `withContext`. `pinoAdapter` calls `getContext()` on every log call and merges the result into the pino object. (The deprecated `X-Correlation-Id` header is still accepted for one release; records now carry `requestId` instead of `correlationId`.)
 
 ```json
 {
-  "correlationId": "a3f2c1d4-8b2e-4f1a-9c3d-1e2f3a4b5c6d",
+  "requestId": "a3f2c1d4-8b2e-4f1a-9c3d-1e2f3a4b5c6d",
   "component": "mantle:request",
   "method": "create",
   "path": "users",
@@ -63,15 +63,15 @@ The `express()` plugin reads the `X-Correlation-ID` request header (or generates
 }
 ```
 
-The `X-Correlation-ID` is echoed back in the response header so callers can correlate their requests with server-side log entries.
+The `X-Request-Id` is echoed back in the response header so callers can correlate their requests with server-side log entries.
 
-Hooks and other code can read the correlation ID directly:
+Hooks and other code can read the request ID directly:
 
 ```typescript
 import { getContext } from "@mantlejs/mantle";
 
 const hook = (ctx) => {
-  const { correlationId } = getContext() ?? {};
+  const { requestId } = getContext() ?? {};
   // ...
   return ctx;
 };
@@ -146,7 +146,7 @@ app.configure(logger(pinoAdapter(pino({ level: "info" }))));
 
 Wraps a pino logger to satisfy the `Logger` interface. Pino uses `(object, message)` argument order; the `Logger` interface uses `(message, object)`. The adapter flips this internally.
 
-On every log call the adapter reads `getContext()` from `@mantlejs/mantle` and merges the current `RequestContext` (including `correlationId`) into the pino object. Per-call context fields take precedence over request context fields. When called outside an Express request (e.g. a startup log), no context is present and the field is simply omitted.
+On every log call the adapter reads `getContext()` from `@mantlejs/mantle` and merges the current `RequestContext` (including `requestId`) into the pino object. Per-call context fields take precedence over request context fields. When called outside an HTTP request (e.g. a startup log), no context is present and the field is simply omitted.
 
 ```typescript
 function pinoAdapter(pino: PinoLike): Logger;
@@ -255,7 +255,7 @@ app.service("users").hooks({
 }
 ```
 
-`id` is only present for `get`, `update`, `patch`, and `remove` calls. `correlationId` is automatically included by `pinoAdapter` when inside an Express request.
+`id` is only present for `get`, `update`, `patch`, and `remove` calls. `requestId` is automatically included by `pinoAdapter` when inside an HTTP request.
 
 **Error record** (message: `"Service call failed"`):
 
@@ -329,7 +329,7 @@ interface Logger {
 
 Both adapters this package ships implement it:
 
-- **`pinoAdapter`** — delegates to the wrapped instance's own `pino.child(bindings)`, re-wrapped through `pinoAdapter` so `RequestContext` merging (`correlationId`, etc.) keeps working on the child logger too. If the wrapped object has no `child` method, the returned `Logger` won't have one either.
+- **`pinoAdapter`** — delegates to the wrapped instance's own `pino.child(bindings)`, re-wrapped through `pinoAdapter` so `RequestContext` merging (`requestId`, etc.) keeps working on the child logger too. If the wrapped object has no `child` method, the returned `Logger` won't have one either.
 - **`loglayerAdapter`** — has no native LogLayer `child()` involved; bindings are closed over and folded into every subsequent `withMetadata()` call instead.
 
 ```typescript
@@ -383,7 +383,7 @@ Mantle's default log records are intentionally narrow — only service metadata 
 | `ctx.data` (request body) | No | Passwords, email addresses, payment info |
 | `ctx.result` (response body) | No | Full entity records |
 | `ctx.params` | No (opt-in) | Query strings, auth tokens — see `includeParams` warning above |
-| `correlationId` | Yes | A UUID — not PII |
+| `requestId` | Yes | A UUID or validated client token — not PII |
 | `ctx.id` | Yes | A resource identifier — usually not PII |
 
 ### Redacting fields with `createLogger`

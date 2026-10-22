@@ -1,10 +1,25 @@
 import type { Server } from "node:http";
-import { randomUUID } from "crypto";
 import expressLib, { type Application, type RequestHandler } from "express";
 import corsLib from "cors";
-import type { BatchCall, CorsOptions, MantleApplication, MantlePlugin, ServiceOptions } from "@mantlejs/mantle";
-import { CORS_DEFAULT_METHODS, resolveCorsOrigin, withContext } from "@mantlejs/mantle";
-import { mountServiceRoutes } from "./routes.js";
+import type {
+  BatchCall,
+  CorsOptions,
+  MantleApplication,
+  MantlePlugin,
+  ServiceOptions,
+  TrustProxy,
+} from "@mantlejs/mantle";
+import {
+  CORS_DEFAULT_EXPOSED_HEADERS,
+  CORS_DEFAULT_METHODS,
+  createRequestContext,
+  requestIdHeaders,
+  resolveClientIp,
+  resolveCorsOrigin,
+  resolveRequestId,
+  withContext,
+} from "@mantlejs/mantle";
+import { mountServiceRoutes, requestParams } from "./routes.js";
 import { errorHandler } from "./error-handler.js";
 
 declare module "@mantlejs/mantle" {
@@ -32,6 +47,12 @@ export interface ExpressOptions {
    * origin/methods/headers/credentials. Disabled (no CORS headers) by default.
    */
   cors?: boolean | CorsOptions;
+  /**
+   * Which proxies to trust when resolving `params.ip` from `X-Forwarded-For`. `false` (default) uses the
+   * socket peer; `true` the header's leftmost entry; a number that many proxy hops (e.g. `1` behind one
+   * load balancer). Independent of Express's own `trust proxy` setting. See `TrustProxy`.
+   */
+  trustProxy?: TrustProxy;
 }
 
 export function express(existingApp?: Application, options: ExpressOptions = {}): MantlePlugin {
@@ -47,20 +68,23 @@ export function express(existingApp?: Application, options: ExpressOptions = {})
           },
           methods: corsOptions.methods ?? CORS_DEFAULT_METHODS,
           allowedHeaders: corsOptions.allowedHeaders,
-          exposedHeaders: corsOptions.exposedHeaders,
+          exposedHeaders: corsOptions.exposedHeaders ?? CORS_DEFAULT_EXPOSED_HEADERS,
           credentials: corsOptions.credentials ?? false,
           maxAge: corsOptions.maxAge,
         }),
       );
     }
 
+    // Before the body parsers, so a malformed-body error response still carries the request ID.
+    expressApp.use((req, res, next) => {
+      const resolved = resolveRequestId((name) => req.headers[name]);
+      res.locals["requestId"] = resolved.requestId;
+      res.locals["ip"] = resolveClientIp(req.socket.remoteAddress, req.headers["x-forwarded-for"], options.trustProxy);
+      res.set(requestIdHeaders(resolved));
+      withContext(createRequestContext(resolved.requestId), next);
+    });
     expressApp.use(expressLib.json());
     expressApp.use(expressLib.urlencoded({ extended: false }));
-    expressApp.use((req, res, next) => {
-      const correlationId = (req.headers["x-correlation-id"] as string | undefined) ?? randomUUID();
-      res.setHeader("x-correlation-id", correlationId);
-      withContext({ correlationId }, next);
-    });
     // Transport-neutral contract — plugins mount raw routes via "http:router".
     app.set("http:router", expressApp);
     /** @deprecated Read "http:router" instead. Kept for one release. */
@@ -88,11 +112,9 @@ export function express(existingApp?: Application, options: ExpressOptions = {})
       const batchOptions = typeof options.batch === "object" ? options.batch : {};
       expressApp.post(batchOptions.path ?? "/batch", async (req, res, next) => {
         try {
-          const results = await app.batch(
-            req.body as BatchCall[],
-            { provider: "rest", headers: req.headers as Record<string, string>, request: req },
-            { maxSize: batchOptions.maxSize },
-          );
+          const results = await app.batch(req.body as BatchCall[], requestParams(req, res), {
+            maxSize: batchOptions.maxSize,
+          });
           res.json(results);
         } catch (err) {
           next(err);

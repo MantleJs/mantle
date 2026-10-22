@@ -1,5 +1,5 @@
 import type { CorsOptions } from "@mantlejs/mantle";
-import { CORS_DEFAULT_METHODS, resolveCorsOrigin } from "@mantlejs/mantle";
+import { CORS_DEFAULT_EXPOSED_HEADERS, CORS_DEFAULT_METHODS, resolveCorsOrigin } from "@mantlejs/mantle";
 
 export interface CorsResult {
   /** Headers to attach to the response. Non-empty only when the origin is allowed. */
@@ -45,8 +45,9 @@ export function buildCorsHeaders(
     if (options.maxAge !== undefined) {
       headers["Access-Control-Max-Age"] = String(options.maxAge);
     }
-  } else if (options.exposedHeaders?.length) {
-    headers["Access-Control-Expose-Headers"] = options.exposedHeaders.join(",");
+  } else {
+    const exposedHeaders = options.exposedHeaders ?? CORS_DEFAULT_EXPOSED_HEADERS;
+    if (exposedHeaders.length) headers["Access-Control-Expose-Headers"] = exposedHeaders.join(",");
   }
 
   return { headers, isPreflight };

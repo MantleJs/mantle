@@ -826,3 +826,105 @@ describe("app.batch", () => {
     await expect(app.batch({} as never)).rejects.toBeInstanceOf(BadRequest);
   });
 });
+
+describe("context.event suppression", () => {
+  it("does not emit 'service:event' when a hook sets context.event = null", async () => {
+    const app = mantle();
+    app.use("users", makeUserService());
+    app.service<User>("users").hooks({
+      before: {
+        create: [(ctx: HookContext<User>) => ({ ...ctx, event: null, result: { id: 7, name: "Replayed" } })],
+      },
+    });
+    const events: unknown[] = [];
+    app.on("service:event", (...args) => events.push(args));
+
+    await expect(app.service<User>("users").create({ name: "x" })).resolves.toEqual({ id: 7, name: "Replayed" });
+    expect(events).toEqual([]);
+  });
+
+  it("still emits for calls that don't suppress", async () => {
+    const app = mantle();
+    app.use("users", makeUserService());
+    const events: unknown[] = [];
+    app.on("service:event", (...args) => events.push(args));
+    await app.service<User>("users").create({ name: "x" });
+    expect(events).toHaveLength(1);
+  });
+});
+
+describe("context.http and DispatchOptions.response", () => {
+  it("copies the final context.http into the response sink on success", async () => {
+    const app = mantle();
+    app.use("users", makeUserService());
+    app.service<User>("users").hooks({
+      before: { get: [(ctx: HookContext<User>) => ({ ...ctx, http: { headers: { "X-Before": "1" } } })] },
+      after: {
+        get: [
+          (ctx: HookContext<User>) => ({
+            ...ctx,
+            http: { status: 203, headers: { ...ctx.http?.headers, "X-After": "2" } },
+          }),
+        ],
+      },
+    });
+    const response = {};
+    await app.service<User>("users").dispatch("get", undefined, 1, {}, { response });
+    expect(response).toEqual({ status: 203, headers: { "X-Before": "1", "X-After": "2" } });
+  });
+
+  it("keeps headers a before hook returned when a later hook throws", async () => {
+    const app = mantle();
+    app.use("users", makeUserService());
+    app.service<User>("users").hooks({
+      before: {
+        find: [
+          (ctx: HookContext<User>) => ({ ...ctx, http: { headers: { RateLimit: "limit=1" } } }),
+          () => {
+            throw new BadRequest("nope");
+          },
+        ],
+      },
+    });
+    const response = {};
+    await expect(app.service<User>("users").dispatch("find", undefined, undefined, {}, { response })).rejects.toThrow(
+      BadRequest,
+    );
+    expect(response).toEqual({ headers: { RateLimit: "limit=1" } });
+  });
+
+  it("keeps context.http when the service method itself throws", async () => {
+    const app = mantle();
+    app.use(
+      "users",
+      makeUserService({
+        async get() {
+          throw new NotFound("gone");
+        },
+      }),
+    );
+    app.service<User>("users").hooks({
+      before: { get: [(ctx: HookContext<User>) => ({ ...ctx, http: { headers: { "X-Seen": "yes" } } })] },
+    });
+    const response = {};
+    await expect(app.service<User>("users").dispatch("get", undefined, 1, {}, { response })).rejects.toThrow(NotFound);
+    expect(response).toEqual({ headers: { "X-Seen": "yes" } });
+  });
+
+  it("leaves the sink untouched when no hook sets context.http", async () => {
+    const app = mantle();
+    app.use("users", makeUserService());
+    const response = {};
+    await app.service<User>("users").dispatch("find", undefined, undefined, {}, { response });
+    expect(response).toEqual({});
+  });
+
+  it("does not need a sink — calls without one ignore context.http", async () => {
+    const app = mantle();
+    app.use("users", makeUserService());
+    app
+      .service<User>("users")
+      .hooks({ before: { find: [(ctx: HookContext<User>) => ({ ...ctx, http: { status: 304 } })] } });
+    await expect(app.service<User>("users").find()).resolves.toEqual([{ id: 1, name: "Alice" }]);
+  });
+});

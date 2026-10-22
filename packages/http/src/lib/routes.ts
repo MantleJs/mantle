@@ -1,73 +1,65 @@
-import type { MantleApplication, ServiceHandle, ServiceOptions, ServiceParams } from "@mantlejs/mantle";
+import type { Id, MantleApplication, ServiceOptions, ServiceParams } from "@mantlejs/mantle";
 import { parseQueryString } from "@mantlejs/mantle";
-import type { Router } from "./router.js";
+import type { RequestInfo, Router } from "./router.js";
 
 const STANDARD_METHODS = new Set(["find", "get", "create", "update", "patch", "remove"]);
 
-function buildParams(query: Record<string, string | string[]>, headers: Record<string, string>): ServiceParams {
-  return {
-    query: parseQueryString(query),
-    provider: "http",
-    headers,
-  };
+/** Params shared by service routes and the batch endpoint. */
+export function requestParams(headers: Record<string, string>, request: RequestInfo): ServiceParams {
+  return { provider: "http", headers, ip: request.ip, requestId: request.requestId };
 }
 
-export function mountServiceRoutes(router: Router, app: MantleApplication, path: string, options: ServiceOptions): void {
+function buildParams(
+  query: Record<string, string | string[]>,
+  headers: Record<string, string>,
+  request: RequestInfo,
+): ServiceParams {
+  return { ...requestParams(headers, request), query: parseQueryString(query) };
+}
+
+interface RouteSpec {
+  verb: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
+  suffix: string;
+  status: number;
+  withId: boolean;
+  withBody: boolean;
+}
+
+const ROUTES: Record<string, RouteSpec> = {
+  find: { verb: "GET", suffix: "", status: 200, withId: false, withBody: false },
+  get: { verb: "GET", suffix: "/:__id", status: 200, withId: true, withBody: false },
+  create: { verb: "POST", suffix: "", status: 201, withId: false, withBody: true },
+  update: { verb: "PUT", suffix: "/:__id", status: 200, withId: true, withBody: true },
+  patch: { verb: "PATCH", suffix: "/:__id", status: 200, withId: true, withBody: true },
+  remove: { verb: "DELETE", suffix: "/:__id", status: 200, withId: true, withBody: false },
+};
+
+export function mountServiceRoutes(
+  router: Router,
+  app: MantleApplication,
+  path: string,
+  options: ServiceOptions,
+): void {
   const methods = options.methods ?? ["find", "get", "create", "update", "patch", "remove"];
   const routePath = "/" + path.replace(/^\/+/, "");
 
-  if (methods.includes("find")) {
-    router.add("GET", routePath, async (_params, _body, query, headers) => ({
-      status: 200,
-      body: await app.service(path).find(buildParams(query, headers)),
-    }));
-  }
-
-  if (methods.includes("get")) {
-    router.add("GET", `${routePath}/:__id`, async (params, _body, query, headers) => ({
-      status: 200,
-      body: await app.service(path).get(params["__id"] ?? "", buildParams(query, headers)),
-    }));
-  }
-
-  if (methods.includes("create")) {
-    router.add("POST", routePath, async (_params, body, query, headers) => ({
-      status: 201,
-      body: await app.service(path).create(body as Record<string, unknown>, buildParams(query, headers)),
-    }));
-  }
-
-  if (methods.includes("update")) {
-    router.add("PUT", `${routePath}/:__id`, async (params, body, query, headers) => ({
-      status: 200,
-      body: await app.service(path).update(params["__id"] ?? "", body as Record<string, unknown>, buildParams(query, headers)),
-    }));
-  }
-
-  if (methods.includes("patch")) {
-    router.add("PATCH", `${routePath}/:__id`, async (params, body, query, headers) => ({
-      status: 200,
-      body: await app.service(path).patch(params["__id"] ?? "", body as Record<string, unknown>, buildParams(query, headers)),
-    }));
-  }
-
-  if (methods.includes("remove")) {
-    router.add("DELETE", `${routePath}/:__id`, async (params, _body, query, headers) => ({
-      status: 200,
-      body: await app.service(path).remove(params["__id"] ?? "", buildParams(query, headers)),
-    }));
-  }
-
   for (const method of methods) {
-    if (!STANDARD_METHODS.has(method)) {
-      const customMethod = method;
-      router.add("POST", `${routePath}/${customMethod}`, async (_params, body, query, headers) => {
-        const handle = app.service(path) as ServiceHandle<unknown>;
-        return {
-          status: 200,
-          body: await handle.dispatch(customMethod, body as Record<string, unknown>, undefined, buildParams(query, headers)),
-        };
-      });
-    }
+    // Custom methods dispatch as (data, params) via POST /path/<method>.
+    const spec: RouteSpec = STANDARD_METHODS.has(method)
+      ? (ROUTES[method] as RouteSpec)
+      : { verb: "POST", suffix: `/${method}`, status: 200, withId: false, withBody: true };
+
+    router.add(spec.verb, routePath + spec.suffix, async (params, body, query, headers, request) => ({
+      status: spec.status,
+      body: await app
+        .service(path)
+        .dispatch(
+          method,
+          spec.withBody ? (body as Record<string, unknown>) : undefined,
+          spec.withId ? ((params["__id"] ?? "") as Id) : undefined,
+          buildParams(query, headers, request),
+          { response: request.response },
+        ),
+    }));
   }
 }

@@ -230,6 +230,43 @@ describe("dispatch through the hook pipeline", () => {
     expect((result as { structuredContent?: Record<string, unknown> }).structuredContent?.["name"]).toBe("Ada");
   });
 
+  it("ignores context.http — a 304 status with headers still returns the hook's result as a normal tool result", async () => {
+    const { app } = buildApp({ services: { users: true }, transport: "stdio" }, seedUsers(1));
+    app.service("users").hooks({
+      before: {
+        get: [
+          (context: HookContext) => ({
+            ...context,
+            http: { status: 304, headers: { ETag: '"v1"' } },
+            result: { id: "u0", name: "cached", age: 1 },
+          }),
+        ],
+      },
+    });
+    const client = await connect(app);
+    const result = await client.callTool({ name: "users_get", arguments: { id: "u0" } });
+    expect(result.isError).toBeFalsy();
+    expect(textResult<User>(result)).toEqual({ id: "u0", name: "cached", age: 1 });
+  });
+
+  it("never serializes MantleError.headers into a tool error", async () => {
+    const { app } = buildApp({ services: { users: true }, transport: "stdio" });
+    app.service("users").hooks({
+      before: {
+        find: [
+          (context: HookContext) => ({ ...context, http: { headers: { RateLimit: "limit=1" } } }),
+          () => {
+            throw Object.assign(new BadRequest("nope"), { headers: { "Retry-After": "30" } });
+          },
+        ],
+      },
+    });
+    const client = await connect(app);
+    const error = toolError(await client.callTool({ name: "users_find", arguments: {} }));
+    expect(error["code"]).toBe(400);
+    expect(error).not.toHaveProperty("headers");
+  });
+
   it("requires id for get and rejects a missing one as a tool error", async () => {
     const { app } = buildApp({ services: { users: true }, transport: "stdio" }, seedUsers(1));
     const client = await connect(app);

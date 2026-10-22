@@ -38,9 +38,19 @@ Only methods explicitly listed in the `app.use()` options are mounted.
 
 When a request arrives from Koa, `params.provider` is set to `"koa"`. Hooks can inspect this to distinguish HTTP calls from internal service calls (where `provider` is `undefined`).
 
-### Correlation ID
+### Request ID and client IP
 
-Every response includes an `x-correlation-id` header. If the request supplies the header, it is echoed back. Otherwise a random UUID is generated. The ID is available inside hooks via `getContext().correlationId`.
+Every response carries an `X-Request-Id` header. A valid incoming `X-Request-Id` (1–128 characters from
+`A-Z a-z 0-9 . _ ~ : @ = + / -`) is echoed back; anything else is replaced with a generated UUID, so
+client-supplied values can't inject into logs or headers. The ID is set as `params.requestId` and bound into
+the request context (`getContext().requestId`), so `@mantlejs/logger` adds it to every log line.
+
+`X-Correlation-Id` is deprecated: for one release it is still accepted when `X-Request-Id` is absent, and
+echoed back under both names. `getContext().correlationId` likewise still works as an alias.
+
+`params.ip` is the client address. By default it's the socket peer; set `trustProxy` to read
+`X-Forwarded-For` behind a proxy: `true` takes the leftmost entry (client-controlled, so only safe when the
+proxy overwrites the header), a number trusts that many hops (`1` behind a single load balancer, e.g. Cloud Run).
 
 ### Error handling
 
@@ -124,6 +134,7 @@ Side effects:
 | `introspection` | `boolean \| { path?: string }`              | `false` | Mount the introspection endpoint; pass `{ path }` to customize it.                 |
 | `batch`         | `boolean \| { path?: string; maxSize?: number }` | `true`  | Mount the `POST /batch` endpoint; `false` disables it, `{ path, maxSize }` configures it. |
 | `cors`          | `boolean \| CorsOptions`                    | `false` | Enable CORS via `@koa/cors`; `true` uses permissive defaults, an object customizes origin/methods/headers/credentials. |
+| `trustProxy`    | `boolean \| number`                        | `false` | Which proxies to trust when resolving `params.ip` from `X-Forwarded-For` (see below).    |
 
 ---
 
@@ -194,9 +205,13 @@ app.configure(
 | `origin`         | `boolean \| string \| string[] \| ((origin) => boolean \| string)` | `true` (reflect the request's `Origin`)    | Allowed origin(s) for `Access-Control-Allow-Origin`. |
 | `methods`        | `string[]`                                                          | `["GET", "POST", "PUT", "PATCH", "DELETE"]` | Allowed methods for `Access-Control-Allow-Methods`.  |
 | `allowedHeaders` | `string[]`                                                          | reflects `Access-Control-Request-Headers`  | Allowed request headers.                             |
-| `exposedHeaders` | `string[]`                                                          | none                                       | Headers exposed to the browser.                      |
+| `exposedHeaders` | `string[]`                                                          | `CORS_DEFAULT_EXPOSED_HEADERS`             | Headers exposed to the browser (see below).          |
 | `credentials`    | `boolean`                                                           | `false`                                    | Allow credentials (cookies, `Authorization`) cross-origin. |
 | `maxAge`         | `number`                                                            | none                                       | Preflight cache duration in seconds.                 |
+
+By default browsers can read `X-Request-Id`, `RateLimit`, `RateLimit-Policy`, `Retry-After`, `ETag`, and
+`Idempotent-Replayed` (`CORS_DEFAULT_EXPOSED_HEADERS`). Setting `exposedHeaders` replaces that list; spread the
+constant to extend it: `exposedHeaders: [...CORS_DEFAULT_EXPOSED_HEADERS, "X-Custom"]`.
 
 `@mantlejs/koa` wraps `@koa/cors` internally — it's installed as a dependency of `@mantlejs/koa`, not
 something you need to add yourself.

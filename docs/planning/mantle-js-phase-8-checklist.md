@@ -19,7 +19,7 @@ runs in four stages:
 
 ## Stage 1 — Foundations & spikes
 
-- [ ] **1. Foundations: `context.http`, `context.event`, `params.ip`, request ID** _(PRD spec 1)_
+- [x] **1. Foundations: `context.http`, `context.event`, `params.ip`, request ID** _(PRD spec 1)_
   - `HookContext.http` (status + headers), applied by express/koa/http on success and error paths; 304/204 send
     no body; headers set before an error survive it.
   - `context.event = null` suppresses the `service:event` emission.
@@ -32,6 +32,13 @@ runs in four stages:
 
   **Accept:** one shared transport conformance table run by all three HTTP transports; socket.io and MCP specs
   showing `context.http.headers` is ignored; event-suppression spec in core.
+
+  **Done (2026-10-21):** `TRANSPORT_CONFORMANCE_CASES` (17 cases, exported from core) runs on express, koa, and http
+  (Node and Fetch handlers). Beyond the spec: incoming request IDs are validated (1–128 header-safe characters,
+  else a generated UUID); `trustProxy` also takes a hop count (`1` behind one load balancer), since `true` trusts
+  the client-controlled leftmost entry; on the error path `context.http.headers` apply but the status always
+  comes from the error. Transports now dispatch via `ServiceHandle.dispatch(…, { response })` so an internal
+  call's `context.http` can't leak into the outer response.
 
 - [ ] **2. Spike: duplicate-id `Conflict` across adapters** _(PRD spec 4, Decision #6)_
       For each `Repository<T>` adapter, does `save()` with an existing primary key throw `Conflict` (atomically)?

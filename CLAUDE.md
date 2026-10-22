@@ -260,6 +260,8 @@ interface HookContext<T = any> {
   result?: T | T[] | Paginated<T>;
   error?: Error;
   agent?: { id: string; scope: CapabilityScope; delegatingUserId: string }; // set by @mantlejs/auth's authorizeAgent()
+  http?: { status?: number; headers?: Record<string, string> }; // applied by express/koa/http; ignored by socket.io/MCP
+  event?: null; // set to null to suppress this call's service:event emission
 }
 ```
 
@@ -292,6 +294,7 @@ throw new NotAuthenticated("Login required"); // 401
 throw new Forbidden("Access denied"); // 403
 throw new NotFound("User not found"); // 404
 throw new Conflict("Email already exists"); // 409
+throw new PreconditionFailed("Version mismatch"); // 412
 throw new Unprocessable("Validation failed"); // 422
 throw new GeneralError("Something broke"); // 500
 ```

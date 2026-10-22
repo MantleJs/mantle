@@ -42,9 +42,22 @@ Both handlers run the full Mantle hook pipeline and set `params.provider = 'http
 
 Edge runtimes are **stateless and ephemeral** — each isolate handles one request (or a small batch). This means `app.listen()` is irrelevant in these environments; retrieve the `fetchHandler` directly instead. Anything requiring a persistent connection (database pool, socket.io, Redis) must be re-established per request or routed through a connection proxy.
 
-### Correlation IDs
+### Request ID and client IP
 
-Every request gets an `x-correlation-id` header in the response. If the incoming request supplies one, it is echoed back. The correlation ID is available inside hooks via `getContext().correlationId`.
+Every response carries an `X-Request-Id` header. A valid incoming `X-Request-Id` (1–128 characters from
+`A-Z a-z 0-9 . _ ~ : @ = + / -`) is echoed back; anything else is replaced with a generated UUID, so
+client-supplied values can't inject into logs or headers. The ID is set as `params.requestId` and bound into
+the request context (`getContext().requestId`), so `@mantlejs/logger` adds it to every log line.
+
+`X-Correlation-Id` is deprecated: for one release it is still accepted when `X-Request-Id` is absent, and
+echoed back under both names. `getContext().correlationId` likewise still works as an alias.
+
+`params.ip` is the client address. By default it's the socket peer; set `trustProxy` to read
+`X-Forwarded-For` behind a proxy: `true` takes the leftmost entry (client-controlled, so only safe when the
+proxy overwrites the header), a number trusts that many hops (`1` behind a single load balancer, e.g. Cloud Run).
+
+The Fetch API handler has no socket, so there `params.ip` is `undefined` unless `trustProxy` is set; an
+unknown peer still counts as the first hop, so the same `trustProxy` picks the same address on Node and edge.
 
 ---
 
@@ -146,6 +159,7 @@ Returns a `MantlePlugin` that registers the HTTP transport on the application.
 | `introspection` | `boolean \| { path?: string }`              | `false` | Mount the introspection endpoint; pass `{ path }` to customize it.                 |
 | `batch`         | `boolean \| { path?: string; maxSize?: number }` | `true`  | Mount the `POST /batch` endpoint; `false` disables it, `{ path, maxSize }` configures it. |
 | `cors`          | `boolean \| CorsOptions`                    | `false` | Enable CORS via hand-rolled header logic; `true` uses permissive defaults, an object customizes origin/methods/headers/credentials. |
+| `trustProxy`    | `boolean \| number`                        | `false` | Which proxies to trust when resolving `params.ip` from `X-Forwarded-For` (see below).    |
 
 With `introspection` enabled, `GET /_services` (or the custom path) returns a `ServiceDescriptor[]` —
 one entry per registered service with `path`, `methods`, `events`, `schema`, the repository's
@@ -225,9 +239,13 @@ app.configure(
 | `origin`         | `boolean \| string \| string[] \| ((origin) => boolean \| string)` | `true` (reflect the request's `Origin`)    | Allowed origin(s) for `Access-Control-Allow-Origin`. |
 | `methods`        | `string[]`                                                          | `["GET", "POST", "PUT", "PATCH", "DELETE"]` | Allowed methods for `Access-Control-Allow-Methods`.  |
 | `allowedHeaders` | `string[]`                                                          | reflects `Access-Control-Request-Headers`  | Allowed request headers.                             |
-| `exposedHeaders` | `string[]`                                                          | none                                       | Headers exposed to the browser.                      |
+| `exposedHeaders` | `string[]`                                                          | `CORS_DEFAULT_EXPOSED_HEADERS`             | Headers exposed to the browser (see below).          |
 | `credentials`    | `boolean`                                                           | `false`                                    | Allow credentials (cookies, `Authorization`) cross-origin. |
 | `maxAge`         | `number`                                                            | none                                       | Preflight cache duration in seconds.                 |
+
+By default browsers can read `X-Request-Id`, `RateLimit`, `RateLimit-Policy`, `Retry-After`, `ETag`, and
+`Idempotent-Replayed` (`CORS_DEFAULT_EXPOSED_HEADERS`). Setting `exposedHeaders` replaces that list; spread the
+constant to extend it: `exposedHeaders: [...CORS_DEFAULT_EXPOSED_HEADERS, "X-Custom"]`.
 
 `@mantlejs/http` has no framework to delegate to, so CORS is hand-rolled: headers are set on every response for
 an allowed origin, and an `OPTIONS` preflight short-circuits with a `204` (on both `httpHandler` and
@@ -235,7 +253,9 @@ an allowed origin, and an `OPTIONS` preflight short-circuits with a `204` (on bo
 
 ### `toErrorResponse(err)`
 
-Utility exported for use in other adapters or middleware. Maps a `MantleError` (or any error) to `{ status: number; body: Record<string, unknown> }`.
+Utility exported for use in other adapters or middleware. Maps a `MantleError` (or any error) to
+`{ status: number; body: Record<string, unknown>; headers: Record<string, string> }`. Pass the request's
+`HttpResponseMeta` as a second argument to merge hook-set headers under the error's own `MantleError.headers`.
 
 ---
 
@@ -255,6 +275,7 @@ interface HttpOptions {
   introspection?: boolean | { path?: string };
   batch?: boolean | { path?: string; maxSize?: number };
   cors?: boolean | CorsOptions;
+  trustProxy?: boolean | number;
 }
 ```
 

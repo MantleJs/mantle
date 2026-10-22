@@ -1,5 +1,4 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
-import { randomUUID } from "node:crypto";
 import { URL } from "node:url";
 import type {
   BatchCall,
@@ -10,11 +9,20 @@ import type {
   HttpRouterLike,
   MantleApplication,
   MantlePlugin,
+  ResolvedRequestId,
   ServiceOptions,
+  TrustProxy,
 } from "@mantlejs/mantle";
-import { withContext } from "@mantlejs/mantle";
-import { Router, type RouteHandler } from "./router.js";
-import { mountServiceRoutes } from "./routes.js";
+import {
+  createRequestContext,
+  requestIdHeaders,
+  resolveClientIp,
+  resolveRequestId,
+  successResponse,
+  withContext,
+} from "@mantlejs/mantle";
+import { Router, type RequestInfo, type RouteHandler } from "./router.js";
+import { mountServiceRoutes, requestParams } from "./routes.js";
 import { parseBody } from "./body-parser.js";
 import { toErrorResponse } from "./error-handler.js";
 import { buildCorsHeaders } from "./cors.js";
@@ -45,6 +53,16 @@ function flattenSearchParams(searchParams: URLSearchParams): Record<string, stri
   return flat;
 }
 
+interface DispatchResult {
+  status: number;
+  body: unknown;
+  /** Request-ID, `context.http`, and error headers, already merged. */
+  headers: Record<string, string>;
+  raw?: boolean;
+  /** 204/304: send headers only. */
+  bodyless?: boolean;
+}
+
 async function dispatch(
   router: Router,
   method: string,
@@ -52,29 +70,33 @@ async function dispatch(
   query: Record<string, string | string[]>,
   headers: Record<string, string>,
   body: unknown,
-  correlationId: string,
-): Promise<{
-  status: number;
-  body: unknown;
-  headers?: Record<string, string>;
-  raw?: boolean;
-  correlationId: string;
-}> {
-  return withContext({ correlationId }, async () => {
+  resolved: ResolvedRequestId,
+  ip: string | undefined,
+): Promise<DispatchResult> {
+  const idHeaders = requestIdHeaders(resolved);
+  return withContext(createRequestContext(resolved.requestId), async () => {
     const matched = router.match(method, pathname);
     if (!matched) {
       return {
         status: 404,
         body: { name: "NotFound", message: "Not found", code: 404, className: "not-found" },
-        correlationId,
+        headers: idHeaders,
       };
     }
+    const request: RequestInfo = { ip, requestId: resolved.requestId, response: {} };
     try {
-      const result = await matched.entry.handler(matched.params, body, query, headers);
-      return { ...result, correlationId };
+      const result = await matched.entry.handler(matched.params, body, query, headers, request);
+      const { status, headers: hookHeaders, bodyless } = successResponse(request.response, result.status);
+      return {
+        status,
+        body: result.body,
+        headers: { ...idHeaders, ...hookHeaders, ...result.headers },
+        raw: result.raw,
+        bodyless,
+      };
     } catch (err) {
-      const errRes = toErrorResponse(err);
-      return { status: errRes.status, body: errRes.body, correlationId };
+      const errRes = toErrorResponse(err, request.response);
+      return { status: errRes.status, body: errRes.body, headers: { ...idHeaders, ...errRes.headers } };
     }
   });
 }
@@ -159,6 +181,13 @@ export interface HttpOptions {
    * requests short-circuit with a 204 before reaching the router. Disabled by default.
    */
   cors?: boolean | CorsOptions;
+  /**
+   * Which proxies to trust when resolving `params.ip` from `X-Forwarded-For`. `false` (default) uses the
+   * socket peer; `true` the header's leftmost entry; a number that many proxy hops (e.g. `1` behind one
+   * load balancer). The Fetch API handler has no socket, so without `trustProxy` `params.ip` is
+   * `undefined` there. See `TrustProxy`.
+   */
+  trustProxy?: TrustProxy;
 }
 
 export function http(options: HttpOptions = {}): MantlePlugin {
@@ -168,13 +197,9 @@ export function http(options: HttpOptions = {}): MantlePlugin {
 
     if (options.batch !== false) {
       const batchOptions = typeof options.batch === "object" ? options.batch : {};
-      router.add("POST", batchOptions.path ?? "/batch", async (_params, body, _query, headers) => ({
+      router.add("POST", batchOptions.path ?? "/batch", async (_params, body, _query, headers, request) => ({
         status: 200,
-        body: await app.batch(
-          body as BatchCall[],
-          { provider: "http", headers },
-          { maxSize: batchOptions.maxSize },
-        ),
+        body: await app.batch(body as BatchCall[], requestParams(headers, request), { maxSize: batchOptions.maxSize }),
       }));
     }
 
@@ -205,18 +230,23 @@ export function http(options: HttpOptions = {}): MantlePlugin {
             return;
           }
         }
+        const resolved = resolveRequestId((name) => req.headers[name]);
         try {
-          const correlationId = (req.headers["x-correlation-id"] as string | undefined) ?? randomUUID();
+          const ip = resolveClientIp(req.socket.remoteAddress, req.headers["x-forwarded-for"], options.trustProxy);
           const url = new URL(req.url ?? "/", "http://localhost");
           const query = flattenSearchParams(url.searchParams);
           const headers = req.headers as Record<string, string>;
           const body = await parseBody(req);
-          const result = await dispatch(router, req.method ?? "GET", url.pathname, query, headers, body, correlationId);
+          const result = await dispatch(router, req.method ?? "GET", url.pathname, query, headers, body, resolved, ip);
+          if (result.bodyless) {
+            res.writeHead(result.status, { ...corsHeaders, ...result.headers });
+            res.end();
+            return;
+          }
           const payload = result.raw ? String(result.body) : JSON.stringify(result.body);
           res.writeHead(result.status, {
             "Content-Type": "application/json",
             "Content-Length": Buffer.byteLength(payload),
-            "x-correlation-id": result.correlationId,
             ...corsHeaders,
             ...result.headers,
           });
@@ -228,6 +258,8 @@ export function http(options: HttpOptions = {}): MantlePlugin {
             "Content-Type": "application/json",
             "Content-Length": Buffer.byteLength(json),
             ...corsHeaders,
+            ...requestIdHeaders(resolved),
+            ...errRes.headers,
           });
           res.end(json);
         }
@@ -249,7 +281,8 @@ export function http(options: HttpOptions = {}): MantlePlugin {
         }
       }
 
-      const correlationId = request.headers.get("x-correlation-id") ?? randomUUID();
+      const resolved = resolveRequestId((name) => request.headers.get(name) ?? undefined);
+      const ip = resolveClientIp(undefined, request.headers.get("x-forwarded-for") ?? undefined, options.trustProxy);
       const url = new URL(request.url);
       const query = flattenSearchParams(url.searchParams);
       const headers = Object.fromEntries(request.headers.entries());
@@ -266,12 +299,14 @@ export function http(options: HttpOptions = {}): MantlePlugin {
         body = Object.fromEntries(new URLSearchParams(await request.text()));
       }
 
-      const result = await dispatch(router, request.method, url.pathname, query, headers, body, correlationId);
+      const result = await dispatch(router, request.method, url.pathname, query, headers, body, resolved, ip);
+      if (result.bodyless) {
+        return new Response(null, { status: result.status, headers: { ...corsHeaders, ...result.headers } });
+      }
       return new Response(result.raw ? String(result.body) : JSON.stringify(result.body), {
         status: result.status,
         headers: {
           "Content-Type": "application/json",
-          "x-correlation-id": result.correlationId,
           ...corsHeaders,
           ...result.headers,
         },
