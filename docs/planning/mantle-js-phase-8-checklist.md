@@ -48,10 +48,13 @@ runs in four stages:
       two `save()` bugs it uncovered) and dynamodb (`save()` overwrote silently); pinecone/qdrant documented as
       unsupported. Open for item 9: Mongo needs ObjectId-shaped record ids.
 
-- [ ] **3. Spike: MCP SDK mechanics** _(PRD specs 8–11)_
+- [x] **3. Spike: MCP SDK mechanics** _(PRD specs 8–11)_
       Against `@modelcontextprotocol/sdk` ^1.29: tool annotations on `registerTool`, reading `_meta` from a
       `tools/call` request, and the in-memory transport pair for `createMcpTestClient()`.
       **Accept:** findings recorded as a new Decisions row; PRD specs 9–11 amended if anything is contradicted.
+      **Done (2026-10-21):** Decision #13. Nothing contradicted; three refinements: annotations go on the low-level
+      `tools/list` response (we don't use `registerTool`), the `_meta` key is `com.mantlejs/idempotencyKey` (reverse
+      DNS per the MCP spec), and `createMcpTestClient()` resolves tokens through the HTTP session-params path.
 
 - [ ] **4. Spike: Postgres row-level security via knex** _(PRD spec 13)_
       `SET LOCAL app.tenant_id` inside `withTransaction()`, an RLS policy reading `current_setting`, and how it

@@ -225,7 +225,7 @@ app.service("payments").hooks({
 
 - **Applies to** `create` and `patch` (the non-idempotent methods). `update`/`remove` are already idempotent by
   definition, so the hook rejects being registered on them.
-- **Key source:** `params.headers["idempotency-key"]` for HTTP; `_meta["mantlejs/idempotencyKey"]` for MCP
+- **Key source:** `params.headers["idempotency-key"]` for HTTP; `_meta["com.mantlejs/idempotencyKey"]` for MCP
   tool calls (spec 10); `params.idempotencyKey` for internal calls and the client SDK.
 - **Record:** `{ id: scope:key, fingerprint, status: "in-progress" | "completed", response, expiresAt }`, stored
   in any `Repository<T>`. `scope` = principal (user/agent) + service path + method, so one caller's key can't
@@ -333,15 +333,18 @@ Every generated tool (tool mode, layered `describe_service`) carries MCP tool an
 | `remove`      | false          | true              | true                                            |
 | custom        | false          | true              | false (conservative defaults)                   |
 
-Plus `title`. Overridable per method in the expose map (`annotations: { … }`). Code mode's declarations gain a
+Plus `title`, and `openWorldHint: false` (a Mantle service is a closed domain). Overridable per method in the expose
+map (`annotations: { … }`). Emitted as the `annotations` field of each `tools/list` entry — `@mantlejs/mcp` uses the
+SDK's low-level `Server`, not `McpServer.registerTool()` (Decision #13). Code mode's declarations gain a
 JSDoc tag with the same hints.
 
 **Accept:** table-driven spec; override spec; snapshot of code-mode declarations.
 
 #### 10. Idempotency-key passthrough
 
-- Tool and layered `call` read `_meta["mantlejs/idempotencyKey"]` from the `tools/call` request into
-  `params.idempotencyKey` (key naming confirmed by the spike).
+- Tool and layered `call` read `_meta["com.mantlejs/idempotencyKey"]` from the `tools/call` request into
+  `params.idempotencyKey`. Key name per the spike (Decision #13): the MCP spec says `_meta` prefixes SHOULD be
+  reverse DNS, so `com.mantlejs/`, not `mantlejs/`.
 - Code mode: `mantle.<path>.create(data, { idempotencyKey })` is allowed in the bridged API.
 - Tool descriptions for idempotency-protected methods tell the agent to send a key and reuse it on retry.
 
@@ -351,7 +354,9 @@ JSDoc tag with the same hints.
 
 Exported from `@mantlejs/mcp`. Connects the official SDK client to an app's MCP server over the SDK's in-memory
 transport, with an optional principal (user or agent token), so app authors can test their expose map, scopes,
-and hooks without HTTP.
+and hooks without HTTP. A token is resolved through the same session-params path as the HTTP endpoint (bearer
+`Authorization` header → `verifyJwt`), not hand-built `params`, so a test sees exactly what production sees
+(Decision #13).
 
 ```typescript
 const client = await createMcpTestClient(app, { agentToken });
@@ -545,6 +550,7 @@ The `CLAUDE.md` table and the `dependencyMatrix` export are edited together, per
 | 10  | _Pending implementation:_ conditional-request write atomicity                                                                                                                | Decided once spec 5 shows which adapters can add a version check to the write's where clause.                                                                                                                                                               |
 | 11  | New packages join the `experimental` release group                                                                                                                           | Same precedent as `mcp-code` in Phase 7: new surface stays at `-experimental` until it has settled.                                                                                                                                                         |
 | 12  | Logo v1 drafted in-repo as SVG, built on the existing amber palette; replaceable later                                                                                       | The colors already suit the name. Everything references the tokens and asset files, so a designer's mark later is a file swap.                                                                                                                              |
+| 13  | MCP SDK mechanics for specs 9–11 (spike 3, 2026-10-21, against `@modelcontextprotocol/sdk` 1.29.0)                                                                         | Pinned in `packages/mcp/src/lib/sdk-mechanics.spec.ts`. **Annotations:** `@mantlejs/mcp` registers tools through the low-level `Server.setRequestHandler(ListToolsRequestSchema)`, not `McpServer.registerTool()`, so annotations are a plain `annotations` field on each listed tool (`title`, `readOnlyHint`, `destructiveHint`, `idempotentHint`, `openWorldHint`); verified to reach the client intact. **`_meta`:** `request.params._meta` in the `tools/call` handler is a loose object, so a custom key arrives unchanged (absent → `undefined`), including over the single-shot HTTP path, which delivers messages verbatim. The MCP spec (2025-11-25) says `_meta` prefixes SHOULD be reverse DNS, so the key is `com.mantlejs/idempotencyKey` (spec 10 amended). **Test client:** `InMemoryTransport.createLinkedPair()` already backs the mcp/mcp-code specs' `connect()` helpers; independent pairs don't interfere. The one design point: resolve a test principal through the HTTP endpoint's session-params path rather than hand-built `params` (spec 11 amended). Nothing in specs 9–11 is contradicted. |
 
 ---
 
