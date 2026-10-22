@@ -404,6 +404,10 @@ describe("KnexRepository", () => {
       await expect(throwsCode("28000")).rejects.toBeInstanceOf(Forbidden);
     });
 
+    it("42501 (insufficient privilege, incl. a row-level security violation) → Forbidden", async () => {
+      await expect(throwsCode("42501")).rejects.toBeInstanceOf(Forbidden);
+    });
+
     it("42xxx (syntax/schema error) → Unprocessable", async () => {
       await expect(throwsCode("42601")).rejects.toBeInstanceOf(Unprocessable);
     });

@@ -56,10 +56,13 @@ runs in four stages:
       `tools/list` response (we don't use `registerTool`), the `_meta` key is `com.mantlejs/idempotencyKey` (reverse
       DNS per the MCP spec), and `createMcpTestClient()` resolves tokens through the HTTP session-params path.
 
-- [ ] **4. Spike: Postgres row-level security via knex** _(PRD spec 13)_
+- [x] **4. Spike: Postgres row-level security via knex** _(PRD spec 13)_
       `SET LOCAL app.tenant_id` inside `withTransaction()`, an RLS policy reading `current_setting`, and how it
       interacts with connection pooling.
       **Accept:** findings recorded in Decision #7; the recipe either confirmed for spec 13 or dropped.
+      **Done (2026-10-21):** confirmed (with `set_config(…, true)`, not `SET LOCAL`, and a non-owner app role); spec 13
+      amended. `knex-repository-postgres.spec.ts` runs it when `MANTLE_PG_URL` is set. Also fixed: SQLSTATE `42501`
+      (RLS violation) now maps to `Forbidden`. Open for item 17: ship `forTenant()` as a helper or keep it a recipe.
 
 - [ ] **5. License, community files, metadata** _(PRD spec 15)_
   - [x] Root `LICENSE` (MIT) + a copy in all 40 `packages/*`. **Done (2026-10-12):** verified in

@@ -344,7 +344,8 @@ export abstract class KnexRepository<T extends Record<string, unknown>, D = Part
       case "3D": // Invalid catalog name
       case "3F": // Invalid schema name
       case "42": // Syntax error or access rule violation
-        return new Unprocessable(err.message);
+        // 42501 insufficient_privilege: a missing GRANT, or a row-level security policy rejecting the row.
+        return code === "42501" ? new Forbidden(err.message) : new Unprocessable(err.message);
       default:
         return new GeneralError(err.message);
     }

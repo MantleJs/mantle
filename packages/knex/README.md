@@ -204,8 +204,14 @@ Database-level errors are translated to typed `MantleError` subclasses:
 | `23505` (unique)       | `Conflict`     |
 | other `23`             | `BadRequest`   |
 | `28`                   | `Forbidden`    |
-| `3D`, `3F`, `42`       | `Unprocessable`|
+| `42501` (insufficient privilege, incl. a row-level security violation) | `Forbidden` |
+| `3D`, `3F`, other `42` | `Unprocessable`|
 | other                  | `GeneralError` |
+
+Other clients report a duplicate key with their own codes rather than SQLSTATE — SQLite
+`SQLITE_CONSTRAINT_PRIMARYKEY`/`_UNIQUE`, MySQL `ER_DUP_ENTRY` (1062), MSSQL error 2627/2601 — and those map to
+`Conflict` too, so `save()` with an existing id is a `Conflict` on every client. Other SQLite constraint failures
+map to `BadRequest`.
 
 ## Development
 
