@@ -126,7 +126,7 @@ distance, where lower is more similar.
 | `findAll(params?)`     | Scroll through records with optional filtering & sorting |
 | `findPage(params?)`    | One page via native scroll cursors — pass the returned `cursor` back for the next page. `skip`/`sort` are rejected with `BadRequest` (Qdrant cannot combine `order_by` with scroll cursors) |
 | `findById(id)`         | Fetch a single record by ID; returns `null` if not found |
-| `save(data)`           | Insert with a zero-vector placeholder                    |
+| `save(data)`           | Insert with a zero-vector placeholder. Qdrant only upserts, so an existing id is **overwritten**, not rejected with `Conflict` |
 | `saveAll(data[])`      | Batch insert (single Qdrant upsert call)                 |
 | `updateById(id, data)` | Replace the full payload, preserving the stored vector; throws `NotFound` if absent |
 | `patchById(id, data)`  | Merge partial fields, preserving the stored vector; throws `NotFound` if absent |

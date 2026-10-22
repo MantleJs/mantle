@@ -813,6 +813,23 @@ describe("DynamoDbRepository", () => {
     });
   });
 
+  describe("save — duplicate key", () => {
+    it("conditions the put on the key not existing", async () => {
+      mockSend.mockResolvedValue({});
+      await new UserRepo(app).save({ id: "1", name: "A", email: "a@a.com" });
+      const input = mockSend.mock.calls[0]?.[0].input;
+      expect(input.ConditionExpression).toBe("attribute_not_exists(#pk)");
+      expect(input.ExpressionAttributeNames).toEqual({ "#pk": "id" });
+    });
+
+    it("throws Conflict when the item already exists", async () => {
+      mockSend.mockRejectedValue(
+        Object.assign(new Error("The conditional request failed"), { name: "ConditionalCheckFailedException" }),
+      );
+      await expect(new UserRepo(app).save({ id: "1", name: "A", email: "a@a.com" })).rejects.toBeInstanceOf(Conflict);
+    });
+  });
+
   describe("save — error handling", () => {
     it("wraps a driver error", async () => {
       mockSend.mockRejectedValue(new Error("boom"));

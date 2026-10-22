@@ -225,7 +225,7 @@ app.service("payments").hooks({
 
 - **Applies to** `create` and `patch` (the non-idempotent methods). `update`/`remove` are already idempotent by
   definition, so the hook rejects being registered on them.
-- **Key source:** `params.headers["idempotency-key"]` for HTTP; `_meta["mantlejs/idempotencyKey"]` for MCP
+- **Key source:** `params.headers["idempotency-key"]` for HTTP; `_meta["com.mantlejs/idempotencyKey"]` for MCP
   tool calls (spec 10); `params.idempotencyKey` for internal calls and the client SDK.
 - **Record:** `{ id: scope:key, fingerprint, status: "in-progress" | "completed", response, expiresAt }`, stored
   in any `Repository<T>`. `scope` = principal (user/agent) + service path + method, so one caller's key can't
@@ -333,15 +333,18 @@ Every generated tool (tool mode, layered `describe_service`) carries MCP tool an
 | `remove`      | false          | true              | true                                            |
 | custom        | false          | true              | false (conservative defaults)                   |
 
-Plus `title`. Overridable per method in the expose map (`annotations: { … }`). Code mode's declarations gain a
+Plus `title`, and `openWorldHint: false` (a Mantle service is a closed domain). Overridable per method in the expose
+map (`annotations: { … }`). Emitted as the `annotations` field of each `tools/list` entry — `@mantlejs/mcp` uses the
+SDK's low-level `Server`, not `McpServer.registerTool()` (Decision #13). Code mode's declarations gain a
 JSDoc tag with the same hints.
 
 **Accept:** table-driven spec; override spec; snapshot of code-mode declarations.
 
 #### 10. Idempotency-key passthrough
 
-- Tool and layered `call` read `_meta["mantlejs/idempotencyKey"]` from the `tools/call` request into
-  `params.idempotencyKey` (key naming confirmed by the spike).
+- Tool and layered `call` read `_meta["com.mantlejs/idempotencyKey"]` from the `tools/call` request into
+  `params.idempotencyKey`. Key name per the spike (Decision #13): the MCP spec says `_meta` prefixes SHOULD be
+  reverse DNS, so `com.mantlejs/`, not `mantlejs/`.
 - Code mode: `mantle.<path>.create(data, { idempotencyKey })` is allowed in the bridged API.
 - Tool descriptions for idempotency-protected methods tell the agent to send a key and reuse it on retry.
 
@@ -351,7 +354,9 @@ JSDoc tag with the same hints.
 
 Exported from `@mantlejs/mcp`. Connects the official SDK client to an app's MCP server over the SDK's in-memory
 transport, with an optional principal (user or agent token), so app authors can test their expose map, scopes,
-and hooks without HTTP.
+and hooks without HTTP. A token is resolved through the same session-params path as the HTTP endpoint (bearer
+`Authorization` header → `verifyJwt`), not hand-built `params`, so a test sees exactly what production sees
+(Decision #13).
 
 ```typescript
 const client = await createMcpTestClient(app, { agentToken });
@@ -398,8 +403,12 @@ app.service("articles").hooks({ before: { all: [tenantScope({ field: "orgId" })]
 - **Audit:** `@mantlejs/audit` records `params.tenant.id` when present.
 - **MCP:** code-mode and layered `list_services` are unaffected (scoping happens in hooks), but the agents guide
   documents that an agent token inherits the delegating user's tenant.
-- **Postgres RLS (opt-in, from the spike):** a documented `knex` recipe that sets `app.tenant_id` with
-  `SET LOCAL` in a transaction, with RLS policies as a second line of defense under the hook.
+- **Postgres RLS (opt-in, confirmed by the spike — Decision #7):** a documented `knex` recipe, with RLS policies as a
+  second line of defense under the hook. Each repository call runs in a transaction that first calls
+  `set_config('app.tenant_id', $1, true)` (`SET LOCAL` can't take bind parameters), the app connects as a role that
+  doesn't own the table, and the tenant reaches the repository explicitly via `repo.forTenant(params.tenant.id)`
+  because `Repository<T>` methods never see `params`. Shipped as documentation plus a spec (whether to ship a
+  `forTenant()` helper is decided in item 17).
 
 **Accept:** a socket.io spec where tenant A's client never receives tenant B's event; audit spec; RLS recipe
 validated against Postgres in the spike, then documented.
@@ -538,13 +547,14 @@ The `CLAUDE.md` table and the `dependencyMatrix` export are edited together, per
 | 3   | Implement `Idempotency-Key` despite the IETF draft having expired (draft-07, April 2026)                                                                                     | The semantics (replay, 409, 422) are stable and widely deployed (Stripe and others). The header name won't change. If the draft is revived with changes, they land in one module.                                                                           |
 | 4   | Emit the draft-11 `RateLimit` / `RateLimit-Policy` structured-field headers, not the legacy `X-RateLimit-*` trio                                                             | The draft is active (May 2026) and the WG's direction. The formatting is isolated in one module in case it changes before RFC.                                                                                                                              |
 | 5   | Rate-limit stores get their own interface instead of `Repository<T>`; fixed window only in v1                                                                                | Rate limiting needs an atomic increment-with-expiry, which `Repository<T>` can't express without a race. Fixed window maps directly onto the draft's `q`/`w` parameters. Sliding window / GCRA can follow behind the same interface.                        |
-| 6   | Idempotency records live in any `Repository<T>`, using duplicate-id `Conflict` as the atomic lock; failed calls are not cached                                               | Reuses every adapter Mantle already has. Pending the spike confirming duplicate-id `Conflict` on each adapter. Not caching errors matches the draft's guidance and lets callers retry after a transient failure.                                            |
-| 7   | Multi-tenancy v1 is row-level, enforced in hooks; Postgres RLS is an opt-in recipe; schema/db-per-tenant is a documented pattern                                             | Row-level works on every adapter through `where` equality alone, which keeps it in the Application layer. RLS adds defense in depth where it's available. Per-tenant databases need connection management that belongs in a later phase, if demand appears. |
+| 6   | Idempotency records live in any `Repository<T>`, using duplicate-id `Conflict` as the atomic lock; failed calls are not cached                                               | Reuses every adapter Mantle already has. Not caching errors matches the draft's guidance and lets callers retry after a transient failure. **Spike (2026-10-21), per adapter — does `save()` with an existing id throw `Conflict` atomically?** memory ✅ (synchronous check-and-set). knex ✅ after fixes: the database's primary key is atomic on every client, but only Postgres's `23505` mapped to `Conflict` — SQLite (`SQLITE_CONSTRAINT_PRIMARYKEY`, verified against real SQLite), MySQL (`ER_DUP_ENTRY`/1062), and MSSQL (2627/2601) surfaced as 500s; MySQL/MSSQL codes are from driver docs, not run live (no Docker locally). The spike also found `save()` crashing on better-sqlite3 (not detected as RETURNING-capable) and the MySQL re-fetch using insert id `0` for a caller-supplied key; both fixed. supabase ✅ (PostgREST passes `23505` through). mongodb ✅ (`11000` on `_id`), **but ids must be 24-hex ObjectIds**, so the idempotency record id must be derived to fit (e.g. a truncated SHA-256 of `scope:key`) — decide in item 9. dynamodb ❌→✅: `save()` was an unconditional `PutItem` that silently overwrote; now conditioned on `attribute_not_exists` and mapped to `Conflict` (`saveAll`'s BatchWriteItem can't be conditioned and still overwrites — documented). pinecone, qdrant ❌ unsupported: both only upsert, with no documented insert-if-absent, so a read-then-write check would race; documented as overwriting and not usable as idempotency stores. neo4j: N/A (a `GraphRepository`, not a `Repository<T>`). |
+| 7   | Multi-tenancy v1 is row-level, enforced in hooks; Postgres RLS is an opt-in recipe; schema/db-per-tenant is a documented pattern                                             | Row-level works on every adapter through `where` equality alone, which keeps it in the Application layer. RLS adds defense in depth where it's available. Per-tenant databases need connection management that belongs in a later phase, if demand appears. **RLS spike (2026-10-21, Postgres 16 via knex + pg, recorded in `packages/knex/src/lib/knex-repository-postgres.spec.ts`, which runs when `MANTLE_PG_URL` is set):** recipe confirmed. `set_config('app.tenant_id', $1, true)` is transaction-local: after commit or rollback the same pooled connection sees no tenant (tested with a 1-connection pool), and 20 interleaved calls for two tenants on a 2-connection pool never cross. `SET LOCAL` rejects bind parameters, so use `set_config()` (no string interpolation). A session-level `SET` does leak to the next checkout, so it's never used. With no tenant set, `current_setting(…, true)` is `NULL` (or `''` once the GUC has been touched in that session), so policies use `nullif(…, '')` and fail closed. A row of another tenant is invisible by id, so update/delete of it is `NotFound` (no existence leak); inserting or moving a row into another tenant fails `WITH CHECK` with SQLSTATE `42501`, now mapped to `Forbidden` (was `Unprocessable`). Superusers and table owners bypass RLS (owners unless `FORCE ROW LEVEL SECURITY`), so the app must connect as a separate non-owner role. Because `Repository<T>` methods never see `params`, the tenant is passed explicitly with `repo.forTenant(id)`; an AsyncLocalStorage approach was rejected because socket.io and MCP calls run outside a request context. PgBouncer in transaction mode is compatible in principle, since the setting is transaction-scoped (not tested). |
 | 8   | Layered MCP mode uses three stateless meta-tools rather than `tools/list_changed` dynamic loading                                                                            | Single-shot HTTP mode has no session to change the tool list in, and many clients handle `list_changed` inconsistently. Meta-tools work everywhere and reuse the tool-mode runner, so equivalence holds.                                                    |
 | 9   | No MCP client in `@mantlejs/client`, and no separate MCP client package; ship `createMcpTestClient()` instead                                                                | The callers of a Mantle MCP server are agents, which use the official SDK client. A Mantle wrapper would add little. A test client solves the real problem app authors have: testing their expose map and scopes.                                           |
 | 10  | _Pending implementation:_ conditional-request write atomicity                                                                                                                | Decided once spec 5 shows which adapters can add a version check to the write's where clause.                                                                                                                                                               |
 | 11  | New packages join the `experimental` release group                                                                                                                           | Same precedent as `mcp-code` in Phase 7: new surface stays at `-experimental` until it has settled.                                                                                                                                                         |
 | 12  | Logo v1 drafted in-repo as SVG, built on the existing amber palette; replaceable later                                                                                       | The colors already suit the name. Everything references the tokens and asset files, so a designer's mark later is a file swap.                                                                                                                              |
+| 13  | MCP SDK mechanics for specs 9–11 (spike 3, 2026-10-21, against `@modelcontextprotocol/sdk` 1.29.0)                                                                         | Pinned in `packages/mcp/src/lib/sdk-mechanics.spec.ts`. **Annotations:** `@mantlejs/mcp` registers tools through the low-level `Server.setRequestHandler(ListToolsRequestSchema)`, not `McpServer.registerTool()`, so annotations are a plain `annotations` field on each listed tool (`title`, `readOnlyHint`, `destructiveHint`, `idempotentHint`, `openWorldHint`); verified to reach the client intact. **`_meta`:** `request.params._meta` in the `tools/call` handler is a loose object, so a custom key arrives unchanged (absent → `undefined`), including over the single-shot HTTP path, which delivers messages verbatim. The MCP spec (2025-11-25) says `_meta` prefixes SHOULD be reverse DNS, so the key is `com.mantlejs/idempotencyKey` (spec 10 amended). **Test client:** `InMemoryTransport.createLinkedPair()` already backs the mcp/mcp-code specs' `connect()` helpers; independent pairs don't interfere. The one design point: resolve a test principal through the HTTP endpoint's session-params path rather than hand-built `params` (spec 11 amended). Nothing in specs 9–11 is contradicted. |
 
 ---
 

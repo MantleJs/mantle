@@ -81,7 +81,7 @@ abstract class KnexRepository<T, D = Partial<T>> implements Repository<T, D> {
 | ---------------------------------- | ------------------------------------------------ |
 | `findAll(params?)`                 | Returns all rows matching `QueryParams`          |
 | `findById(id)`                     | Returns one row or `null`                        |
-| `save(data)`                       | Inserts a row, returns the inserted record       |
+| `save(data)`                       | Inserts a row, returns the inserted record; `Conflict` on a duplicate primary/unique key (every client) |
 | `saveAll(data[])`                  | Bulk-inserts rows, returns all inserted records  |
 | `updateById(id, data)`             | Replaces a row, throws `NotFound` if missing     |
 | `patchById(id, data)`              | Merges into a row, throws `NotFound` if missing  |
@@ -204,8 +204,14 @@ Database-level errors are translated to typed `MantleError` subclasses:
 | `23505` (unique)       | `Conflict`     |
 | other `23`             | `BadRequest`   |
 | `28`                   | `Forbidden`    |
-| `3D`, `3F`, `42`       | `Unprocessable`|
+| `42501` (insufficient privilege, incl. a row-level security violation) | `Forbidden` |
+| `3D`, `3F`, other `42` | `Unprocessable`|
 | other                  | `GeneralError` |
+
+Other clients report a duplicate key with their own codes rather than SQLSTATE — SQLite
+`SQLITE_CONSTRAINT_PRIMARYKEY`/`_UNIQUE`, MySQL `ER_DUP_ENTRY` (1062), MSSQL error 2627/2601 — and those map to
+`Conflict` too, so `save()` with an existing id is a `Conflict` on every client. Other SQLite constraint failures
+map to `BadRequest`.
 
 ## Development
 

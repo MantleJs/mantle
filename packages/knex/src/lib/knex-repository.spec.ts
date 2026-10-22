@@ -223,6 +223,24 @@ describe("KnexRepository", () => {
     });
   });
 
+  describe("save (mysql2 — no RETURNING, re-fetch path)", () => {
+    it("re-fetches by the insert id for an auto-increment key", async () => {
+      const user = { id: 7, name: "Alice", email: "alice@example.com" };
+      const { qb, app } = makeSetup(user, "mysql2");
+      qb["insert"].mockResolvedValueOnce([7]);
+      expect(await new TestRepo(app).save({ name: "Alice", email: "alice@example.com" })).toEqual(user);
+      expect(qb["where"]).toHaveBeenCalledWith({ id: 7 });
+    });
+
+    it("re-fetches by a caller-supplied id, not MySQL's insert id (0 for a non-AUTO_INCREMENT key)", async () => {
+      const user = { id: "u-1", name: "Alice", email: "alice@example.com" };
+      const { qb, app } = makeSetup(user, "mysql2");
+      qb["insert"].mockResolvedValueOnce([0]);
+      await new TestRepo(app).save({ id: "u-1", name: "Alice", email: "alice@example.com" } as never);
+      expect(qb["where"]).toHaveBeenCalledWith({ id: "u-1" });
+    });
+  });
+
   describe("saveAll", () => {
     it("batch-inserts and returns all rows", async () => {
       const users = [
@@ -349,6 +367,23 @@ describe("KnexRepository", () => {
       await expect(throwsCode("23505")).rejects.toBeInstanceOf(Conflict);
     });
 
+    it.each([
+      ["better-sqlite3 primary key", { code: "SQLITE_CONSTRAINT_PRIMARYKEY" }],
+      ["better-sqlite3 unique", { code: "SQLITE_CONSTRAINT_UNIQUE" }],
+      ["sqlite3", { code: "SQLITE_CONSTRAINT", message: "SQLITE_CONSTRAINT: UNIQUE constraint failed: users.id" }],
+      ["mysql2", { code: "ER_DUP_ENTRY", errno: 1062 }],
+      ["mssql primary key / unique constraint", { code: "EREQUEST", number: 2627 }],
+      ["mssql unique index", { code: "EREQUEST", number: 2601 }],
+    ])("duplicate key from %s → Conflict", async (_driver, fields) => {
+      const { qb, app } = makeSetup([]);
+      qb["select"].mockRejectedValue(Object.assign(new Error("db error"), fields));
+      await expect(new TestRepo(app).findAll()).rejects.toBeInstanceOf(Conflict);
+    });
+
+    it("other SQLite constraint failures (e.g. NOT NULL) → BadRequest", async () => {
+      await expect(throwsCode("SQLITE_CONSTRAINT_NOTNULL")).rejects.toBeInstanceOf(BadRequest);
+    });
+
     it("23503 (foreign key) → BadRequest", async () => {
       await expect(throwsCode("23503")).rejects.toBeInstanceOf(BadRequest);
     });
@@ -367,6 +402,10 @@ describe("KnexRepository", () => {
 
     it("28xxx (auth failure) → Forbidden", async () => {
       await expect(throwsCode("28000")).rejects.toBeInstanceOf(Forbidden);
+    });
+
+    it("42501 (insufficient privilege, incl. a row-level security violation) → Forbidden", async () => {
+      await expect(throwsCode("42501")).rejects.toBeInstanceOf(Forbidden);
     });
 
     it("42xxx (syntax/schema error) → Unprocessable", async () => {

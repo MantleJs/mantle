@@ -141,7 +141,7 @@ Every `findSimilar` result carries the Pinecone match score as `_score` — **hi
 | `findAll(params?)`     | List all records, with optional `QueryParams` filtering  |
 | `findPage(params?)`    | One page via Pinecone's native `paginationToken` as the `cursor`. `where`/`skip`/`sort` are rejected with `BadRequest` — the list API cannot filter or order |
 | `findById(id)`         | Fetch a single record by ID; returns `null` if not found |
-| `save(data)`           | Insert a new record with a **zero-vector placeholder** (sized to `vectorDimension`) — does not generate a real embedding; call `upsertVector()` for that |
+| `save(data)`           | Insert a new record with a **zero-vector placeholder** (sized to `vectorDimension`) — does not generate a real embedding; call `upsertVector()` for that. Pinecone only upserts, so an existing id is **overwritten**, not rejected with `Conflict` |
 | `saveAll(data[])`      | Batch insert multiple records, each with a zero-vector placeholder |
 | `updateById(id, data)` | Replace all metadata for a record; throws `NotFound` if absent |
 | `patchById(id, data)`  | Update individual metadata fields for a record; throws `NotFound` if absent |

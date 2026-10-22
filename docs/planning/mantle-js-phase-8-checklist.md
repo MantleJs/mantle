@@ -40,20 +40,29 @@ runs in four stages:
   comes from the error. Transports now dispatch via `ServiceHandle.dispatch(…, { response })` so an internal
   call's `context.http` can't leak into the outer response.
 
-- [ ] **2. Spike: duplicate-id `Conflict` across adapters** _(PRD spec 4, Decision #6)_
+- [x] **2. Spike: duplicate-id `Conflict` across adapters** _(PRD spec 4, Decision #6)_
       For each `Repository<T>` adapter, does `save()` with an existing primary key throw `Conflict` (atomically)?
       **Accept:** per-adapter findings recorded in Decision #6. Adapters that don't are either fixed (if it's a
       bug) or documented as unsupported idempotency stores.
+      **Done (2026-10-21):** findings in Decision #6. Fixed knex (duplicate-key mapping on SQLite/MySQL/MSSQL, plus
+      two `save()` bugs it uncovered) and dynamodb (`save()` overwrote silently); pinecone/qdrant documented as
+      unsupported. Open for item 9: Mongo needs ObjectId-shaped record ids.
 
-- [ ] **3. Spike: MCP SDK mechanics** _(PRD specs 8–11)_
+- [x] **3. Spike: MCP SDK mechanics** _(PRD specs 8–11)_
       Against `@modelcontextprotocol/sdk` ^1.29: tool annotations on `registerTool`, reading `_meta` from a
       `tools/call` request, and the in-memory transport pair for `createMcpTestClient()`.
       **Accept:** findings recorded as a new Decisions row; PRD specs 9–11 amended if anything is contradicted.
+      **Done (2026-10-21):** Decision #13. Nothing contradicted; three refinements: annotations go on the low-level
+      `tools/list` response (we don't use `registerTool`), the `_meta` key is `com.mantlejs/idempotencyKey` (reverse
+      DNS per the MCP spec), and `createMcpTestClient()` resolves tokens through the HTTP session-params path.
 
-- [ ] **4. Spike: Postgres row-level security via knex** _(PRD spec 13)_
+- [x] **4. Spike: Postgres row-level security via knex** _(PRD spec 13)_
       `SET LOCAL app.tenant_id` inside `withTransaction()`, an RLS policy reading `current_setting`, and how it
       interacts with connection pooling.
       **Accept:** findings recorded in Decision #7; the recipe either confirmed for spec 13 or dropped.
+      **Done (2026-10-21):** confirmed (with `set_config(…, true)`, not `SET LOCAL`, and a non-owner app role); spec 13
+      amended. `knex-repository-postgres.spec.ts` runs it when `MANTLE_PG_URL` is set. Also fixed: SQLSTATE `42501`
+      (RLS violation) now maps to `Forbidden`. Open for item 17: ship `forTenant()` as a helper or keep it a recipe.
 
 - [ ] **5. License, community files, metadata** _(PRD spec 15)_
   - [x] Root `LICENSE` (MIT) + a copy in all 40 `packages/*`. **Done (2026-10-12):** verified in

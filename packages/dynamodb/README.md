@@ -208,8 +208,8 @@ class UserRepository extends DynamoDbRepository<User> {
 | `findAll(params?)`     | Scan (or Query when PK is in where). Supports `skip`/`limit` offsets. |
 | `findPage(params?)`    | One page via native cursor pagination — see below                    |
 | `findById(id)`         | GetItem by partition key (or composite key)                          |
-| `save(data)`           | PutItem — auto-generates UUID when no `partitionKey` is set          |
-| `saveAll(data[])`      | BatchWriteItem in chunks of 25 — auto-generates UUIDs as needed      |
+| `save(data)`           | Conditional PutItem — auto-generates UUID when no `partitionKey` is set; `Conflict` if the key exists |
+| `saveAll(data[])`      | BatchWriteItem in chunks of 25 — auto-generates UUIDs as needed. BatchWriteItem can't carry a condition, so an existing key is **overwritten** (inside `withTransaction()` too) |
 | `updateById(id, data)` | UpdateItem (full replacement, throws NotFound if missing)            |
 | `patchById(id, data)`  | UpdateItem (partial, strips `undefined`, throws NotFound if missing) |
 | `deleteById(id)`       | DeleteItem (throws NotFound if missing)                              |
@@ -287,7 +287,7 @@ AWS SDK errors are translated to typed `MantleError` subclasses by exception nam
 | --------------------------------------- | ------------- |
 | Already a MantleError (e.g. thrown by a hook, or by a custom repository method) | passed through unchanged |
 | `ResourceNotFoundException`             | `NotFound`    |
-| `ConditionalCheckFailedException`       | `NotFound`    |
+| `ConditionalCheckFailedException`       | `NotFound` (update/patch/remove); `Conflict` from `save()` |
 | `ProvisionedThroughputExceededException`, `RequestLimitExceeded`, `ServiceUnavailable` | `Unavailable` |
 | `AccessDeniedException`, `UnauthorizedException` | `Forbidden`   |
 | `ValidationException`                   | `BadRequest`  |
