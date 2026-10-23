@@ -89,16 +89,16 @@ export class RepositoryService<T, D = Partial<T>> implements Service<T, D> {
     return this.repository.save(data);
   }
 
-  async update(id: Id, data: D, _params?: ServiceParams): Promise<T> {
-    return this.repository.updateById(id, data);
+  async update(id: Id, data: D, params?: ServiceParams): Promise<T> {
+    return this.repository.updateById(id, data, params?.precondition);
   }
 
-  async patch(id: Id, data: D, _params?: ServiceParams): Promise<T> {
-    return this.repository.patchById(id, data);
+  async patch(id: Id, data: D, params?: ServiceParams): Promise<T> {
+    return this.repository.patchById(id, data, params?.precondition);
   }
 
-  async remove(id: Id, _params?: ServiceParams): Promise<T> {
-    return this.repository.deleteById(id);
+  async remove(id: Id, params?: ServiceParams): Promise<T> {
+    return this.repository.deleteById(id, params?.precondition);
   }
 
   /** Surface the underlying repository's capabilities so `ServiceHandle.describe()` can include them. */

@@ -1,5 +1,5 @@
-import type { Id, QueryParams, Repository, RepositoryCapabilities } from "@mantlejs/mantle";
-import { assertOperators, Conflict, NotFound } from "@mantlejs/mantle";
+import type { Id, QueryParams, Repository, RepositoryCapabilities, WriteOptions } from "@mantlejs/mantle";
+import { assertOperators, Conflict, NotFound, PreconditionFailed } from "@mantlejs/mantle";
 
 /** All query operators supported by the in-memory adapter — the full Mantle operator set (it's the test reference). */
 export const MEMORY_OPERATORS: ReadonlySet<string> = new Set([
@@ -163,11 +163,12 @@ export class MemoryRepository<T extends Record<string, unknown>> implements Repo
     return Promise.all(data.map((d) => this.save(d)));
   }
 
-  async updateById(id: Id, data: Partial<T>): Promise<T> {
+  async updateById(id: Id, data: Partial<T>, options?: WriteOptions): Promise<T> {
     if (!this._store.has(id)) {
       throw new NotFound(`Record with id ${id} not found`);
     }
     const existing = this._store.get(id) as Record<string, unknown>;
+    this.assertPrecondition(id, existing, options);
     const now = new Date().toISOString();
     const record = this.mapDataToStorage({ ...data, [this.idField]: id } as Record<string, unknown>);
     if (this.timestamps) {
@@ -179,11 +180,12 @@ export class MemoryRepository<T extends Record<string, unknown>> implements Repo
     return this.mapRecordToEntity(record);
   }
 
-  async patchById(id: Id, data: Partial<T>): Promise<T> {
+  async patchById(id: Id, data: Partial<T>, options?: WriteOptions): Promise<T> {
     if (!this._store.has(id)) {
       throw new NotFound(`Record with id ${id} not found`);
     }
     const existing = this._store.get(id) as Record<string, unknown>;
+    this.assertPrecondition(id, existing, options);
     const now = new Date().toISOString();
     const record: Record<string, unknown> = {
       ...existing,
@@ -198,13 +200,24 @@ export class MemoryRepository<T extends Record<string, unknown>> implements Repo
     return this.mapRecordToEntity(record);
   }
 
-  async deleteById(id: Id): Promise<T> {
+  async deleteById(id: Id, options?: WriteOptions): Promise<T> {
     const record = this._store.get(id);
     if (!record) {
       throw new NotFound(`Record with id ${id} not found`);
     }
+    this.assertPrecondition(id, record, options);
     this._store.delete(id);
     return this.mapRecordToEntity(record);
+  }
+
+  /** `WriteOptions.where`: checked synchronously right before the write, so no other call can interleave. */
+  private assertPrecondition(id: Id, record: Record<string, unknown>, options?: WriteOptions): void {
+    if (!options?.where) return;
+    const where = this.mapWhereToStorage(options.where);
+    assertOperators(where, MEMORY_OPERATORS, "@mantlejs/memory");
+    if (!matchesWhere(record, where)) {
+      throw new PreconditionFailed(`Record with id ${id} no longer matches the write's precondition`);
+    }
   }
 
   async count(params?: QueryParams): Promise<number> {

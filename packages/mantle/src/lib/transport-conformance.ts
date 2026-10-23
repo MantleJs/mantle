@@ -1,8 +1,9 @@
+import { conditional } from "./conditional.js";
 import { getContext } from "./context.js";
-import { BadRequest, MantleError, TooManyRequests } from "./errors.js";
+import { BadRequest, MantleError, NotFound, TooManyRequests } from "./errors.js";
 import type { ErrorFormat } from "./problem-details.js";
 import type { TrustProxy } from "./transport.js";
-import type { HookContext, MantleApplication } from "./types.js";
+import type { HookContext, Id, MantleApplication } from "./types.js";
 
 /**
  * Shared conformance fixture for the HTTP transports (express, koa, http), in the same spirit as
@@ -16,7 +17,12 @@ export interface TransportConformanceCase {
   trustProxy?: TrustProxy;
   /** Passed to the transport under test as its `errors` option. */
   errors?: ErrorFormat;
-  request: { method: "GET" | "POST" | "DELETE"; path: string; headers?: Record<string, string>; body?: unknown };
+  request: {
+    method: "GET" | "POST" | "PATCH" | "DELETE";
+    path: string;
+    headers?: Record<string, string>;
+    body?: unknown;
+  };
   expect: {
     status: number;
     /** Exact header values (case-insensitive names); `null` asserts the header is absent. */
@@ -141,6 +147,25 @@ export function registerTransportConformanceServices(app: MantleApplication): vo
     },
     { methods: ["get"] },
   );
+
+  // conditional() over a one-record store whose version increments on every patch.
+  const record = { id: "c1", title: "Hello", version: 1 };
+  app.use<typeof record>(
+    "conformance-conditional",
+    {
+      async get(id: Id) {
+        if (id !== record.id) throw new NotFound();
+        return { ...record };
+      },
+      async patch(_id: Id, data: Partial<typeof record>) {
+        Object.assign(record, data, { version: record.version + 1 });
+        return { ...record };
+      },
+    },
+    { methods: ["get", "patch"] },
+  );
+  const etags = conditional({ versionField: "version" });
+  app.service("conformance-conditional").hooks({ before: { all: [etags.before] }, after: { all: [etags.after] } });
 
   app.use(
     "conformance-internal",
@@ -337,6 +362,40 @@ export const TRANSPORT_CONFORMANCE_CASES: TransportConformanceCase[] = [
     errors: "problem+json",
     request: { method: "GET", path: "/conformance-headers" },
     expect: { status: 200, contentType: "application/json" },
+  },
+  {
+    name: "conditional(): get sends a strong ETag",
+    request: { method: "GET", path: "/conformance-conditional/c1" },
+    expect: { status: 200, headers: { ETag: '"1"' }, body: { title: "Hello" } },
+  },
+  {
+    name: "conditional(): a matching If-None-Match is a 304 with the ETag and no body",
+    request: { method: "GET", path: "/conformance-conditional/c1", headers: { "If-None-Match": 'W/"1"' } },
+    expect: { status: 304, headers: { ETag: '"1"' }, body: "empty" },
+  },
+  {
+    name: "conditional(): a stale If-Match is a 412 Problem Details and the write doesn't happen",
+    request: {
+      method: "PATCH",
+      path: "/conformance-conditional/c1",
+      headers: { "If-Match": '"0"' },
+      body: { title: "Edited" },
+    },
+    expect: {
+      status: 412,
+      contentType: "application/problem+json",
+      body: { type: "https://mantlejs.com/errors/precondition-failed", status: 412 },
+    },
+  },
+  {
+    name: "conditional(): a current If-Match applies the write and returns the new ETag",
+    request: {
+      method: "PATCH",
+      path: "/conformance-conditional/c1",
+      headers: { "If-Match": '"1"' },
+      body: { title: "Edited" },
+    },
+    expect: { status: 200, headers: { ETag: '"2"' }, body: { title: "Edited", version: 2 } },
   },
   {
     name: "params.ip is the socket peer, ignoring X-Forwarded-For, without trustProxy",
