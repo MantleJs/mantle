@@ -1,4 +1,4 @@
-import type { HttpRouterLike, MantleApplication, MantlePlugin, ServiceOptions } from "@mantlejs/mantle";
+import type { ErrorFormat, HttpRouterLike, MantleApplication, MantlePlugin, ServiceOptions } from "@mantlejs/mantle";
 import { GeneralError } from "@mantlejs/mantle";
 import { buildOpenApiDocument, type OpenApiInfo } from "./document.js";
 import { swaggerUiHtml } from "./swagger-ui.js";
@@ -54,7 +54,9 @@ export function openapi(options: OpenApiOptions = {}): MantlePlugin {
 
     router.get(specPath, (_req, res) => {
       const descriptors = servicePaths.map((path) => app.service(path).describe());
-      res.json(buildOpenApiDocument(descriptors, options.info));
+      // The transport registers its `errors` format under "http:errors", so error responses are documented as sent.
+      const errors = app.get<ErrorFormat | undefined>("http:errors");
+      res.json(buildOpenApiDocument(descriptors, options.info, { errors }));
     });
 
     if (options.docsPath !== undefined) {

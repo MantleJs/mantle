@@ -82,8 +82,12 @@ describe("toProblemDetails", () => {
 });
 
 describe("errorResponse", () => {
-  it('defaults to the "mantle" shape as application/json', () => {
-    expect(errorResponse(new BadRequest("nope"))).toEqual({
+  it("defaults to Problem Details", () => {
+    expect(errorResponse(new BadRequest("nope")).contentType).toBe("application/problem+json");
+  });
+
+  it('serves the "mantle" shape as application/json', () => {
+    expect(errorResponse(new BadRequest("nope"), "mantle")).toEqual({
       status: 400,
       contentType: "application/json",
       body: { name: "BadRequest", message: "nope", code: 400, className: "bad-request" },
@@ -97,8 +101,8 @@ describe("errorResponse", () => {
     expect(response.body).toMatchObject({ status: 400, detail: "nope", instance: "/x" });
   });
 
-  it('keeps today\'s "mantle" 500 for a non-MantleError', () => {
-    expect(errorResponse("boom")).toEqual({
+  it('never leaks a non-MantleError\'s message in the "mantle" shape either', () => {
+    expect(errorResponse(new Error("password=hunter2"), "mantle")).toEqual({
       status: 500,
       contentType: "application/json",
       body: { name: "GeneralError", message: "An unexpected error occurred", code: 500, className: "general-error" },

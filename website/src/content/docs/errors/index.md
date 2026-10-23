@@ -28,23 +28,23 @@ turns it into a response with the matching HTTP status — never a plain `new Er
 
 The HTTP transports (`@mantlejs/express`, `@mantlejs/koa`, `@mantlejs/http`) take an `errors` option:
 
-- `"mantle"` (default): `MantleError.toJSON()` as `application/json` — `name`, `message`, `code`, `className`, plus
-  `data`, `errors`, and `hint` when set.
-- `"problem+json"`: [RFC 9457 Problem Details](https://www.rfc-editor.org/rfc/rfc9457) as `application/problem+json`.
-  `type` links to this page for the error's class; `title` is the class name in words, `status` the HTTP status,
-  `detail` the message, and `instance` the request path. `className`, `data`, `errors`, `hint`, and `requestId` are
-  extension members.
+- `"problem+json"` (default): [RFC 9457 Problem Details](https://www.rfc-editor.org/rfc/rfc9457) as
+  `application/problem+json`. `type` links to this page for the error's class; `title` is the class name in words,
+  `status` the HTTP status, `detail` the message, and `instance` the request path. `className`, `data`, `errors`,
+  `hint`, and `requestId` are extension members.
+- `"mantle"`: `MantleError.toJSON()` as `application/json` — `name`, `message`, `code`, `className`, plus `data`,
+  `errors`, and `hint` when set.
 
 ```typescript
-app.configure(express(undefined, { errors: "problem+json" }));
+app.configure(express(undefined, { errors: "mantle" })); // opt back into Mantle's JSON
 ```
 
 `@mantlejs/client` reads both formats into the same `MantleClientError`, choosing by `Content-Type`.
 
 An error class you define yourself (a `MantleError` subclass with your own `className`) has no page here, so its
 Problem Details `type` is `about:blank`, meaning "see the HTTP status". An unexpected error that isn't a `MantleError`
-becomes a 500 [`GeneralError`](/errors/general-error/); in `problem+json` it carries no `detail`, so internal messages
-don't reach the caller.
+becomes a 500 [`GeneralError`](/errors/general-error/) that doesn't include its message, in either format, so internal
+messages don't reach the caller.
 
 Every error response also carries the request's `X-Request-Id` header (and `requestId` in Problem Details), which
 matches the `requestId` on the server's log lines for that request.

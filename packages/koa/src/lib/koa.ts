@@ -63,8 +63,8 @@ export interface KoaOptions {
    */
   trustProxy?: TrustProxy;
   /**
-   * Error body format. `"mantle"` (default) is `MantleError.toJSON()` as `application/json`; `"problem+json"` is
-   * RFC 9457 Problem Details as `application/problem+json`, with `type` linking to the error's mantlejs.com page.
+   * Error body format. `"problem+json"` (default) is RFC 9457 Problem Details as `application/problem+json`, with
+   * `type` linking to the error's mantlejs.com page; `"mantle"` is `MantleError.toJSON()` as `application/json`.
    */
   errors?: ErrorFormat;
 }
@@ -159,6 +159,8 @@ export function koa(options: KoaOptions = {}): MantlePlugin {
     koaApp.use(bodyParser());
 
     const router = new Router();
+    // Read by @mantlejs/openapi to document error responses in the format this transport sends.
+    app.set("http:errors", options.errors ?? "problem+json");
     // Transport-neutral contract — plugins mount raw routes via "http:router".
     app.set("http:router", toHttpRouter(router));
     /** @deprecated Read "http:router" / "http:server" instead. Kept for one release. */

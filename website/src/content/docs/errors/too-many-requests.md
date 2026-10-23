@@ -15,7 +15,7 @@ The caller has sent too many requests in the current window.
 
 ## Example response
 
-With the transport option `errors: "problem+json"` ([RFC 9457 Problem Details](https://www.rfc-editor.org/rfc/rfc9457)):
+As [RFC 9457 Problem Details](https://www.rfc-editor.org/rfc/rfc9457), the default:
 
 ```json
 {
@@ -30,7 +30,7 @@ With the transport option `errors: "problem+json"` ([RFC 9457 Problem Details](h
 }
 ```
 
-With the default `errors: "mantle"`, the same error is `{ "name": "TooManyRequests", "message": …, "code": 429, "className": "too-many-requests" }`, plus `data`, `errors`, and `hint` when set.
+With the transport option `errors: "mantle"`, the same error is `{ "name": "TooManyRequests", "message": …, "code": 429, "className": "too-many-requests" }`, plus `data`, `errors`, and `hint` when set.
 
 ## How to fix it
 

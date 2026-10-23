@@ -96,6 +96,15 @@ describe("openapi() plugin", () => {
     expect(doc.components.schemas["Users"]).toBe(userSchema);
   });
 
+  it('documents errors in the format the transport registered under "http:errors"', async () => {
+    const { app, router } = makeApp();
+    app.set("http:errors", "mantle");
+    app.use("users", {}, { schema: userSchema });
+    const { json } = await router.invoke("/openapi.json");
+    const doc = json as { paths: Record<string, Record<string, { responses: Record<string, { content: object }> }>> };
+    expect(Object.keys(doc.paths["/users"]["get"].responses["default"].content)).toEqual(["application/json"]);
+  });
+
   it("honors a custom specPath and strips leading slashes from service paths", async () => {
     const { app, router } = makeApp({ specPath: "/spec.json" });
     app.use("/users", {});
@@ -235,8 +244,27 @@ describe("buildOpenApiDocument", () => {
     expect(custom.info).toEqual({ title: "Shop", version: "1.2.3", description: "d" });
   });
 
-  it("always includes the MantleError schema", () => {
+  it("always includes the ProblemDetails and MantleError schemas", () => {
     const doc = buildOpenApiDocument([]) as { components: { schemas: Record<string, unknown> } };
+    expect(doc.components.schemas["ProblemDetails"]).toMatchObject({ required: ["type", "title", "status"] });
     expect(doc.components.schemas["MantleError"]).toMatchObject({ type: "object" });
+  });
+
+  it("documents error responses as application/problem+json by default", () => {
+    const doc = buildOpenApiDocument([{ path: "users", methods: ["find"], events: [] }]) as {
+      paths: Record<string, Record<string, { responses: Record<string, { content: Record<string, unknown> }> }>>;
+    };
+    expect(doc.paths["/users"]["get"].responses["default"].content).toEqual({
+      "application/problem+json": { schema: { $ref: "#/components/schemas/ProblemDetails" } },
+    });
+  });
+
+  it('documents error responses as MantleError JSON with errors: "mantle"', () => {
+    const doc = buildOpenApiDocument([{ path: "users", methods: ["find"], events: [] }], {}, { errors: "mantle" }) as {
+      paths: Record<string, Record<string, { responses: Record<string, { content: Record<string, unknown> }> }>>;
+    };
+    expect(doc.paths["/users"]["get"].responses["default"].content).toEqual({
+      "application/json": { schema: { $ref: "#/components/schemas/MantleError" } },
+    });
   });
 });

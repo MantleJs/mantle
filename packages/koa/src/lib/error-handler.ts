@@ -3,7 +3,7 @@ import type { ErrorFormat } from "@mantlejs/mantle";
 import { errorResponse, errorResponseHeaders } from "@mantlejs/mantle";
 
 export interface ErrorHandlerOptions {
-  /** Error body format: `"mantle"` (default, `MantleError.toJSON()`) or RFC 9457 `"problem+json"`. */
+  /** Error body format: RFC 9457 `"problem+json"` (default) or `"mantle"` (`MantleError.toJSON()`). */
   errors?: ErrorFormat;
 }
 
@@ -26,5 +26,5 @@ export function createErrorHandler(options: ErrorHandlerOptions = {}): (ctx: Con
   };
 }
 
-/** The default-format error middleware (`"mantle"` bodies). Use `createErrorHandler()` for `"problem+json"`. */
+/** The default-format error middleware (Problem Details). Use `createErrorHandler({ errors: "mantle" })` for Mantle's JSON. */
 export const errorHandler = createErrorHandler();

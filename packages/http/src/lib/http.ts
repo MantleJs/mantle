@@ -190,8 +190,8 @@ export interface HttpOptions {
    */
   trustProxy?: TrustProxy;
   /**
-   * Error body format. `"mantle"` (default) is `MantleError.toJSON()` as `application/json`; `"problem+json"` is
-   * RFC 9457 Problem Details as `application/problem+json`, with `type` linking to the error's mantlejs.com page.
+   * Error body format. `"problem+json"` (default) is RFC 9457 Problem Details as `application/problem+json`, with
+   * `type` linking to the error's mantlejs.com page; `"mantle"` is `MantleError.toJSON()` as `application/json`.
    */
   errors?: ErrorFormat;
 }
@@ -344,6 +344,8 @@ export function http(options: HttpOptions = {}): MantlePlugin {
 
     app.set("httpHandler", httpHandler);
     app.set("fetchHandler", fetchHandler);
+    // Read by @mantlejs/openapi to document error responses in the format this transport sends.
+    app.set("http:errors", options.errors ?? "problem+json");
     // Transport-neutral contract — plugins mount raw routes via "http:router".
     app.set("http:router", toHttpRouter(router));
 

@@ -1,8 +1,8 @@
 import { MantleError } from "./errors.js";
 
 /**
- * Error body format for the HTTP transports' `errors` option. `"mantle"` (default) is `MantleError.toJSON()`;
- * `"problem+json"` is RFC 9457 Problem Details, served as `application/problem+json`.
+ * Error body format for the HTTP transports' `errors` option. `"problem+json"` (default) is RFC 9457 Problem Details,
+ * served as `application/problem+json`; `"mantle"` is `MantleError.toJSON()` as `application/json`.
  */
 export type ErrorFormat = "mantle" | "problem+json";
 
@@ -89,7 +89,7 @@ export function toProblemDetails(err: unknown, context: ErrorResponseContext = {
  */
 export function errorResponse(
   err: unknown,
-  format: ErrorFormat = "mantle",
+  format: ErrorFormat = "problem+json",
   context: ErrorResponseContext = {},
 ): { status: number; contentType: string; body: Record<string, unknown> } {
   if (format === "problem+json") {
@@ -104,7 +104,8 @@ export function errorResponse(
     contentType: "application/json",
     body: {
       name: "GeneralError",
-      message: err instanceof Error ? err.message : "An unexpected error occurred",
+      // Never the thrown value's own message: it may carry internals (SQL, file paths, credentials).
+      message: "An unexpected error occurred",
       code: 500,
       className: "general-error",
     },

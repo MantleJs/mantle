@@ -17,7 +17,7 @@ The record, service, or route doesn't exist, or isn't visible to this caller.
 
 ## Example response
 
-With the transport option `errors: "problem+json"` ([RFC 9457 Problem Details](https://www.rfc-editor.org/rfc/rfc9457)):
+As [RFC 9457 Problem Details](https://www.rfc-editor.org/rfc/rfc9457), the default:
 
 ```json
 {
@@ -31,7 +31,7 @@ With the transport option `errors: "problem+json"` ([RFC 9457 Problem Details](h
 }
 ```
 
-With the default `errors: "mantle"`, the same error is `{ "name": "NotFound", "message": …, "code": 404, "className": "not-found" }`, plus `data`, `errors`, and `hint` when set.
+With the transport option `errors: "mantle"`, the same error is `{ "name": "NotFound", "message": …, "code": 404, "className": "not-found" }`, plus `data`, `errors`, and `hint` when set.
 
 ## How to fix it
 

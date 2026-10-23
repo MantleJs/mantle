@@ -160,7 +160,7 @@ Returns a `MantlePlugin` that registers the HTTP transport on the application.
 | `batch`         | `boolean \| { path?: string; maxSize?: number }` | `true`  | Mount the `POST /batch` endpoint; `false` disables it, `{ path, maxSize }` configures it. |
 | `cors`          | `boolean \| CorsOptions`                    | `false` | Enable CORS via hand-rolled header logic; `true` uses permissive defaults, an object customizes origin/methods/headers/credentials. |
 | `trustProxy`    | `boolean \| number`                        | `false` | Which proxies to trust when resolving `params.ip` from `X-Forwarded-For` (see below).    |
-| `errors`        | `"mantle" \| "problem+json"`              | `"mantle"` | Error body format: Mantle's JSON, or RFC 9457 Problem Details as `application/problem+json` ([details](https://mantlejs.com/errors/)). |
+| `errors`        | `"problem+json" \| "mantle"`              | `"problem+json"` | Error body format: RFC 9457 Problem Details as `application/problem+json`, or Mantle's JSON ([details](https://mantlejs.com/errors/)). |
 
 With `introspection` enabled, `GET /_services` (or the custom path) returns a `ServiceDescriptor[]` —
 one entry per registered service with `path`, `methods`, `events`, `schema`, the repository's
@@ -259,12 +259,12 @@ Utility exported for use in other adapters or middleware. Maps a `MantleError` (
 `HttpResponseMeta` as a second argument to merge hook-set headers under the error's own `MantleError.headers`, and
 `{ errors, instance, requestId }` as the third to choose the body format. `headers` includes the matching `Content-Type`.
 
-With `errors: "problem+json"`, errors are [RFC 9457 Problem Details](https://www.rfc-editor.org/rfc/rfc9457) served as
-`application/problem+json` instead: `type` links to the error class's page on [mantlejs.com/errors](https://mantlejs.com/errors/),
-`detail` is the message, `instance` the request path (without the query string), and `className`, `data`, `errors`,
-`hint`, and `requestId` are extension members. An error that isn't a `MantleError` becomes a bare 500 with no
-`detail`, so internal messages don't reach the caller. (In the default `"mantle"` format such an error's message is
-still returned as-is.)
+Errors are [RFC 9457 Problem Details](https://www.rfc-editor.org/rfc/rfc9457) served as `application/problem+json`:
+`type` links to the error class's page on [mantlejs.com/errors](https://mantlejs.com/errors/), `title` is the class
+name in words, `detail` the message, `instance` the request path (without the query string), and `className`,
+`data`, `errors`, `hint`, and `requestId` are extension members. Set `errors: "mantle"` for `MantleError.toJSON()` as
+`application/json` instead. In either format, an error that isn't a `MantleError` becomes a 500 that doesn't include
+its message, so internals never reach the caller.
 
 ---
 

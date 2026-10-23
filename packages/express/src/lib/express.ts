@@ -55,8 +55,8 @@ export interface ExpressOptions {
    */
   trustProxy?: TrustProxy;
   /**
-   * Error body format. `"mantle"` (default) is `MantleError.toJSON()` as `application/json`; `"problem+json"` is
-   * RFC 9457 Problem Details as `application/problem+json`, with `type` linking to the error's mantlejs.com page.
+   * Error body format. `"problem+json"` (default) is RFC 9457 Problem Details as `application/problem+json`, with
+   * `type` linking to the error's mantlejs.com page; `"mantle"` is `MantleError.toJSON()` as `application/json`.
    */
   errors?: ErrorFormat;
 }
@@ -91,6 +91,8 @@ export function express(existingApp?: Application, options: ExpressOptions = {})
     });
     expressApp.use(expressLib.json());
     expressApp.use(expressLib.urlencoded({ extended: false }));
+    // Read by @mantlejs/openapi to document error responses in the format this transport sends.
+    app.set("http:errors", options.errors ?? "problem+json");
     // Transport-neutral contract — plugins mount raw routes via "http:router".
     app.set("http:router", expressApp);
     /** @deprecated Read "http:router" instead. Kept for one release. */

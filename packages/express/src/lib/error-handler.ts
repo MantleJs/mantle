@@ -3,7 +3,7 @@ import type { ErrorFormat } from "@mantlejs/mantle";
 import { errorResponse, errorResponseHeaders } from "@mantlejs/mantle";
 
 export interface ErrorHandlerOptions {
-  /** Error body format: `"mantle"` (default, `MantleError.toJSON()`) or RFC 9457 `"problem+json"`. */
+  /** Error body format: RFC 9457 `"problem+json"` (default) or `"mantle"` (`MantleError.toJSON()`). */
   errors?: ErrorFormat;
 }
 

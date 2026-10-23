@@ -12,11 +12,11 @@ Something went wrong on the server.
 ## When Mantle returns it
 
 - An adapter hit a database error that doesn't map to a more specific class.
-- Code threw something that isn't a `MantleError`. With `errors: "problem+json"`, the response then carries no `detail`, so internal messages never reach the caller.
+- Code threw something that isn't a `MantleError`. The response then carries no `detail` (or, with `errors: "mantle"`, a generic `message`), so internal messages never reach the caller.
 
 ## Example response
 
-With the transport option `errors: "problem+json"` ([RFC 9457 Problem Details](https://www.rfc-editor.org/rfc/rfc9457)):
+As [RFC 9457 Problem Details](https://www.rfc-editor.org/rfc/rfc9457), the default:
 
 ```json
 {
@@ -29,7 +29,7 @@ With the transport option `errors: "problem+json"` ([RFC 9457 Problem Details](h
 }
 ```
 
-With the default `errors: "mantle"`, the same error is `{ "name": "GeneralError", "message": …, "code": 500, "className": "general-error" }`, plus `data`, `errors`, and `hint` when set.
+With the transport option `errors: "mantle"`, the same error is `{ "name": "GeneralError", "message": …, "code": 500, "className": "general-error" }`, plus `data`, `errors`, and `hint` when set.
 
 ## How to fix it
 

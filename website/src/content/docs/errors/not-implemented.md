@@ -15,7 +15,7 @@ The server doesn't support the requested functionality.
 
 ## Example response
 
-With the transport option `errors: "problem+json"` ([RFC 9457 Problem Details](https://www.rfc-editor.org/rfc/rfc9457)):
+As [RFC 9457 Problem Details](https://www.rfc-editor.org/rfc/rfc9457), the default:
 
 ```json
 {
@@ -29,7 +29,7 @@ With the transport option `errors: "problem+json"` ([RFC 9457 Problem Details](h
 }
 ```
 
-With the default `errors: "mantle"`, the same error is `{ "name": "NotImplemented", "message": …, "code": 501, "className": "not-implemented" }`, plus `data`, `errors`, and `hint` when set.
+With the transport option `errors: "mantle"`, the same error is `{ "name": "NotImplemented", "message": …, "code": 501, "className": "not-implemented" }`, plus `data`, `errors`, and `hint` when set.
 
 ## How to fix it
 

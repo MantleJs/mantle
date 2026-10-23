@@ -95,7 +95,10 @@ const doc = buildOpenApiDocument(
 );
 ```
 
-Every document also includes a `MantleError` schema referenced by each operation's `default` error response.
+Every operation's `default` error response matches what the transport sends: a `ProblemDetails` schema served as
+`application/problem+json` by default, or the `MantleError` schema as `application/json` when the transport is
+configured with `errors: "mantle"`. `openapi()` reads the format the transport registered under `"http:errors"`;
+`buildOpenApiDocument()` takes it as a third argument, `{ errors }`. Both schemas are always in `components`.
 
 ---
 

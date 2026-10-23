@@ -186,12 +186,13 @@ export const TRANSPORT_CONFORMANCE_CASES: TransportConformanceCase[] = [
     expect: { status: 200, headers: { "X-Conformance": "ok" } },
   },
   {
-    name: "headers set before an error survive it; MantleError.headers win on conflict; error body is unchanged",
+    name: "headers set before an error survive it; MantleError.headers win on conflict; headers stay out of the body",
     request: { method: "GET", path: "/conformance-error" },
     expect: {
       status: 429,
       headers: { RateLimit: "limit=10, remaining=0, reset=30", "Retry-After": "30", "X-Override": "error" },
-      body: { name: "TooManyRequests", message: "Slow down", code: 429 },
+      body: { title: "Too Many Requests", status: 429, detail: "Slow down" },
+      bodyExcludes: "Retry-After",
     },
   },
   {
@@ -248,12 +249,33 @@ export const TRANSPORT_CONFORMANCE_CASES: TransportConformanceCase[] = [
     expect: { status: 429, headers: { "X-Request-Id": "err-1" } },
   },
   {
-    name: "errors default to Mantle's JSON shape",
+    name: "errors default to RFC 9457 Problem Details",
+    request: { method: "GET", path: "/conformance-fail/mantle" },
+    expect: {
+      status: 400,
+      contentType: "application/problem+json",
+      body: { type: "https://mantlejs.com/errors/bad-request", status: 400, detail: "Bad input" },
+    },
+  },
+  {
+    name: 'errors: "mantle" serves MantleError.toJSON() as application/json',
+    errors: "mantle",
     request: { method: "GET", path: "/conformance-fail/mantle" },
     expect: {
       status: 400,
       contentType: "application/json",
       body: { name: "BadRequest", message: "Bad input", code: 400, className: "bad-request", hint: "Fix x" },
+    },
+  },
+  {
+    name: 'errors: "mantle" maps an unexpected error to a generic 500 that leaks nothing',
+    errors: "mantle",
+    request: { method: "GET", path: "/conformance-fail/crash" },
+    expect: {
+      status: 500,
+      contentType: "application/json",
+      body: { name: "GeneralError", message: "An unexpected error occurred", code: 500 },
+      bodyExcludes: "secret",
     },
   },
   {

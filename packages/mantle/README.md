@@ -353,9 +353,9 @@ Always throw a typed error — never a plain `new Error()`.
 
 All errors accept `(message?, data?, errors?, hint?)` and serialize via `.toJSON()`.
 
-The HTTP transports serialize errors in one of two formats, chosen with their `errors` option: `"mantle"` (default,
-`toJSON()`) or `"problem+json"` ([RFC 9457](https://www.rfc-editor.org/rfc/rfc9457) Problem Details, whose `type`
-links to the class's page at [mantlejs.com/errors](https://mantlejs.com/errors/)). The mapping is
+The HTTP transports serialize errors in one of two formats, chosen with their `errors` option: `"problem+json"`
+(default — [RFC 9457](https://www.rfc-editor.org/rfc/rfc9457) Problem Details, whose `type` links to the class's page
+at [mantlejs.com/errors](https://mantlejs.com/errors/)) or `"mantle"` (`toJSON()`). The mapping is
 `toProblemDetails()` / `errorResponse()`, exported for custom transports.
 
 An error can also carry response headers for the HTTP transports in `headers` — never serialized into the body:

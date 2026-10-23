@@ -156,15 +156,17 @@ override, header set on success, header survival on error, 304/204 empty body, `
 
 #### 2. Problem Details (RFC 9457)
 
-- Transport option `errors: "mantle" | "problem+json"` (default `"mantle"`, today's shape).
+- Transport option `errors: "problem+json" | "mantle"`. Default `"problem+json"` (changed 2026-10-22 from `"mantle"`:
+  pre-1.0, with no known external users, there's no reason to wait for a major version). `"mantle"` keeps the
+  pre-0.4 shape.
 - `problem+json` maps a `MantleError` to:
   - `type`: `https://mantlejs.com/errors/<kebab-class-name>` (a docs page per error class — a resolvable URI is
     what the RFC recommends)
   - `title` (class name in words), `status`, `detail` (message), `instance` (request path)
   - extensions: `className`, `data`, `errors`, `hint`, `requestId`
-- Non-`MantleError` exceptions map to a 500 with no leaked detail. (Correction, 2026-10-22: this is *not* today's rule —
-  the `"mantle"` format has always returned such an error's `message` verbatim, and still does; only `problem+json`
-  withholds it.)
+- Non-`MantleError` exceptions map to a 500 with no leaked detail, in both formats. (Correction, 2026-10-22: this was
+  *not* the old rule — the `"mantle"` format used to return such an error's `message` verbatim. It no longer does: it
+  now sends `"An unexpected error occurred"`.)
 - An app-defined `MantleError` subclass has no mantlejs.com page, so its `type` is `about:blank` (RFC 9457 §4.2.1).
 - `@mantlejs/client` parses both shapes into the same client error type, choosing by `Content-Type`.
 

@@ -1,4 +1,4 @@
-import type { ServiceDescriptor } from "@mantlejs/mantle";
+import type { ErrorFormat, ServiceDescriptor } from "@mantlejs/mantle";
 
 export interface OpenApiInfo {
   /** Document title. @default "Mantle API" */
@@ -19,6 +19,24 @@ const ERROR_SCHEMA: JsonObject = {
     className: { type: "string" },
   },
   required: ["name", "message", "code", "className"],
+};
+
+/** RFC 9457 Problem Details, as `toProblemDetails()` in `@mantlejs/mantle` produces it. */
+const PROBLEM_DETAILS_SCHEMA: JsonObject = {
+  type: "object",
+  properties: {
+    type: { type: "string", format: "uri-reference" },
+    title: { type: "string" },
+    status: { type: "integer" },
+    detail: { type: "string" },
+    instance: { type: "string", format: "uri-reference" },
+    className: { type: "string" },
+    data: {},
+    errors: { type: "array", items: {} },
+    hint: { type: "string" },
+    requestId: { type: "string" },
+  },
+  required: ["type", "title", "status"],
 };
 
 const ID_PARAMETER: JsonObject = {
@@ -46,16 +64,20 @@ const FIND_PARAMETERS: JsonObject[] = [
  * `ServiceHandle.describe()`. Services without a schema get a generic
  * `object` schema — a missing schema never skips a service or errors.
  */
-export function buildOpenApiDocument(descriptors: ServiceDescriptor[], info: OpenApiInfo = {}): JsonObject {
+export function buildOpenApiDocument(
+  descriptors: ServiceDescriptor[],
+  info: OpenApiInfo = {},
+  options: { errors?: ErrorFormat } = {},
+): JsonObject {
   const paths: JsonObject = {};
-  const schemas: JsonObject = { MantleError: ERROR_SCHEMA };
+  const schemas: JsonObject = { ProblemDetails: PROBLEM_DETAILS_SCHEMA, MantleError: ERROR_SCHEMA };
   let anyAuthRequired = false;
 
   for (const descriptor of descriptors) {
     const name = schemaName(descriptor.path);
     schemas[name] = isObjectSchema(descriptor.schema) ? descriptor.schema : { type: "object" };
     if (descriptor.authRequired) anyAuthRequired = true;
-    addServicePaths(paths, descriptor, name);
+    addServicePaths(paths, descriptor, name, options.errors ?? "problem+json");
   }
 
   return {
@@ -88,7 +110,7 @@ function isObjectSchema(schema: unknown): schema is JsonObject {
   return schema !== null && typeof schema === "object" && !Array.isArray(schema);
 }
 
-function addServicePaths(paths: JsonObject, descriptor: ServiceDescriptor, name: string): void {
+function addServicePaths(paths: JsonObject, descriptor: ServiceDescriptor, name: string, errors: ErrorFormat): void {
   const ref: JsonObject = { $ref: `#/components/schemas/${name}` };
   const collectionPath = `/${descriptor.path}`;
   const itemPath = `${collectionPath}/{id}`;
@@ -101,7 +123,7 @@ function addServicePaths(paths: JsonObject, descriptor: ServiceDescriptor, name:
     operationId: `${descriptor.path.replace(/\//g, "_")}.${method}`,
     ...tagAndSecurity,
     ...extra,
-    responses: { ...(extra["responses"] as JsonObject), default: errorResponse() },
+    responses: { ...(extra["responses"] as JsonObject), default: errorResponse(errors) },
   });
 
   const collection: JsonObject = {};
@@ -195,6 +217,11 @@ function jsonBody(schema: JsonObject): JsonObject {
   return { required: true, content: { "application/json": { schema } } };
 }
 
-function errorResponse(): JsonObject {
-  return jsonResponse("Error", { $ref: "#/components/schemas/MantleError" });
+function errorResponse(errors: ErrorFormat): JsonObject {
+  return errors === "mantle"
+    ? jsonResponse("Error", { $ref: "#/components/schemas/MantleError" })
+    : {
+        description: "Error",
+        content: { "application/problem+json": { schema: { $ref: "#/components/schemas/ProblemDetails" } } },
+      };
 }
