@@ -218,7 +218,10 @@ describe("koa adapter", () => {
 
   describe("transport conformance (shared table)", () => {
     it.each(TRANSPORT_CONFORMANCE_CASES.map((c) => [c.name, c] as const))("%s", async (_name, testCase) => {
-      const { port, stop } = await startApp(registerTransportConformanceServices, { trustProxy: testCase.trustProxy });
+      const { port, stop } = await startApp(registerTransportConformanceServices, {
+        trustProxy: testCase.trustProxy,
+        errors: testCase.errors,
+      });
       try {
         const { method, path, headers, body } = testCase.request;
         const res = await fetch(`http://127.0.0.1:${port}${path}`, {
@@ -378,7 +381,7 @@ describe("koa adapter", () => {
         const res = await fetch(`http://localhost:${port}/items`);
         expect(res.status).toBe(404);
         const body = (await res.json()) as Record<string, unknown>;
-        expect(body["code"]).toBe(404);
+        expect(body["status"]).toBe(404);
         expect(body["className"]).toBe("not-found");
       } finally {
         await stop();
@@ -400,7 +403,7 @@ describe("koa adapter", () => {
         const res = await fetch(`http://localhost:${port}/items`);
         expect(res.status).toBe(400);
         const body = (await res.json()) as Record<string, unknown>;
-        expect(body["code"]).toBe(400);
+        expect(body["status"]).toBe(400);
         expect(body["className"]).toBe("bad-request");
       } finally {
         await stop();
@@ -422,7 +425,7 @@ describe("koa adapter", () => {
         const res = await fetch(`http://localhost:${port}/items`);
         expect(res.status).toBe(500);
         const body = (await res.json()) as Record<string, unknown>;
-        expect(body["code"]).toBe(500);
+        expect(body["status"]).toBe(500);
       } finally {
         await stop();
       }
@@ -659,7 +662,7 @@ describe("POST /batch", () => {
         Array.from({ length: 26 }, () => ({ service: "users", method: "find" })),
       );
       expect(res.status).toBe(400);
-      expect(((await res.json()) as { name: string }).name).toBe("BadRequest");
+      expect(((await res.json()) as { className: string }).className).toBe("bad-request");
     } finally {
       await stop();
     }

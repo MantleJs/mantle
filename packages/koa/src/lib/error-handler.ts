@@ -1,23 +1,30 @@
 import type { Context, Next } from "koa";
-import { errorResponseHeaders, MantleError } from "@mantlejs/mantle";
+import type { ErrorFormat } from "@mantlejs/mantle";
+import { errorResponse, errorResponseHeaders } from "@mantlejs/mantle";
 
-export async function errorHandler(ctx: Context, next: Next): Promise<void> {
-  try {
-    await next();
-  } catch (err) {
-    if (err instanceof MantleError) {
+export interface ErrorHandlerOptions {
+  /** Error body format: RFC 9457 `"problem+json"` (default) or `"mantle"` (`MantleError.toJSON()`). */
+  errors?: ErrorFormat;
+}
+
+/** Koa middleware mapping a thrown error to a Mantle error response in the given format. */
+export function createErrorHandler(options: ErrorHandlerOptions = {}): (ctx: Context, next: Next) => Promise<void> {
+  return async (ctx, next) => {
+    try {
+      await next();
+    } catch (err) {
       // Hook headers were already set by the route (see routes.ts); the error's own headers win.
       ctx.set(errorResponseHeaders(undefined, err));
-      ctx.status = err.code;
-      ctx.body = err.toJSON();
-      return;
+      const { status, contentType, body } = errorResponse(err, options.errors, {
+        instance: ctx.path,
+        requestId: ctx.state["requestId"] as string | undefined,
+      });
+      ctx.status = status;
+      ctx.body = body;
+      ctx.type = contentType;
     }
-    ctx.status = 500;
-    ctx.body = {
-      name: "GeneralError",
-      message: err instanceof Error ? err.message : "An unexpected error occurred",
-      code: 500,
-      className: "general-error",
-    };
-  }
+  };
 }
+
+/** The default-format error middleware (Problem Details). Use `createErrorHandler({ errors: "mantle" })` for Mantle's JSON. */
+export const errorHandler = createErrorHandler();

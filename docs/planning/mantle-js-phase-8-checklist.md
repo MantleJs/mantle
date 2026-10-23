@@ -91,10 +91,17 @@ runs in four stages:
 
 ### Production-grade API
 
-- [ ] **6. Problem Details (RFC 9457)** _(PRD spec 2)_
+- [x] **6. Problem Details (RFC 9457)** _(PRD spec 2)_
       Transport `errors: "mantle" | "problem+json"` option, the mapping, `@mantlejs/client` parsing both shapes,
       one docs page per error class at `mantlejs.com/errors/<name>`.
       **Accept:** conformance rows for both shapes; client specs; docs pages live.
+      **Done (2026-10-22):** shared `errorResponse()`/`toProblemDetails()` in core; 6 new conformance rows (23 total)
+      on express, koa, and http; client reads both shapes plus `requestId`/`type`; 12 class pages + an index under
+      `website/src/content/docs/errors/` (live with the next release's deploy), with a spec that fails if a
+      built-in class has no page. App-defined classes get `type: about:blank`.
+      **Follow-up (2026-10-22):** `"problem+json"` is now the default (pre-1.0, no known users), and the `"mantle"`
+      format no longer leaks a non-`MantleError`'s message. `@mantlejs/openapi` documents errors in the transport's
+      format, read from the new `"http:errors"` app setting.
 
 - [ ] **7. Conditional requests** _(PRD spec 5)_
       `conditional()` hook in `@mantlejs/mantle`: ETag on `get`, 304 on `If-None-Match`, 412 on failed

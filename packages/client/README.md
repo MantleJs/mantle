@@ -111,7 +111,7 @@ the promise rejects with the signal's reason.
 
 ### Errors
 
-Non-2xx responses are deserialized into `MantleClientError` — `name` (`"BadRequest"`, `"NotFound"`, …), `code` (HTTP status), `data`, `errors`, and the server's actionable `hint` when present. Non-JSON bodies (gateway errors) fall back to the HTTP status. Network failures propagate as the native fetch `TypeError`, unwrapped.
+Non-2xx responses are deserialized into `MantleClientError` — `name` (`"BadRequest"`, `"NotFound"`, …), `code` (HTTP status), `data`, `errors`, the server's actionable `hint` when present, and the `requestId` to quote when reporting it. Both server error formats are read — Mantle's JSON and RFC 9457 Problem Details (`application/problem+json`, chosen by `Content-Type`), whose `type` URI is kept on the error. Non-JSON bodies (gateway errors) fall back to the HTTP status. Network failures propagate as the native fetch `TypeError`, unwrapped.
 
 ---
 
@@ -252,6 +252,8 @@ class MantleClientError extends Error {
   data?: unknown;
   errors?: unknown[];
   hint?: string; // server's actionable guidance, when present
+  requestId?: string; // X-Request-Id of the failed request
+  type?: string; // Problem Details type URI, e.g. "https://mantlejs.com/errors/not-found"
 }
 ```
 

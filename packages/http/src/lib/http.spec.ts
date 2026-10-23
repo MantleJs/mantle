@@ -293,7 +293,7 @@ describe("http adapter", () => {
     );
 
     it.each(fetchCases.map((c) => [c.name, c] as const))("conformance: %s", async (_name, testCase) => {
-      const app = mantle().configure(http({ trustProxy: testCase.trustProxy }));
+      const app = mantle().configure(http({ trustProxy: testCase.trustProxy, errors: testCase.errors }));
       registerTransportConformanceServices(app);
       const fetchHandler = app.get("fetchHandler") as (req: Request) => Promise<Response>;
       const res = await fetchHandler(conformanceRequest("http://localhost", testCase));
@@ -315,6 +315,20 @@ describe("http adapter", () => {
       expect(((await res.json()) as { ip?: string }).ip).toBeUndefined();
     });
 
+    it('answers an unknown route with Problem Details under errors: "problem+json"', async () => {
+      const app = mantle().configure(http({ errors: "problem+json" }));
+      const fetchHandler = app.get("fetchHandler") as (req: Request) => Promise<Response>;
+      const res = await fetchHandler(new Request("http://localhost/nope?x=1"));
+      expect(res.status).toBe(404);
+      expect(res.headers.get("content-type")).toBe("application/problem+json");
+      expect(await res.json()).toMatchObject({
+        type: "https://mantlejs.com/errors/not-found",
+        title: "Not Found",
+        status: 404,
+        instance: "/nope",
+      });
+    });
+
     it("puts the request ID on a 404 for an unknown route", async () => {
       const app = mantle().configure(http());
       const fetchHandler = app.get("fetchHandler") as (req: Request) => Promise<Response>;
@@ -332,7 +346,10 @@ describe("http adapter", () => {
 
   describe("transport conformance (shared table)", () => {
     it.each(TRANSPORT_CONFORMANCE_CASES.map((c) => [c.name, c] as const))("%s", async (_name, testCase) => {
-      const { port, stop } = await startApp(registerTransportConformanceServices, { trustProxy: testCase.trustProxy });
+      const { port, stop } = await startApp(registerTransportConformanceServices, {
+        trustProxy: testCase.trustProxy,
+        errors: testCase.errors,
+      });
       try {
         const res = await fetch(conformanceRequest(`http://127.0.0.1:${port}`, testCase));
         const failures = checkTransportConformance(testCase, {
@@ -471,7 +488,7 @@ describe("http adapter", () => {
         const res = await fetch(`http://localhost:${port}/items`);
         expect(res.status).toBe(404);
         const body = (await res.json()) as Record<string, unknown>;
-        expect(body["code"]).toBe(404);
+        expect(body["status"]).toBe(404);
         expect(body["className"]).toBe("not-found");
       } finally {
         await stop();
@@ -493,7 +510,7 @@ describe("http adapter", () => {
         const res = await fetch(`http://localhost:${port}/items`);
         expect(res.status).toBe(400);
         const body = (await res.json()) as Record<string, unknown>;
-        expect(body["code"]).toBe(400);
+        expect(body["status"]).toBe(400);
         expect(body["className"]).toBe("bad-request");
       } finally {
         await stop();
@@ -515,7 +532,7 @@ describe("http adapter", () => {
         const res = await fetch(`http://localhost:${port}/items`);
         expect(res.status).toBe(500);
         const body = (await res.json()) as Record<string, unknown>;
-        expect(body["code"]).toBe(500);
+        expect(body["status"]).toBe(500);
       } finally {
         await stop();
       }
@@ -732,7 +749,7 @@ describe("POST /batch", () => {
         Array.from({ length: 26 }, () => ({ service: "users", method: "find" })),
       );
       expect(res.status).toBe(400);
-      expect(((await res.json()) as { name: string }).name).toBe("BadRequest");
+      expect(((await res.json()) as { className: string }).className).toBe("bad-request");
     } finally {
       await stop();
     }

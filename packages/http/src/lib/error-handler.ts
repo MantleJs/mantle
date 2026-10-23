@@ -1,23 +1,26 @@
-import { errorResponseHeaders, MantleError } from "@mantlejs/mantle";
-import type { HttpResponseMeta } from "@mantlejs/mantle";
+import type { ErrorFormat, HttpResponseMeta } from "@mantlejs/mantle";
+import { errorResponse, errorResponseHeaders } from "@mantlejs/mantle";
 
-/** `response` holds headers hooks set before the error; the error's own `MantleError.headers` win. */
+export interface ToErrorResponseOptions {
+  /** Error body format: RFC 9457 `"problem+json"` (default) or `"mantle"` (`MantleError.toJSON()`). */
+  errors?: ErrorFormat;
+  /** Request path, used as Problem Details' `instance`. */
+  instance?: string;
+  requestId?: string;
+}
+
+/**
+ * Map an error to the status, body, and headers to send. `response` holds headers hooks set before the error; the
+ * error's own `MantleError.headers` win. `headers` includes the `Content-Type` for the chosen format.
+ */
 export function toErrorResponse(
   err: unknown,
   response?: HttpResponseMeta,
+  options: ToErrorResponseOptions = {},
 ): { status: number; body: Record<string, unknown>; headers: Record<string, string> } {
-  const headers = errorResponseHeaders(response, err);
-  if (err instanceof MantleError) {
-    return { status: err.code, body: err.toJSON(), headers };
-  }
-  return {
-    status: 500,
-    headers,
-    body: {
-      name: "GeneralError",
-      message: err instanceof Error ? err.message : "An unexpected error occurred",
-      code: 500,
-      className: "general-error",
-    },
-  };
+  const { status, contentType, body } = errorResponse(err, options.errors, {
+    instance: options.instance,
+    requestId: options.requestId,
+  });
+  return { status, body, headers: { ...errorResponseHeaders(response, err), "Content-Type": contentType } };
 }

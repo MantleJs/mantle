@@ -47,6 +47,7 @@ Returns a `MantlePlugin`. When applied via `app.configure(express())`, it:
 | `batch`         | `boolean \| { path?: string; maxSize?: number }` | `true`  | Mount the `POST /batch` endpoint; `false` disables it, `{ path, maxSize }` configures it. |
 | `cors`          | `boolean \| CorsOptions`                    | `false` | Enable CORS via the `cors` npm package; `true` uses permissive defaults, an object customizes origin/methods/headers/credentials. |
 | `trustProxy`    | `boolean \| number`                        | `false` | Which proxies to trust when resolving `params.ip` from `X-Forwarded-For` (see below).    |
+| `errors`        | `"problem+json" \| "mantle"`              | `"problem+json"` | Error body format: RFC 9457 Problem Details as `application/problem+json`, or Mantle's JSON ([details](https://mantlejs.com/errors/)). |
 
 Pass an existing Express app if you need to share middleware or configure Express yourself:
 
@@ -195,7 +196,15 @@ import { errorHandler } from "@mantlejs/express";
 expressApp.use(errorHandler());
 ```
 
-`MantleError` subclasses are serialized to JSON with the correct HTTP status code. Any other error becomes a 500 response.
+`MantleError` subclasses are serialized with the correct HTTP status code. Any other error becomes a 500 response.
+Pass `errorHandler({ errors: "mantle" })` for Mantle's JSON — `express()` does this for you when given the same option.
+
+Errors are [RFC 9457 Problem Details](https://www.rfc-editor.org/rfc/rfc9457) served as `application/problem+json`:
+`type` links to the error class's page on [mantlejs.com/errors](https://mantlejs.com/errors/), `title` is the class
+name in words, `detail` the message, `instance` the request path (without the query string), and `className`,
+`data`, `errors`, `hint`, and `requestId` are extension members. Set `errors: "mantle"` for `MantleError.toJSON()` as
+`application/json` instead. In either format, an error that isn't a `MantleError` becomes a 500 that doesn't include
+its message, so internals never reach the caller.
 
 ## Development
 

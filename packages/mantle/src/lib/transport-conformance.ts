@@ -1,5 +1,6 @@
 import { getContext } from "./context.js";
-import { TooManyRequests } from "./errors.js";
+import { BadRequest, MantleError, TooManyRequests } from "./errors.js";
+import type { ErrorFormat } from "./problem-details.js";
 import type { TrustProxy } from "./transport.js";
 import type { HookContext, MantleApplication } from "./types.js";
 
@@ -13,6 +14,8 @@ export interface TransportConformanceCase {
   name: string;
   /** Passed to the transport under test as its `trustProxy` option. */
   trustProxy?: TrustProxy;
+  /** Passed to the transport under test as its `errors` option. */
+  errors?: ErrorFormat;
   request: { method: "GET" | "POST" | "DELETE"; path: string; headers?: Record<string, string>; body?: unknown };
   expect: {
     status: number;
@@ -24,7 +27,18 @@ export interface TransportConformanceCase {
     body?: "empty" | Record<string, unknown>;
     /** Asserts the response's `X-Request-Id` equals this field of the parsed JSON body. */
     requestIdEqualsBodyField?: string;
+    /** The `Content-Type` must start with this (parameters like `; charset=utf-8` are ignored). */
+    contentType?: string;
+    /** Text that must not appear anywhere in the raw body — e.g. an internal error message. */
+    bodyExcludes?: string;
   };
+}
+
+/** An app-defined error class: no docs page on mantlejs.com, so Problem Details uses `about:blank`. */
+class TeapotError extends MantleError {
+  constructor(message = "I'm a teapot") {
+    super(message, 418, "teapot");
+  }
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -117,6 +131,18 @@ export function registerTransportConformanceServices(app: MantleApplication): vo
   });
 
   app.use(
+    "conformance-fail",
+    {
+      async get(id) {
+        if (id === "mantle") throw new BadRequest("Bad input", { field: "x" }, undefined, "Fix x");
+        if (id === "teapot") throw new TeapotError();
+        throw new Error("secret internal detail");
+      },
+    },
+    { methods: ["get"] },
+  );
+
+  app.use(
     "conformance-internal",
     {
       async find() {
@@ -160,12 +186,13 @@ export const TRANSPORT_CONFORMANCE_CASES: TransportConformanceCase[] = [
     expect: { status: 200, headers: { "X-Conformance": "ok" } },
   },
   {
-    name: "headers set before an error survive it; MantleError.headers win on conflict; error body is unchanged",
+    name: "headers set before an error survive it; MantleError.headers win on conflict; headers stay out of the body",
     request: { method: "GET", path: "/conformance-error" },
     expect: {
       status: 429,
       headers: { RateLimit: "limit=10, remaining=0, reset=30", "Retry-After": "30", "X-Override": "error" },
-      body: { name: "TooManyRequests", message: "Slow down", code: 429 },
+      body: { title: "Too Many Requests", status: 429, detail: "Slow down" },
+      bodyExcludes: "Retry-After",
     },
   },
   {
@@ -222,6 +249,96 @@ export const TRANSPORT_CONFORMANCE_CASES: TransportConformanceCase[] = [
     expect: { status: 429, headers: { "X-Request-Id": "err-1" } },
   },
   {
+    name: "errors default to RFC 9457 Problem Details",
+    request: { method: "GET", path: "/conformance-fail/mantle" },
+    expect: {
+      status: 400,
+      contentType: "application/problem+json",
+      body: { type: "https://mantlejs.com/errors/bad-request", status: 400, detail: "Bad input" },
+    },
+  },
+  {
+    name: 'errors: "mantle" serves MantleError.toJSON() as application/json',
+    errors: "mantle",
+    request: { method: "GET", path: "/conformance-fail/mantle" },
+    expect: {
+      status: 400,
+      contentType: "application/json",
+      body: { name: "BadRequest", message: "Bad input", code: 400, className: "bad-request", hint: "Fix x" },
+    },
+  },
+  {
+    name: 'errors: "mantle" maps an unexpected error to a generic 500 that leaks nothing',
+    errors: "mantle",
+    request: { method: "GET", path: "/conformance-fail/crash" },
+    expect: {
+      status: 500,
+      contentType: "application/json",
+      body: { name: "GeneralError", message: "An unexpected error occurred", code: 500 },
+      bodyExcludes: "secret",
+    },
+  },
+  {
+    name: 'errors: "problem+json" maps a MantleError to RFC 9457 Problem Details',
+    errors: "problem+json",
+    request: { method: "GET", path: "/conformance-fail/mantle?token=abc", headers: { "X-Request-Id": "prob-1" } },
+    expect: {
+      status: 400,
+      contentType: "application/problem+json",
+      body: {
+        type: "https://mantlejs.com/errors/bad-request",
+        title: "Bad Request",
+        status: 400,
+        detail: "Bad input",
+        instance: "/conformance-fail/mantle",
+        className: "bad-request",
+        data: { field: "x" },
+        hint: "Fix x",
+        requestId: "prob-1",
+      },
+      bodyExcludes: "token",
+    },
+  },
+  {
+    name: 'errors: "problem+json" maps an unexpected error to a bare 500 that leaks nothing',
+    errors: "problem+json",
+    request: { method: "GET", path: "/conformance-fail/crash" },
+    expect: {
+      status: 500,
+      contentType: "application/problem+json",
+      body: { type: "https://mantlejs.com/errors/general-error", title: "General Error", status: 500 },
+      requestIdEqualsBodyField: "requestId",
+      bodyExcludes: "secret",
+    },
+  },
+  {
+    name: 'errors: "problem+json" uses about:blank for an app-defined error class',
+    errors: "problem+json",
+    request: { method: "GET", path: "/conformance-fail/teapot" },
+    expect: {
+      status: 418,
+      contentType: "application/problem+json",
+      body: { type: "about:blank", title: "Teapot Error", status: 418, detail: "I'm a teapot", className: "teapot" },
+    },
+  },
+  {
+    name: 'errors: "problem+json" keeps hook and error headers on the error response',
+    errors: "problem+json",
+    request: { method: "GET", path: "/conformance-error" },
+    expect: {
+      status: 429,
+      contentType: "application/problem+json",
+      headers: { RateLimit: "limit=10, remaining=0, reset=30", "Retry-After": "30" },
+      body: { type: "https://mantlejs.com/errors/too-many-requests", title: "Too Many Requests", status: 429 },
+    },
+  },
+  {
+    name: 'errors: "problem+json" leaves success responses as plain JSON',
+    errors: "problem+json",
+    request: { method: "GET", path: "/conformance-headers" },
+    expect: { status: 200, contentType: "application/json" },
+  },
+  {
     name: "params.ip is the socket peer, ignoring X-Forwarded-For, without trustProxy",
     request: { method: "GET", path: "/conformance-echo/1", headers: { "X-Forwarded-For": FORWARDED_FOR } },
     expect: { status: 200, body: { ip: "127.0.0.1" } },
@@ -275,6 +392,16 @@ export function checkTransportConformance(
     const actual = response.headers.get(name);
     if (actual === null || !pattern.test(actual))
       failures.push(`header ${name}: ${JSON.stringify(actual)} does not match ${pattern}`);
+  }
+
+  if (expect.contentType !== undefined) {
+    const contentType = response.headers.get("Content-Type");
+    if (contentType === null || !contentType.startsWith(expect.contentType)) {
+      failures.push(`Content-Type: expected ${expect.contentType}, got ${JSON.stringify(contentType)}`);
+    }
+  }
+  if (expect.bodyExcludes !== undefined && response.body.includes(expect.bodyExcludes)) {
+    failures.push(`body must not contain ${JSON.stringify(expect.bodyExcludes)}: ${response.body}`);
   }
 
   if (expect.body === "empty") {

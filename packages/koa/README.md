@@ -55,6 +55,14 @@ proxy overwrites the header), a number trusts that many hops (`1` behind a singl
 ### Error handling
 
 `MantleError` subclasses (`NotFound`, `BadRequest`, etc.) are mapped to their correct HTTP status codes. Unknown errors produce a `500 General Error` response.
+The exported `errorHandler` middleware uses the default format; `createErrorHandler({ errors: "mantle" })` builds one for Mantle's JSON.
+
+Errors are [RFC 9457 Problem Details](https://www.rfc-editor.org/rfc/rfc9457) served as `application/problem+json`:
+`type` links to the error class's page on [mantlejs.com/errors](https://mantlejs.com/errors/), `title` is the class
+name in words, `detail` the message, `instance` the request path (without the query string), and `className`,
+`data`, `errors`, `hint`, and `requestId` are extension members. Set `errors: "mantle"` for `MantleError.toJSON()` as
+`application/json` instead. In either format, an error that isn't a `MantleError` becomes a 500 that doesn't include
+its message, so internals never reach the caller.
 
 ### `@mantlejs/socketio` compatibility
 
@@ -135,6 +143,7 @@ Side effects:
 | `batch`         | `boolean \| { path?: string; maxSize?: number }` | `true`  | Mount the `POST /batch` endpoint; `false` disables it, `{ path, maxSize }` configures it. |
 | `cors`          | `boolean \| CorsOptions`                    | `false` | Enable CORS via `@koa/cors`; `true` uses permissive defaults, an object customizes origin/methods/headers/credentials. |
 | `trustProxy`    | `boolean \| number`                        | `false` | Which proxies to trust when resolving `params.ip` from `X-Forwarded-For` (see below).    |
+| `errors`        | `"problem+json" \| "mantle"`              | `"problem+json"` | Error body format: RFC 9457 Problem Details as `application/problem+json`, or Mantle's JSON ([details](https://mantlejs.com/errors/)). |
 
 ---
 
