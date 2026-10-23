@@ -47,6 +47,7 @@ Returns a `MantlePlugin`. When applied via `app.configure(express())`, it:
 | `batch`         | `boolean \| { path?: string; maxSize?: number }` | `true`  | Mount the `POST /batch` endpoint; `false` disables it, `{ path, maxSize }` configures it. |
 | `cors`          | `boolean \| CorsOptions`                    | `false` | Enable CORS via the `cors` npm package; `true` uses permissive defaults, an object customizes origin/methods/headers/credentials. |
 | `trustProxy`    | `boolean \| number`                        | `false` | Which proxies to trust when resolving `params.ip` from `X-Forwarded-For` (see below).    |
+| `errors`        | `"mantle" \| "problem+json"`              | `"mantle"` | Error body format: Mantle's JSON, or RFC 9457 Problem Details as `application/problem+json` ([details](https://mantlejs.com/errors/)). |
 
 Pass an existing Express app if you need to share middleware or configure Express yourself:
 
@@ -196,6 +197,14 @@ expressApp.use(errorHandler());
 ```
 
 `MantleError` subclasses are serialized to JSON with the correct HTTP status code. Any other error becomes a 500 response.
+Pass `errorHandler({ errors: "problem+json" })` for Problem Details — `express()` does this for you when given the same option.
+
+With `errors: "problem+json"`, errors are [RFC 9457 Problem Details](https://www.rfc-editor.org/rfc/rfc9457) served as
+`application/problem+json` instead: `type` links to the error class's page on [mantlejs.com/errors](https://mantlejs.com/errors/),
+`detail` is the message, `instance` the request path (without the query string), and `className`, `data`, `errors`,
+`hint`, and `requestId` are extension members. An error that isn't a `MantleError` becomes a bare 500 with no
+`detail`, so internal messages don't reach the caller. (In the default `"mantle"` format such an error's message is
+still returned as-is.)
 
 ## Development
 

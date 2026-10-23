@@ -192,7 +192,7 @@ describe("express adapter", () => {
 
   describe("transport conformance (shared table)", () => {
     it.each(TRANSPORT_CONFORMANCE_CASES.map((c) => [c.name, c] as const))("%s", async (_name, testCase) => {
-      const app = mantle().configure(express(undefined, { trustProxy: testCase.trustProxy }));
+      const app = mantle().configure(express(undefined, { trustProxy: testCase.trustProxy, errors: testCase.errors }));
       registerTransportConformanceServices(app);
       const { port, stop } = await startServer(app.get<Application>("express"));
       try {

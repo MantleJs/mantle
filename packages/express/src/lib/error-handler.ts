@@ -1,19 +1,20 @@
 import type { NextFunction, Request, Response } from "express";
-import { errorResponseHeaders, MantleError } from "@mantlejs/mantle";
+import type { ErrorFormat } from "@mantlejs/mantle";
+import { errorResponse, errorResponseHeaders } from "@mantlejs/mantle";
 
-export function errorHandler() {
-  return (err: unknown, _req: Request, res: Response, _next: NextFunction): void => {
-    if (err instanceof MantleError) {
-      // Hook headers were already set by the route (see routes.ts); the error's own headers win.
-      res.set(errorResponseHeaders(undefined, err));
-      res.status(err.code).json(err.toJSON());
-      return;
-    }
-    res.status(500).json({
-      name: "GeneralError",
-      message: err instanceof Error ? err.message : "An unexpected error occurred",
-      code: 500,
-      className: "general-error",
+export interface ErrorHandlerOptions {
+  /** Error body format: `"mantle"` (default, `MantleError.toJSON()`) or RFC 9457 `"problem+json"`. */
+  errors?: ErrorFormat;
+}
+
+export function errorHandler(options: ErrorHandlerOptions = {}) {
+  return (err: unknown, req: Request, res: Response, _next: NextFunction): void => {
+    // Hook headers were already set by the route (see routes.ts); the error's own headers win.
+    res.set(errorResponseHeaders(undefined, err));
+    const { status, contentType, body } = errorResponse(err, options.errors, {
+      instance: req.path,
+      requestId: res.locals["requestId"] as string | undefined,
     });
+    res.status(status).set("Content-Type", contentType).send(JSON.stringify(body));
   };
 }

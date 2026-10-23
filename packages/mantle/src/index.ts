@@ -5,6 +5,7 @@ export * from "./lib/errors.js";
 export * from "./lib/mantle.js";
 export * from "./lib/context.js";
 export * from "./lib/transport.js";
+export * from "./lib/problem-details.js";
 export * from "./lib/transport-conformance.js";
 export * from "./lib/query-operators.js";
 export * from "./lib/query-fixtures.js";

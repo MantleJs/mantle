@@ -218,7 +218,10 @@ describe("koa adapter", () => {
 
   describe("transport conformance (shared table)", () => {
     it.each(TRANSPORT_CONFORMANCE_CASES.map((c) => [c.name, c] as const))("%s", async (_name, testCase) => {
-      const { port, stop } = await startApp(registerTransportConformanceServices, { trustProxy: testCase.trustProxy });
+      const { port, stop } = await startApp(registerTransportConformanceServices, {
+        trustProxy: testCase.trustProxy,
+        errors: testCase.errors,
+      });
       try {
         const { method, path, headers, body } = testCase.request;
         const res = await fetch(`http://127.0.0.1:${port}${path}`, {

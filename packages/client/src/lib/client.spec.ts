@@ -136,6 +136,98 @@ describe("error deserialization", () => {
     });
   });
 
+  it("builds the same MantleClientError from RFC 9457 Problem Details, chosen by Content-Type", async () => {
+    const client = mantle({ url: BASE, storage: memoryStorage() });
+    fetchMock.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          type: "https://mantlejs.com/errors/bad-request",
+          title: "Bad Request",
+          status: 400,
+          detail: "Operator $bad is not supported",
+          instance: "/messages",
+          className: "bad-request",
+          data: { field: "x" },
+          errors: [],
+          hint: "Use one of: $gt, $lt",
+          requestId: "req-9",
+        }),
+        { status: 400, headers: { "Content-Type": "application/problem+json" } },
+      ),
+    );
+    const error = await client
+      .service("messages")
+      .find()
+      .catch((e: unknown) => e as MantleClientError);
+    expect(error).toBeInstanceOf(MantleClientError);
+    expect(error).toMatchObject({
+      name: "BadRequest",
+      code: 400,
+      className: "bad-request",
+      message: "Operator $bad is not supported",
+      hint: "Use one of: $gt, $lt",
+      data: { field: "x" },
+      requestId: "req-9",
+      type: "https://mantlejs.com/errors/bad-request",
+    });
+  });
+
+  it("names a Problem Details error by its status when it has no className, and uses title without detail", async () => {
+    const client = mantle({ url: BASE, storage: memoryStorage() });
+    fetchMock.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({ type: "https://mantlejs.com/errors/general-error", title: "General Error", status: 500 }),
+        {
+          status: 500,
+          headers: { "Content-Type": "application/problem+json" },
+        },
+      ),
+    );
+    const error = (await client
+      .service("messages")
+      .find()
+      .catch((e: unknown) => e as MantleClientError)) as MantleClientError;
+    expect(error).toMatchObject({ name: "GeneralError", code: 500, message: "General Error" });
+  });
+
+  it("derives the name of an app-defined error class from its className", async () => {
+    const client = mantle({ url: BASE, storage: memoryStorage() });
+    fetchMock.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          type: "about:blank",
+          title: "Payment Required Error",
+          status: 402,
+          className: "payment-required-error",
+        }),
+        {
+          status: 402,
+          headers: { "Content-Type": "application/problem+json" },
+        },
+      ),
+    );
+    const error = (await client
+      .service("messages")
+      .find()
+      .catch((e: unknown) => e as MantleClientError)) as MantleClientError;
+    expect(error).toMatchObject({ name: "PaymentRequiredError", code: 402, type: "about:blank" });
+  });
+
+  it("reads the request ID from the X-Request-Id header for Mantle-shaped errors", async () => {
+    const client = mantle({ url: BASE, storage: memoryStorage() });
+    fetchMock.mockResolvedValueOnce(
+      new Response(JSON.stringify({ name: "NotFound", message: "gone", code: 404, className: "not-found" }), {
+        status: 404,
+        headers: { "Content-Type": "application/json", "X-Request-Id": "req-10" },
+      }),
+    );
+    const error = (await client
+      .service("messages")
+      .get(1)
+      .catch((e: unknown) => e as MantleClientError)) as MantleClientError;
+    expect(error.requestId).toBe("req-10");
+  });
+
   it("falls back to the HTTP status when the body is not JSON (gateway errors)", async () => {
     const client = mantle({ url: BASE, storage: memoryStorage() });
     fetchMock.mockResolvedValueOnce(

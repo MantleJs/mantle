@@ -53,6 +53,7 @@ export default defineConfig({
           items: [{ label: "Overview", link: "/blocks/" }, { autogenerate: { directory: "blocks" } }],
         },
         { label: "Packages", collapsed: true, items: [{ autogenerate: { directory: "packages" } }] },
+        { label: "Errors", collapsed: true, items: [{ autogenerate: { directory: "errors" } }] },
         // A single link rather than starlight-typedoc's generated group: that group lists every exported
         // symbol of all 40 packages, and Starlight inlines the sidebar into every page (~200 KB each).
         // /api/ lists the packages; each package page lists its members.

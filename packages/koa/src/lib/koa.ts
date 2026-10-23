@@ -6,6 +6,7 @@ import corsLib from "@koa/cors";
 import type {
   BatchCall,
   CorsOptions,
+  ErrorFormat,
   HttpRequestLike,
   HttpResponseLike,
   HttpRouteHandler,
@@ -26,7 +27,7 @@ import {
   withContext,
 } from "@mantlejs/mantle";
 import { mountServiceRoutes, requestParams } from "./routes.js";
-import { errorHandler } from "./error-handler.js";
+import { createErrorHandler } from "./error-handler.js";
 
 declare module "@mantlejs/mantle" {
   interface MantleApplication {
@@ -61,6 +62,11 @@ export interface KoaOptions {
    * load balancer). Independent of Koa's own `proxy` setting. See `TrustProxy`.
    */
   trustProxy?: TrustProxy;
+  /**
+   * Error body format. `"mantle"` (default) is `MantleError.toJSON()` as `application/json`; `"problem+json"` is
+   * RFC 9457 Problem Details as `application/problem+json`, with `type` linking to the error's mantlejs.com page.
+   */
+  errors?: ErrorFormat;
 }
 
 /** Structural subset of Koa's context used by the HttpRouterLike adapter. */
@@ -149,7 +155,7 @@ export function koa(options: KoaOptions = {}): MantlePlugin {
       ctx.set(requestIdHeaders(resolved));
       await withContext(createRequestContext(resolved.requestId), next);
     });
-    koaApp.use(errorHandler);
+    koaApp.use(createErrorHandler({ errors: options.errors }));
     koaApp.use(bodyParser());
 
     const router = new Router();

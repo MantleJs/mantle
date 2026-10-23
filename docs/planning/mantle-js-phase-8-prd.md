@@ -162,7 +162,10 @@ override, header set on success, header survival on error, 304/204 empty body, `
     what the RFC recommends)
   - `title` (class name in words), `status`, `detail` (message), `instance` (request path)
   - extensions: `className`, `data`, `errors`, `hint`, `requestId`
-- Non-`MantleError` exceptions map to a 500 with no leaked detail (same rule as today).
+- Non-`MantleError` exceptions map to a 500 with no leaked detail. (Correction, 2026-10-22: this is *not* today's rule —
+  the `"mantle"` format has always returned such an error's `message` verbatim, and still does; only `problem+json`
+  withholds it.)
+- An app-defined `MantleError` subclass has no mantlejs.com page, so its `type` is `about:blank` (RFC 9457 §4.2.1).
 - `@mantlejs/client` parses both shapes into the same client error type, choosing by `Content-Type`.
 
 **Accept:** transport conformance rows for both shapes; client specs for both; one docs page per error class.

@@ -3,6 +3,7 @@ import { URL } from "node:url";
 import type {
   BatchCall,
   CorsOptions,
+  ErrorFormat,
   HttpRequestLike,
   HttpResponseLike,
   HttpRouteHandler,
@@ -14,6 +15,7 @@ import type {
   TrustProxy,
 } from "@mantlejs/mantle";
 import {
+  NotFound,
   createRequestContext,
   requestIdHeaders,
   resolveClientIp,
@@ -72,16 +74,15 @@ async function dispatch(
   body: unknown,
   resolved: ResolvedRequestId,
   ip: string | undefined,
+  errors: ErrorFormat | undefined,
 ): Promise<DispatchResult> {
   const idHeaders = requestIdHeaders(resolved);
+  const errorOptions = { errors, instance: pathname, requestId: resolved.requestId };
   return withContext(createRequestContext(resolved.requestId), async () => {
     const matched = router.match(method, pathname);
     if (!matched) {
-      return {
-        status: 404,
-        body: { name: "NotFound", message: "Not found", code: 404, className: "not-found" },
-        headers: idHeaders,
-      };
+      const errRes = toErrorResponse(new NotFound("Not found"), undefined, errorOptions);
+      return { status: errRes.status, body: errRes.body, headers: { ...idHeaders, ...errRes.headers } };
     }
     const request: RequestInfo = { ip, requestId: resolved.requestId, response: {} };
     try {
@@ -95,7 +96,7 @@ async function dispatch(
         bodyless,
       };
     } catch (err) {
-      const errRes = toErrorResponse(err, request.response);
+      const errRes = toErrorResponse(err, request.response, errorOptions);
       return { status: errRes.status, body: errRes.body, headers: { ...idHeaders, ...errRes.headers } };
     }
   });
@@ -188,6 +189,11 @@ export interface HttpOptions {
    * `undefined` there. See `TrustProxy`.
    */
   trustProxy?: TrustProxy;
+  /**
+   * Error body format. `"mantle"` (default) is `MantleError.toJSON()` as `application/json`; `"problem+json"` is
+   * RFC 9457 Problem Details as `application/problem+json`, with `type` linking to the error's mantlejs.com page.
+   */
+  errors?: ErrorFormat;
 }
 
 export function http(options: HttpOptions = {}): MantlePlugin {
@@ -237,7 +243,17 @@ export function http(options: HttpOptions = {}): MantlePlugin {
           const query = flattenSearchParams(url.searchParams);
           const headers = req.headers as Record<string, string>;
           const body = await parseBody(req);
-          const result = await dispatch(router, req.method ?? "GET", url.pathname, query, headers, body, resolved, ip);
+          const result = await dispatch(
+            router,
+            req.method ?? "GET",
+            url.pathname,
+            query,
+            headers,
+            body,
+            resolved,
+            ip,
+            options.errors,
+          );
           if (result.bodyless) {
             res.writeHead(result.status, { ...corsHeaders, ...result.headers });
             res.end();
@@ -252,10 +268,13 @@ export function http(options: HttpOptions = {}): MantlePlugin {
           });
           res.end(payload);
         } catch (err) {
-          const errRes = toErrorResponse(err);
+          const errRes = toErrorResponse(err, undefined, {
+            errors: options.errors,
+            instance: (req.url ?? "/").split("?")[0],
+            requestId: resolved.requestId,
+          });
           const json = JSON.stringify(errRes.body);
           res.writeHead(errRes.status, {
-            "Content-Type": "application/json",
             "Content-Length": Buffer.byteLength(json),
             ...corsHeaders,
             ...requestIdHeaders(resolved),
@@ -299,7 +318,17 @@ export function http(options: HttpOptions = {}): MantlePlugin {
         body = Object.fromEntries(new URLSearchParams(await request.text()));
       }
 
-      const result = await dispatch(router, request.method, url.pathname, query, headers, body, resolved, ip);
+      const result = await dispatch(
+        router,
+        request.method,
+        url.pathname,
+        query,
+        headers,
+        body,
+        resolved,
+        ip,
+        options.errors,
+      );
       if (result.bodyless) {
         return new Response(null, { status: result.status, headers: { ...corsHeaders, ...result.headers } });
       }

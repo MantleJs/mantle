@@ -4,6 +4,7 @@ import corsLib from "cors";
 import type {
   BatchCall,
   CorsOptions,
+  ErrorFormat,
   MantleApplication,
   MantlePlugin,
   ServiceOptions,
@@ -53,6 +54,11 @@ export interface ExpressOptions {
    * load balancer). Independent of Express's own `trust proxy` setting. See `TrustProxy`.
    */
   trustProxy?: TrustProxy;
+  /**
+   * Error body format. `"mantle"` (default) is `MantleError.toJSON()` as `application/json`; `"problem+json"` is
+   * RFC 9457 Problem Details as `application/problem+json`, with `type` linking to the error's mantlejs.com page.
+   */
+  errors?: ErrorFormat;
 }
 
 export function express(existingApp?: Application, options: ExpressOptions = {}): MantlePlugin {
@@ -104,7 +110,7 @@ export function express(existingApp?: Application, options: ExpressOptions = {})
     function ensureErrorHandler(): void {
       if (!errorHandlerAttached) {
         errorHandlerAttached = true;
-        expressApp.use(errorHandler());
+        expressApp.use(errorHandler({ errors: options.errors }));
       }
     }
 

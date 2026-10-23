@@ -6,15 +6,28 @@ const STATUS_NAMES: Record<number, string> = {
   404: "NotFound",
   405: "MethodNotAllowed",
   409: "Conflict",
+  412: "PreconditionFailed",
   422: "Unprocessable",
+  429: "TooManyRequests",
   500: "GeneralError",
+  501: "NotImplemented",
+  503: "Unavailable",
 };
+
+/** `"too-many-requests"` → `"TooManyRequests"` — the server's class name, from its `className`. */
+function classNameToName(className: string): string {
+  return className.replace(/(^|-)([a-z0-9])/g, (_match, _dash: string, letter: string) => letter.toUpperCase());
+}
 
 export interface MantleClientErrorFields {
   className?: string;
   data?: unknown;
   errors?: unknown[];
   hint?: string;
+  /** The request's `X-Request-Id` (or Problem Details' `requestId`) — quote it when reporting the error. */
+  requestId?: string;
+  /** Problem Details' `type` URI, when the server sent `application/problem+json`. */
+  type?: string;
 }
 
 /**
@@ -29,6 +42,8 @@ export class MantleClientError extends Error {
   readonly data?: unknown;
   readonly errors?: unknown[];
   readonly hint?: string;
+  readonly requestId?: string;
+  readonly type?: string;
 
   constructor(message: string, code: number, name: string, fields: MantleClientErrorFields = {}) {
     super(message);
@@ -38,14 +53,16 @@ export class MantleClientError extends Error {
     this.data = fields.data;
     this.errors = fields.errors;
     this.hint = fields.hint;
+    this.requestId = fields.requestId;
+    this.type = fields.type;
     Object.setPrototypeOf(this, new.target.prototype);
   }
 }
 
 /**
- * Deserialize a non-2xx `Response` into a `MantleClientError`. Falls back to
- * the HTTP status alone when the body is not Mantle's error JSON (e.g. a
- * gateway error page).
+ * Deserialize a non-2xx `Response` into a `MantleClientError`. Reads either error shape the server's `errors` option
+ * produces — Mantle's JSON or RFC 9457 Problem Details (`application/problem+json`) — and falls back to the HTTP
+ * status alone when the body is neither (e.g. a gateway error page).
  */
 export async function errorFromResponse(response: Response): Promise<MantleClientError> {
   let body: Record<string, unknown> = {};
@@ -55,14 +72,25 @@ export async function errorFromResponse(response: Response): Promise<MantleClien
   } catch {
     // Non-JSON body — construct from the status line alone.
   }
-  const code = typeof body["code"] === "number" ? body["code"] : response.status;
-  const name =
-    typeof body["name"] === "string" ? body["name"] : (STATUS_NAMES[response.status] ?? `Error${response.status}`);
-  const message = typeof body["message"] === "string" ? body["message"] : response.statusText;
-  return new MantleClientError(message, code, name, {
-    className: typeof body["className"] === "string" ? body["className"] : undefined,
+  const string = (key: string): string | undefined =>
+    typeof body[key] === "string" ? (body[key] as string) : undefined;
+  const className = string("className");
+  const fields: MantleClientErrorFields = {
+    className,
     data: body["data"],
     errors: Array.isArray(body["errors"]) ? body["errors"] : undefined,
-    hint: typeof body["hint"] === "string" ? body["hint"] : undefined,
-  });
+    hint: string("hint"),
+    requestId: string("requestId") ?? response.headers.get("x-request-id") ?? undefined,
+  };
+  const fallbackName = STATUS_NAMES[response.status] ?? `Error${response.status}`;
+
+  if ((response.headers.get("content-type") ?? "").includes("application/problem+json")) {
+    const status = typeof body["status"] === "number" ? body["status"] : response.status;
+    const name = className !== undefined ? classNameToName(className) : (STATUS_NAMES[status] ?? fallbackName);
+    const message = string("detail") ?? string("title") ?? response.statusText;
+    return new MantleClientError(message, status, name, { ...fields, type: string("type") });
+  }
+
+  const code = typeof body["code"] === "number" ? body["code"] : response.status;
+  return new MantleClientError(string("message") ?? response.statusText, code, string("name") ?? fallbackName, fields);
 }
