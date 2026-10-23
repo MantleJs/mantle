@@ -1,0 +1,39 @@
+name: Bug report
+description: Something in a Mantle package doesn't work as documented.
+labels: ["bug"]
+body:
+  - type: input
+    id: packages
+    attributes:
+      label: Package(s) and version(s)
+      description: The `@mantlejs/*` packages involved, with versions from your lockfile.
+      placeholder: "@mantlejs/mantle 0.3.0, @mantlejs/knex 0.3.0"
+    validations:
+      required: true
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you saw, including the full error message and stack trace if there is one.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Minimal reproduction
+      description: The smallest app or test that shows the problem. A link to a repository works too.
+      render: typescript
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: Node.js version, OS, and the database/transport involved.
+      placeholder: "Node 22.11, macOS 15, PostgreSQL 16 via @mantlejs/knex, @mantlejs/express"

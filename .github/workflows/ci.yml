@@ -49,6 +49,11 @@ jobs:
       - name: Dependency matrix cross-check
         run: npm run check-dependency-matrix
 
+      # Phase 8 item 5: every package ships the MIT LICENSE text (npm packs a package-root LICENSE) and
+      # points its npm homepage at its mantlejs.com page.
+      - name: Package metadata check
+        run: npm run check-package-metadata
+
       # Includes the website (Phase 7 item 12): its build runs starlight-links-validator, so a PR that
       # breaks an internal link — in a guide or in any package README the site ingests — fails here.
       - name: Build, test, lint, typecheck

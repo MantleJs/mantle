@@ -75,6 +75,9 @@ abstract class KnexRepository<T, D = Partial<T>> implements Repository<T, D> {
 }
 ```
 
+`createdAt`/`updatedAt` come back as `Date` objects on every client, so they serialize as RFC 3339. (SQLite has no
+datetime type and stores them as epoch milliseconds; the repository converts them back to `Date` on read.)
+
 #### Methods
 
 | Method                             | Description                                      |
