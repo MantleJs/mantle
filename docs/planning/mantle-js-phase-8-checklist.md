@@ -103,10 +103,13 @@ runs in four stages:
       format no longer leaks a non-`MantleError`'s message. `@mantlejs/openapi` documents errors in the transport's
       format, read from the new `"http:errors"` app setting.
 
-- [ ] **7. Conditional requests** _(PRD spec 5)_
+- [x] **7. Conditional requests** _(PRD spec 5)_
       `conditional()` hook in `@mantlejs/mantle`: ETag on `get`, 304 on `If-None-Match`, 412 on failed
       `If-Match`, `versionField`, `requireIfMatch`.
       **Accept:** branch specs on memory + knex/sqlite; transport rows for 304/412; Decision #10 filled in.
+      **Done (2026-10-22):** Decision #10. Strong ETags; `{ before, after }` pair; atomic writes via a new optional
+      `WriteOptions.where` on `Repository<T>` writes (memory + knex), proven with a concurrent writer on memory and
+      real SQLite; 4 conformance rows (27 total). Also fixed `deleteById` on knex/SQLite, broken since spike 2.
 
 - [ ] **8. `@mantlejs/ratelimit`** _(PRD spec 3)_
       Generate with the Nx library generator. `rateLimit()`, `memoryStore()`, `redisStore()`, key functions,

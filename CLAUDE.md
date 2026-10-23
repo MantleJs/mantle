@@ -180,10 +180,16 @@ interface Repository<T, D = Partial<T>> {
   findById(id: Id): Promise<T | null>;
   save(data: D): Promise<T>;
   saveAll(data: D[]): Promise<T[]>;
-  updateById(id: Id, data: D): Promise<T>;
-  patchById(id: Id, data: D): Promise<T>;
-  deleteById(id: Id): Promise<T>;
+  updateById(id: Id, data: D, options?: WriteOptions): Promise<T>;
+  patchById(id: Id, data: D, options?: WriteOptions): Promise<T>;
+  deleteById(id: Id, options?: WriteOptions): Promise<T>;
   count(params?: QueryParams): Promise<number>;
+}
+
+// Optional write precondition: apply only if the record also matches `where`, atomically, else PreconditionFailed.
+// Implemented by memory and knex; other adapters ignore it. Set by conditional() via params.precondition.
+interface WriteOptions {
+  where?: Record<string, unknown>;
 }
 ```
 

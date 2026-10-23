@@ -108,9 +108,12 @@ All methods mirror the `Repository<T>` interface and return `Promise<T>` or `Pro
 | `findById(id)` | Return a single record or `null` |
 | `save(data)` | Insert a new record; throws `Conflict` if `id` already exists |
 | `saveAll(data[])` | Insert multiple records |
-| `updateById(id, data)` | Full replace (all fields); throws `NotFound` if absent |
-| `patchById(id, data)` | Partial update (merge); throws `NotFound` if absent |
-| `deleteById(id)` | Remove and return the record; throws `NotFound` if absent |
+| `updateById(id, data, options?)` | Full replace (all fields); throws `NotFound` if absent |
+| `patchById(id, data, options?)` | Partial update (merge); throws `NotFound` if absent |
+| `deleteById(id, options?)` | Remove and return the record; throws `NotFound` if absent |
+
+`options.where` (`WriteOptions`) makes a write conditional: it applies only if the record also matches, else
+`PreconditionFailed`. `conditional()` uses it for atomic `If-Match` writes.
 | `count(params?)` | Count records matching `QueryParams.where` |
 
 ---

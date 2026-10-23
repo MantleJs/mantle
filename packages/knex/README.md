@@ -86,10 +86,15 @@ datetime type and stores them as epoch milliseconds; the repository converts the
 | `findById(id)`                     | Returns one row or `null`                        |
 | `save(data)`                       | Inserts a row, returns the inserted record; `Conflict` on a duplicate primary/unique key (every client) |
 | `saveAll(data[])`                  | Bulk-inserts rows, returns all inserted records  |
-| `updateById(id, data)`             | Replaces a row, throws `NotFound` if missing     |
-| `patchById(id, data)`              | Merges into a row, throws `NotFound` if missing  |
-| `deleteById(id)`                   | Deletes a row, throws `NotFound` if missing      |
+| `updateById(id, data, options?)`   | Replaces a row, throws `NotFound` if missing     |
+| `patchById(id, data, options?)`    | Merges into a row, throws `NotFound` if missing  |
+| `deleteById(id, options?)`         | Deletes a row, throws `NotFound` if missing      |
 | `count(params?)`                   | Returns the count matching `QueryParams`         |
+
+`options.where` (`WriteOptions`) makes a single-row write conditional: the conditions join the id in the same
+`UPDATE`/`DELETE` statement, so the write applies only if the row still matches, else `PreconditionFailed`.
+`conditional()` uses it for atomic `If-Match` writes. (Without RETURNING — MySQL, and SQLite for deletes — the row is
+read first to return it, but the delete itself still carries the conditions.)
 
 `save`, `saveAll`, `updateById`, and `patchById` use `RETURNING *` on PostgreSQL, SQLite, and MSSQL. On MySQL/MariaDB they fall back to a follow-up `SELECT`.
 
