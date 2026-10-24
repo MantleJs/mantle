@@ -74,6 +74,7 @@ mantle/
 │   ├── logger/          @mantlejs/logger       Structured logging (pino)
 │   ├── audit/           @mantlejs/audit        Audit-trail hook — who did what, as which identity, to a Repository<T> sink
 │   ├── embeddings/      @mantlejs/embeddings   Auto-embed-on-write hook — pluggable provider, upserts into a VectorRepository<T>
+│   ├── ratelimit/       @mantlejs/ratelimit    Rate limiting — rateLimit() hook, memory + Redis stores, IETF RateLimit headers
 │   ├── schema/          @mantlejs/schema       TypeBox schema validation + field resolution
 │   ├── memory/          @mantlejs/memory       In-memory Repository<T> for testing/prototyping
 │   ├── config/          @mantlejs/config       Environment-aware configuration loading
@@ -128,6 +129,7 @@ mantle/
 | @mantlejs/logger         | @mantlejs/mantle                                                                                                                                                               |
 | @mantlejs/audit          | @mantlejs/mantle (test-only: @mantlejs/memory, @mantlejs/knex)                                                                                                                 |
 | @mantlejs/embeddings     | @mantlejs/mantle (test-only: @mantlejs/memory)                                                                                                                                 |
+| @mantlejs/ratelimit      | @mantlejs/mantle (test-only: @mantlejs/http, @mantlejs/mcp)                                                                                                                     |
 | @mantlejs/schema         | @mantlejs/mantle                                                                                                                                                               |
 | @mantlejs/memory         | @mantlejs/mantle                                                                                                                                                               |
 | @mantlejs/config         | @mantlejs/mantle                                                                                                                                                               |

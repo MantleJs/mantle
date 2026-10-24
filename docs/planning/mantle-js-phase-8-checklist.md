@@ -111,12 +111,15 @@ runs in four stages:
       `WriteOptions.where` on `Repository<T>` writes (memory + knex), proven with a concurrent writer on memory and
       real SQLite; 4 conformance rows (27 total). Also fixed `deleteById` on knex/SQLite, broken since spike 2.
 
-- [ ] **8. `@mantlejs/ratelimit`** _(PRD spec 3)_
+- [x] **8. `@mantlejs/ratelimit`** _(PRD spec 3)_
       Generate with the Nx library generator. `rateLimit()`, `memoryStore()`, `redisStore()`, key functions,
       draft-11 headers, `Retry-After`. Add to the `experimental` release group, `CLAUDE.md` table, and
       `dependencyMatrix`.
       **Accept:** store specs (Redis via testcontainers); header golden specs; multi-policy spec; MCP agent-keyed
       spec; README.
+      **Done (2026-10-23):** Redis tested like `auth-redis` (`ioredis-mock`) plus a real-Redis run gated on
+      `MANTLE_REDIS_URL` (passed on Redis 7) — see the "As built" note under PRD spec 3. HTTP end-to-end spec over
+      `@mantlejs/http` (headers on 200, 429 Problem Details with `Retry-After`).
 
 - [ ] **9. `@mantlejs/idempotency`** _(PRD spec 4; after items 1–2)_
       `idempotency()` returning `{ before, after, error }`, fingerprinting, `required`, TTL, replay with

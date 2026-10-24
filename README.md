@@ -82,6 +82,7 @@ Dependencies always point inward. Nothing in Domain or Application layers knows 
 | `@mantlejs/mcp`            | MCP server — expose services as Model Context Protocol tools (stdio + HTTP), full hook pipeline, deny-by-default                          |
 | `@mantlejs/mcp-code`       | MCP code mode — typed API + QuickJS sandbox so agents run one script instead of many tool calls (experimental)                            |
 | `@mantlejs/audit`          | Audit-trail hook — who did what, as which identity (user or agent), written to any `Repository<T>` sink                                   |
+| `@mantlejs/ratelimit`      | Rate limiting — `rateLimit()` hook keyed by agent, user, tenant, or IP; memory + Redis stores; IETF `RateLimit` headers                   |
 | `@mantlejs/embeddings`     | Auto-embed-on-write hook — pluggable embedding provider, upserts into a `VectorRepository<T>`                                             |
 | `@mantlejs/client`         | Official client SDK — REST + Socket.IO, auth with token rotation, from browsers/Node.js/React Native                                      |
 | `@mantlejs/react`          | React bindings — hooks and providers over the Mantle client SDK                                                                           |
