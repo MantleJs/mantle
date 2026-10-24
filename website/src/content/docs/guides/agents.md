@@ -108,6 +108,20 @@ Agent tokens can't be used as user JWTs: `authenticate("jwt")` rejects them outr
 listing is narrowed to its scope, and an out-of-scope call still fails in `authorizeAgent()` with the same
 catchable `Forbidden` tool mode returns.
 
+## Rate limits for agents
+
+[`@mantlejs/ratelimit`](/packages/ratelimit/)'s default key, `byPrincipal()`, gives each agent its own budget,
+separate from the user who delegated to it, so a looping agent exhausts its own quota rather than its user's:
+
+```typescript
+app.service("articles").hooks({
+  before: { all: [authorizeAgent(), rateLimit({ limit: 60, windowSeconds: 60 })] },
+});
+```
+
+Over the limit, the tool call fails with a `TooManyRequests` error whose message says how long to wait
+(`"… Retry after 42s."`) and whose `data.retryAfter` carries the seconds, so the agent can back off.
+
 ## The audit trail
 
 ```typescript

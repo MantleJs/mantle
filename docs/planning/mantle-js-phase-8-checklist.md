@@ -121,11 +121,14 @@ runs in four stages:
       `MANTLE_REDIS_URL` (passed on Redis 7) — see the "As built" note under PRD spec 3. HTTP end-to-end spec over
       `@mantlejs/http` (headers on 200, 429 Problem Details with `Retry-After`).
 
-- [ ] **9. `@mantlejs/idempotency`** _(PRD spec 4; after items 1–2)_
+- [x] **9. `@mantlejs/idempotency`** _(PRD spec 4; after items 1–2)_
       `idempotency()` returning `{ before, after, error }`, fingerprinting, `required`, TTL, replay with
       `Idempotent-Replayed`, event suppression. `@mantlejs/client` `idempotencyKey` option.
       **Accept:** every flow branch on memory; concurrency spec (parallel same-key → one 409); HTTP and MCP
       end-to-end; client specs; README.
+      **Done (2026-10-23):** 24 specs (memory branches, concurrency, HTTP end to end, knex/SQLite store), client
+      `idempotencyKey`, README, and a new "Production APIs" guide plus deployment/agents guide updates. MCP end to end
+      moves to item 14 with the `_meta` passthrough. See "As built" under PRD spec 4.
 
 - [ ] **10. Tracing** _(PRD spec 6)_
       `traceparent`/`tracestate` parsing in core, logger fields, new `@mantlejs/otel` package.

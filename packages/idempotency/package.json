@@ -1,0 +1,52 @@
+{
+  "name": "@mantlejs/idempotency",
+  "version": "0.3.0-experimental",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    "./package.json": "./package.json",
+    ".": {
+      "@mantle/source": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "!**/*.tsbuildinfo"
+  ],
+  "nx": {
+    "name": "idempotency",
+    "tags": [
+      "pkg:idempotency",
+      "type:lib"
+    ]
+  },
+  "dependencies": {
+    "tslib": "^2.3.0"
+  },
+  "description": "Idempotency-Key support for Mantle JS — idempotency() hooks over any Repository<T>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MantleJs/mantle.git",
+    "directory": "packages/idempotency"
+  },
+  "homepage": "https://mantlejs.com/packages/idempotency/",
+  "publishConfig": {
+    "access": "public"
+  },
+  "keywords": [
+    "mantle",
+    "idempotency",
+    "idempotency-key",
+    "retries",
+    "exactly-once"
+  ],
+  "peerDependencies": {
+    "@mantlejs/mantle": "^0.3.0"
+  }
+}

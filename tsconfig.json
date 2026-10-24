@@ -143,6 +143,9 @@
     },
     {
       "path": "./packages/ratelimit"
+    },
+    {
+      "path": "./packages/idempotency"
     }
   ]
 }

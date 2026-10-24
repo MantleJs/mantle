@@ -264,6 +264,17 @@ app.service("payments").hooks({
 knex/sqlite; a concurrency spec (two parallel calls with the same key → one succeeds, one gets 409); HTTP and
 MCP end-to-end specs; client specs.
 
+**As built (2026-10-23):** as specified, with these decisions. *Other methods pass through* rather than the hook
+rejecting registration on `update`/`remove` — a hook can't see where it was registered, and failing at call time
+would break the common `all` registration. *Record ids* are a SHA-256 of `scope + key` (64 hex); `idFormat:
+"objectid"` uses the first 24 hex characters for MongoDB (spike 2's open point). *Every record field is a string*
+(`response` is JSON text, `expiresAt` RFC 3339), so any SQL table works without JSON columns. *If storing the result
+fails*, the caller still gets it and the key is released (a retry runs again, as without the hook) rather than
+locked out with 409 for the TTL. *Expired records* are cleared and re-claimed on read; periodic cleanup is
+documented. The MCP end-to-end spec belongs with the `_meta` passthrough in item 14. **Gap noted:** `@mantlejs/react`'s
+`useCreate`/`usePatch` pass no params, so they can't send a key yet — doing it right means a key fixed across
+TanStack's own retries but new per `mutate()`; Phase 9 backlog.
+
 #### 5. Conditional requests (ETag, `If-None-Match`, `If-Match`)
 
 A `conditional()` hook pair in `@mantlejs/mantle` (no dependencies needed): `const etags = conditional(options)`,

@@ -259,6 +259,56 @@ describe("error deserialization", () => {
   });
 });
 
+describe("idempotencyKey", () => {
+  const headerOf = (call: unknown) =>
+    ((call as [string, RequestInit])[1].headers as Record<string, string>)["Idempotency-Key"];
+
+  it("sends a string key as the Idempotency-Key header on create and patch", async () => {
+    const client = mantle({ url: BASE, storage: memoryStorage() });
+    fetchMock.mockResolvedValueOnce(jsonResponse({ id: 1 }, 201)).mockResolvedValueOnce(jsonResponse({ id: 1 }));
+    await client.service("payments").create({ amount: 5 }, { idempotencyKey: "order-42" });
+    await client.service("payments").patch(1, { amount: 6 }, { idempotencyKey: "order-42-edit" });
+    expect(fetchMock.mock.calls.map(headerOf)).toEqual(["order-42", "order-42-edit"]);
+  });
+
+  it("generates a UUID for idempotencyKey: true", async () => {
+    const client = mantle({ url: BASE, storage: memoryStorage() });
+    fetchMock.mockResolvedValueOnce(jsonResponse({ id: 1 }, 201));
+    await client.service("payments").create({ amount: 5 }, { idempotencyKey: true });
+    expect(headerOf(fetchMock.mock.calls[0])).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/);
+  });
+
+  it("resends the same generated key on the client's own 401 refresh-and-retry", async () => {
+    const client = mantle({ url: BASE, storage: memoryStorage() });
+    fetchMock.mockResolvedValueOnce(jsonResponse({ accessToken: "at-1", refreshToken: "rt-1", user: {} }, 201));
+    await client.authenticate({ strategy: "local" });
+    fetchMock.mockClear();
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse({ name: "NotAuthenticated", message: "expired", code: 401 }, 401))
+      .mockResolvedValueOnce(jsonResponse({ accessToken: "at-2", refreshToken: "rt-2" }, 201))
+      .mockResolvedValueOnce(jsonResponse({ id: 1 }, 201));
+    await client.service("payments").create({ amount: 5 }, { idempotencyKey: true });
+    const [first, , retry] = fetchMock.mock.calls;
+    expect(headerOf(first)).toBeDefined();
+    expect(headerOf(retry)).toBe(headerOf(first));
+  });
+
+  it("keeps caller headers alongside the key", async () => {
+    const client = mantle({ url: BASE, storage: memoryStorage() });
+    fetchMock.mockResolvedValueOnce(jsonResponse({ id: 1 }, 201));
+    await client.service("payments").create({ amount: 5 }, { idempotencyKey: "k", headers: { "X-Trace": "t" } });
+    const headers = (fetchMock.mock.calls[0] as [string, RequestInit])[1].headers as Record<string, string>;
+    expect(headers).toMatchObject({ "Idempotency-Key": "k", "X-Trace": "t" });
+  });
+
+  it("sends a keyed call on its own even when batching is on", async () => {
+    const client = mantle({ url: BASE, storage: memoryStorage(), batch: true });
+    fetchMock.mockResolvedValueOnce(jsonResponse({ id: 1 }, 201));
+    await client.service("payments").create({ amount: 5 }, { idempotencyKey: "k" });
+    expect((fetchMock.mock.calls[0] as [string])[0]).toBe(`${BASE}/payments`);
+  });
+});
+
 describe("authentication", () => {
   let client: MantleClient;
   let storage: TokenStorage;
