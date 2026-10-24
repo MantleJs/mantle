@@ -117,14 +117,19 @@ Custom methods beyond these six must be explicitly listed in `options.methods` w
 Interface for data access implementations (e.g. `KnexRepository`). Lives in the Infrastructure layer and is never imported by services directly.
 
 ```typescript
+/** Optional write precondition: apply only if the record also matches `where`, atomically, else `PreconditionFailed`. */
+interface WriteOptions {
+  where?: Record<string, unknown>;
+}
+
 interface Repository<T, D = Partial<T>> {
   findAll(params?: QueryParams): Promise<T[]>;
   findById(id: Id): Promise<T | null>;
   save(data: D): Promise<T>;
   saveAll(data: D[]): Promise<T[]>;
-  updateById(id: Id, data: D): Promise<T>;
-  patchById(id: Id, data: D): Promise<T>;
-  deleteById(id: Id): Promise<T>;
+  updateById(id: Id, data: D, options?: WriteOptions): Promise<T>;
+  patchById(id: Id, data: D, options?: WriteOptions): Promise<T>;
+  deleteById(id: Id, options?: WriteOptions): Promise<T>;
   count(params?: QueryParams): Promise<number>;
   findPage?(params?: QueryParams & { cursor?: string }): Promise<CursorPage<T>>; // optional cursor pagination
   describe?(): RepositoryCapabilities; // optional capability introspection
@@ -317,6 +322,35 @@ const cacheFor = (seconds: number): HookFunction => (context) => {
   return context;
 };
 ```
+
+#### Conditional requests — `conditional()`
+
+ETags, `304 Not Modified`, and optimistic concurrency ([RFC 9110 §13](https://www.rfc-editor.org/rfc/rfc9110#section-13)):
+
+```typescript
+import { conditional } from "@mantlejs/mantle";
+
+const etags = conditional({ versionField: "updatedAt" });
+app.service("articles").hooks({
+  before: { all: [etags.before] }, // If-Match on update/patch/remove
+  after: { all: [etags.after] }, // register last: ETag on get/update/patch, 304 on If-None-Match
+});
+```
+
+- **`get`** sends an `ETag`. A matching `If-None-Match` (weak comparison, `*`, or a list) gets `304` with no body.
+- **`update`/`patch`/`remove`** with `If-Match`: the hook reads the record the way a `get` would and compares ETags
+  (strong comparison, so a `W/` tag never matches). A stale one throws `PreconditionFailed` (412). A missing record is
+  still `NotFound`. `requireIfMatch: true` rejects writes that don't send `If-Match`.
+- **ETags are strong** (`"…"`), so `If-Match` can match them: the value of `versionField` when it's set and
+  header-safe, otherwise a SHA-256 of the record's canonical JSON. `update`/`patch` responses carry the new ETag.
+- **Atomicity.** With `versionField`, the hook passes `params.precondition = { where: { [versionField]: current } }`,
+  and `RepositoryService` hands it to the repository as `WriteOptions`. Repositories that support it (memory, knex)
+  apply the write only if the version still matches, in the same operation, so a change that lands between the check
+  and the write makes it fail with 412 instead of being overwritten. Without `versionField`, or with an adapter that
+  doesn't support `WriteOptions`, that window remains.
+- **`versionField` must change on every write.** `updatedAt` does when the repository manages timestamps (two writes in
+  the same millisecond share a value); an integer `version` needs your code to increment it.
+- `find` isn't covered: a list ETag needs a cache strategy.
 
 #### Suppressing the service event — `context.event`
 

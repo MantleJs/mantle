@@ -51,6 +51,12 @@ export interface ServiceParams {
   ip?: string;
   /** Request ID, set by the HTTP transports from a valid `X-Request-Id` (or a generated UUID) and echoed in the response. */
   requestId?: string;
+  /**
+   * A condition the record must still meet for this write to apply — set by `conditional()` from a matching
+   * `If-Match`. `RepositoryService` passes it to the repository's `updateById`/`patchById`/`deleteById` as
+   * `WriteOptions`, so a concurrent change makes the write fail with `PreconditionFailed` instead of overwriting.
+   */
+  precondition?: WriteOptions;
   [key: string]: unknown;
 }
 
@@ -116,14 +122,24 @@ export interface CursorPage<T> {
   cursor?: string;
 }
 
+/**
+ * Optional conditions on a single-record write. An adapter that supports them applies the write only if the record
+ * also matches `where`, atomically, and throws `PreconditionFailed` otherwise. Adapters that don't support them ignore
+ * the argument (the caller has already checked, so only a narrow race remains) — see each adapter's README.
+ */
+export interface WriteOptions {
+  /** Equality conditions on the current record, e.g. `{ updatedAt: <value the caller read> }`. */
+  where?: Record<string, unknown>;
+}
+
 export interface Repository<T, D = Partial<T>> {
   findAll(params?: QueryParams): Promise<T[]>;
   findById(id: Id): Promise<T | null>;
   save(data: D): Promise<T>;
   saveAll(data: D[]): Promise<T[]>;
-  updateById(id: Id, data: D): Promise<T>;
-  patchById(id: Id, data: D): Promise<T>;
-  deleteById(id: Id): Promise<T>;
+  updateById(id: Id, data: D, options?: WriteOptions): Promise<T>;
+  patchById(id: Id, data: D, options?: WriteOptions): Promise<T>;
+  deleteById(id: Id, options?: WriteOptions): Promise<T>;
   count(params?: QueryParams): Promise<number>;
   /**
    * Optional cursor pagination. Implemented by adapters whose backend is natively cursored

@@ -1,8 +1,9 @@
 import type { Knex } from "knex";
-import type { Id, QueryParams, Repository, RepositoryCapabilities } from "@mantlejs/mantle";
+import type { Id, QueryParams, Repository, RepositoryCapabilities, WriteOptions } from "@mantlejs/mantle";
 import {
   BadRequest,
   Conflict,
+  PreconditionFailed,
   Forbidden,
   GeneralError,
   MantleError,
@@ -232,84 +233,77 @@ export abstract class KnexRepository<T extends Record<string, unknown>, D = Part
     }
   }
 
-  async updateById(id: Id, data: D): Promise<T> {
-    const idColumn = this.toColumn(this.idField);
+  async updateById(id: Id, data: D, options?: WriteOptions): Promise<T> {
     try {
       const payload = this.mapDataToColumns(this.withTimestamps(data as Record<string, unknown>, "update"));
       if (this.supportsReturning) {
-        const [row] = await this.qb(this.tableName)
-          .where({ [idColumn]: id })
-          .update(payload)
-          .returning("*");
-        if (!row) throw new NotFound(`No record found with ${this.idField} = ${id}`);
+        const [row] = await this.targetRow(id, options).update(payload).returning("*");
+        if (!row) throw this.missing(id, options);
         return this.mapRowToEntity(row as Record<string, unknown>);
       }
-      const count = await this.qb(this.tableName)
-        .where({ [idColumn]: id })
-        .update(payload);
-      if (count === 0) throw new NotFound(`No record found with ${this.idField} = ${id}`);
-      const row = await this.qb(this.tableName)
-        .where({ [idColumn]: id })
-        .first();
+      const count = await this.targetRow(id, options).update(payload);
+      if (count === 0) throw this.missing(id, options);
+      const row = await this.targetRow(id).first();
       return this.mapRowToEntity(row as Record<string, unknown>);
     } catch (err) {
-      if (err instanceof NotFound) throw err;
       throw this.wrapError(err);
     }
   }
 
-  async patchById(id: Id, data: D): Promise<T> {
-    const idColumn = this.toColumn(this.idField);
+  async patchById(id: Id, data: D, options?: WriteOptions): Promise<T> {
     try {
       const filtered = Object.fromEntries(
         Object.entries(data as Record<string, unknown>).filter(([, v]) => v !== undefined),
       );
       const payload = this.mapDataToColumns(this.withTimestamps(filtered, "update"));
       if (this.supportsReturning) {
-        const [row] = await this.qb(this.tableName)
-          .where({ [idColumn]: id })
-          .update(payload)
-          .returning("*");
-        if (!row) throw new NotFound(`No record found with ${this.idField} = ${id}`);
+        const [row] = await this.targetRow(id, options).update(payload).returning("*");
+        if (!row) throw this.missing(id, options);
         return this.mapRowToEntity(row as Record<string, unknown>);
       }
-      const count = await this.qb(this.tableName)
-        .where({ [idColumn]: id })
-        .update(payload);
-      if (count === 0) throw new NotFound(`No record found with ${this.idField} = ${id}`);
-      const row = await this.qb(this.tableName)
-        .where({ [idColumn]: id })
-        .first();
+      const count = await this.targetRow(id, options).update(payload);
+      if (count === 0) throw this.missing(id, options);
+      const row = await this.targetRow(id).first();
       return this.mapRowToEntity(row as Record<string, unknown>);
     } catch (err) {
-      if (err instanceof NotFound) throw err;
       throw this.wrapError(err);
     }
   }
 
-  async deleteById(id: Id): Promise<T> {
-    const idColumn = this.toColumn(this.idField);
+  async deleteById(id: Id, options?: WriteOptions): Promise<T> {
     try {
-      if (this.supportsReturning) {
-        const [row] = await this.qb(this.tableName)
-          .where({ [idColumn]: id })
-          .delete()
-          .returning("*");
-        if (!row) throw new NotFound(`No record found with ${this.idField} = ${id}`);
+      // Knex's SQLite dialects ignore RETURNING on DELETE (the result is a row count), so SQLite takes the other path.
+      if (this.supportsReturning && !this.clientName.includes("sqlite")) {
+        const [row] = await this.targetRow(id, options).delete().returning("*");
+        if (!row) throw this.missing(id, options);
         return this.mapRowToEntity(row as Record<string, unknown>);
       }
-      const row = await this.qb(this.tableName)
-        .where({ [idColumn]: id })
-        .first();
-      if (!row) throw new NotFound(`No record found with ${this.idField} = ${id}`);
-      await this.qb(this.tableName)
-        .where({ [idColumn]: id })
-        .delete();
+      // No RETURNING on DELETE (MySQL, SQLite): read the row to return it, then delete it only if it still matches.
+      const row = await this.targetRow(id, options).first();
+      if (!row) throw this.missing(id, options);
+      const count = await this.targetRow(id, options).delete();
+      if (count === 0) throw this.missing(id, options);
       return this.mapRowToEntity(row as Record<string, unknown>);
     } catch (err) {
-      if (err instanceof NotFound) throw err;
       throw this.wrapError(err);
     }
+  }
+
+  /** The row a single-record write targets: its id, plus any `WriteOptions.where`, in the same statement. */
+  private targetRow(id: Id, options?: WriteOptions): Knex.QueryBuilder {
+    const query = this.qb(this.tableName).where({ [this.toColumn(this.idField)]: id });
+    if (!options?.where) return query;
+    return knexify(
+      query,
+      mapWhereFields(options.where as WhereClause, (field) => this.toColumn(field)),
+    );
+  }
+
+  /** No row written: with a precondition the record changed (or vanished) since it was read; without, it never existed. */
+  private missing(id: Id, options?: WriteOptions): Error {
+    return options?.where
+      ? new PreconditionFailed(`Record with ${this.idField} = ${id} no longer matches the write's precondition`)
+      : new NotFound(`No record found with ${this.idField} = ${id}`);
   }
 
   async count(params?: QueryParams): Promise<number> {
