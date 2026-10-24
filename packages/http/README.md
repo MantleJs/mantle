@@ -54,7 +54,8 @@ echoed back under both names. `getContext().correlationId` likewise still works 
 
 `params.ip` is the client address. By default it's the socket peer; set `trustProxy` to read
 `X-Forwarded-For` behind a proxy: `true` takes the leftmost entry (client-controlled, so only safe when the
-proxy overwrites the header), a number trusts that many hops (`1` behind a single load balancer, e.g. Cloud Run).
+proxy overwrites the header), a number trusts that many hops (`1` behind one nginx that appends the client address). Load balancers differ —
+some append more than one entry — so log `X-Forwarded-For` once on your platform before choosing the number.
 
 The Fetch API handler has no socket, so there `params.ip` is `undefined` unless `trustProxy` is set; an
 unknown peer still counts as the first hop, so the same `trustProxy` picks the same address on Node and edge.

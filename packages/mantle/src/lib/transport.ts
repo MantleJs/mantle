@@ -48,7 +48,8 @@ export function requestIdHeaders({ requestId, legacy }: ResolvedRequestId): Reco
  * `trust proxy`: `false` (default) ignores the header; `true` takes its leftmost entry, which the
  * client controls, so only use it when the proxy in front overwrites the header; a number trusts
  * that many proxy hops, counting the direct peer as the first, and is the safe choice behind a load
- * balancer that appends (e.g. `1` on Cloud Run or behind one nginx).
+ * balancer that appends (e.g. `1` behind one nginx). Platforms differ: some balancers append more than one entry,
+ * so check what your platform's `X-Forwarded-For` actually contains before picking the number.
  */
 export type TrustProxy = boolean | number;
 
