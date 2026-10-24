@@ -209,6 +209,14 @@ number; resetSeconds: number }> }`. It needs an atomic increment, which `Reposit
 **Accept:** memory-store and Redis-store specs (Redis via testcontainers, matching `auth-redis`); header
 format golden specs; multi-policy spec; agent-keyed spec through `@mantlejs/mcp`; README with a policy recipe.
 
+**As built (2026-10-23):** `auth-redis` actually tests with `ioredis-mock`, not testcontainers, so the Redis store
+follows it: `ioredis-mock` in CI, plus the same specs against a real Redis when `MANTLE_REDIS_URL` is set (verified
+on Redis 7, including 25 concurrent hits counted exactly once). The count is one Lua script (`INCRBY` + `PEXPIRE` on
+the first hit). Policy names are restricted to a token set (`A-Z a-z 0-9 . _ : -`, ≤ 64) so neither the headers nor
+store keys need escaping. There is no app-wide `app.hooks()` — a policy shared across services is the same policy
+name and store registered on each (the README shows it). The same gap affects spec 12's `app.hooks({ … resolveTenant
+… })` example, to settle in item 16.
+
 #### 4. Idempotency keys — `@mantlejs/idempotency`
 
 New package, depends on `@mantlejs/mantle`.

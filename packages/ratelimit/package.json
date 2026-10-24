@@ -1,0 +1,53 @@
+{
+  "name": "@mantlejs/ratelimit",
+  "version": "0.3.0-experimental",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    "./package.json": "./package.json",
+    ".": {
+      "@mantle/source": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "!**/*.tsbuildinfo"
+  ],
+  "nx": {
+    "name": "ratelimit",
+    "tags": [
+      "pkg:ratelimit",
+      "type:lib"
+    ]
+  },
+  "dependencies": {
+    "tslib": "^2.3.0"
+  },
+  "description": "Rate limiting for Mantle JS \u2014 a rateLimit() hook with memory and Redis stores and IETF RateLimit headers",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MantleJs/mantle.git",
+    "directory": "packages/ratelimit"
+  },
+  "homepage": "https://mantlejs.com/packages/ratelimit/",
+  "publishConfig": {
+    "access": "public"
+  },
+  "keywords": [
+    "mantle",
+    "ratelimit",
+    "rate-limiting",
+    "throttle",
+    "ratelimit-headers",
+    "redis"
+  ],
+  "peerDependencies": {
+    "@mantlejs/mantle": "^0.3.0"
+  }
+}

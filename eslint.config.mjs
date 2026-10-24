@@ -36,6 +36,7 @@ export const dependencyMatrix = {
   logger: ["mantle"],
   audit: ["mantle"],
   embeddings: ["mantle"],
+  ratelimit: ["mantle"],
   schema: ["mantle"],
   memory: ["mantle"],
   config: ["mantle"],
@@ -71,6 +72,8 @@ export const testOnlyDependencies = {
   audit: ["memory", "knex"],
   // embed.spec.ts: in-memory source + vector repositories
   embeddings: ["memory"],
+  // ratelimit.spec.ts: headers end to end over a real HTTP transport, and agent-keyed limits through the MCP server
+  ratelimit: ["http", "mcp"],
 };
 
 const testFiles = ["**/*.spec.ts", "**/*.spec.tsx"];

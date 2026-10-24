@@ -140,6 +140,9 @@
     },
     {
       "path": "./website"
+    },
+    {
+      "path": "./packages/ratelimit"
     }
   ]
 }
