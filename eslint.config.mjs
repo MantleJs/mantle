@@ -38,6 +38,7 @@ export const dependencyMatrix = {
   embeddings: ["mantle"],
   ratelimit: ["mantle"],
   idempotency: ["mantle"],
+  otel: ["mantle"],
   schema: ["mantle"],
   memory: ["mantle"],
   config: ["mantle"],
@@ -77,6 +78,8 @@ export const testOnlyDependencies = {
   ratelimit: ["http", "mcp"],
   // idempotency specs: replay end to end over a real HTTP transport, against in-memory and knex/sqlite stores
   idempotency: ["http", "memory", "knex"],
+  // otel.spec.ts: parentage from an incoming traceparent end to end over a real HTTP transport
+  otel: ["http"],
 };
 
 const testFiles = ["**/*.spec.ts", "**/*.spec.tsx"];

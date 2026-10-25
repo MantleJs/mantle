@@ -37,6 +37,19 @@ import { logger, createLogger } from "@mantlejs/logger";
 app.configure(logger(await createLogger({ gcp: process.env.NODE_ENV === "production" })));
 ```
 
+When a request carries a W3C `traceparent` header, each log line also gets `traceId` and `spanId`.
+
+## Tracing
+
+[`@mantlejs/otel`](/packages/otel/) records a span for every service call. Start an OpenTelemetry SDK with the
+exporter for your backend before the app loads, then add the plugin:
+
+```typescript
+app.configure(otel());
+```
+
+Without an SDK, `otel()` does nothing and costs next to nothing, so it can stay configured in every environment.
+
 ## When there's more than one instance
 
 Cloud Run adds instances under load, and any two requests may land on different ones. Everything that defaults to

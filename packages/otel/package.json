@@ -1,0 +1,53 @@
+{
+  "name": "@mantlejs/otel",
+  "version": "0.3.0-experimental",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    "./package.json": "./package.json",
+    ".": {
+      "@mantle/source": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "!**/*.tsbuildinfo"
+  ],
+  "nx": {
+    "name": "otel",
+    "tags": [
+      "pkg:otel",
+      "type:lib"
+    ]
+  },
+  "dependencies": {
+    "tslib": "^2.3.0"
+  },
+  "description": "OpenTelemetry tracing for Mantle JS — spans for service calls and hooks, W3C trace-context propagation",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MantleJs/mantle.git",
+    "directory": "packages/otel"
+  },
+  "homepage": "https://mantlejs.com/packages/otel/",
+  "publishConfig": {
+    "access": "public"
+  },
+  "keywords": [
+    "mantle",
+    "opentelemetry",
+    "otel",
+    "tracing",
+    "observability"
+  ],
+  "peerDependencies": {
+    "@mantlejs/mantle": "^0.3.0",
+    "@opentelemetry/api": "^1.3.0"
+  }
+}

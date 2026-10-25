@@ -77,6 +77,7 @@ mantle/
 │   ├── embeddings/      @mantlejs/embeddings   Auto-embed-on-write hook — pluggable provider, upserts into a VectorRepository<T>
 │   ├── ratelimit/       @mantlejs/ratelimit    Rate limiting — rateLimit() hook, memory + Redis stores, IETF RateLimit headers
 │   ├── idempotency/     @mantlejs/idempotency  Idempotency-Key support — idempotency() hooks over any Repository<T>
+│   ├── otel/            @mantlejs/otel         OpenTelemetry spans around every service call, parented on the incoming traceparent
 │   ├── schema/          @mantlejs/schema       TypeBox schema validation + field resolution
 │   ├── memory/          @mantlejs/memory       In-memory Repository<T> for testing/prototyping
 │   ├── config/          @mantlejs/config       Environment-aware configuration loading
@@ -133,6 +134,7 @@ mantle/
 | @mantlejs/embeddings     | @mantlejs/mantle (test-only: @mantlejs/memory)                                                                                                                                 |
 | @mantlejs/ratelimit      | @mantlejs/mantle (test-only: @mantlejs/http, @mantlejs/mcp)                                                                                                                    |
 | @mantlejs/idempotency    | @mantlejs/mantle (test-only: @mantlejs/http, @mantlejs/memory, @mantlejs/knex)                                                                                                 |
+| @mantlejs/otel           | @mantlejs/mantle (+ peer @opentelemetry/api; test-only: @mantlejs/http)                                                                                                        |
 | @mantlejs/schema         | @mantlejs/mantle                                                                                                                                                               |
 | @mantlejs/memory         | @mantlejs/mantle                                                                                                                                                               |
 | @mantlejs/config         | @mantlejs/mantle                                                                                                                                                               |
@@ -283,6 +285,13 @@ All hooks are pure functions — no class-based hooks.
 ```typescript
 type HookFunction<T = any> = (context: HookContext<T>) => Promise<HookContext<T>> | HookContext<T>;
 ```
+
+### ServiceInstrumentation
+
+`addInstrumentation(app, { start(context) })` observes every service call on an app — the seam `@mantlejs/otel`
+uses, since per-service `hooks()` can't wrap a whole call. `start()` returns `{ run(fn), hook?(phase, hook, error?),
+end(context, error?) }` or `undefined` to skip. The HTTP transports also set `params.traceparent`/`params.tracestate`
+(validated W3C Trace Context, malformed values dropped) and bind them into `withContext()`.
 
 ### CapabilityScope
 

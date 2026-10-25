@@ -55,4 +55,13 @@ describe("createRequestContext", () => {
     expect(context.correlationId).toBe("req-1");
     expect({ ...context }).toEqual({ requestId: "req-1" });
   });
+
+  it("carries the request's trace headers", () => {
+    const traceparent = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01";
+    expect({ ...createRequestContext("req-1", { traceparent, tracestate: "rojo=1" }) }).toEqual({
+      requestId: "req-1",
+      traceparent,
+      tracestate: "rojo=1",
+    });
+  });
 });

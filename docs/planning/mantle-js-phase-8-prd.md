@@ -308,6 +308,21 @@ registered as `etags.before` and `etags.after` (Decision #10).
 **Accept:** traceparent parsing specs (valid, malformed, absent); an `otel` spec with an in-memory span
 exporter asserting span names, parentage from an incoming `traceparent`, and error status.
 
+**As built (2026-10-24):** as specified, with these decisions (Decision #14). *Parsing* follows the spec strictly:
+lower-case hex only, all-zero IDs and version `ff` dropped, version `00` must be exactly 55 characters, later versions
+are read by their first four fields and re-serialized as `00`; repeated `traceparent` headers are malformed;
+`tracestate` is validated per list-member (key and value grammar, duplicate keys, ≤ 32 members) and dropped as a
+whole when invalid or when `traceparent` is. One shared `resolveTraceHeaders()` feeds express, koa, and http (Node
+and Fetch), and the shared transport conformance table gained five trace cases. *Wrapping a whole call* needed a seam
+core didn't have — `hooks()` is per service and replaces rather than merges — so core gained
+`addInstrumentation(app, { start(context) })`, whose per-call object gets `run(fn)` around the pipeline,
+`hook(phase, hook, error?)` after each hook, and `end(context, error?)`; the pipeline is unchanged when nothing is
+registered. *Logger:* `traceId`/`spanId` come from the request's `traceparent` (the caller's span); the raw headers
+are not logged. *Spans* are `SERVER` for a transport call with no active span, else `INTERNAL`, and also carry
+`mantle.request.id`, `mantle.error.code`, and `error.type`. Test-only dependency is `@mantlejs/http` (end-to-end
+parentage), not `@mantlejs/memory`. **Not covered:** socket.io and MCP don't read trace context yet, and log lines
+inside a span carry the caller's `spanId`, not Mantle's — both Phase 9 backlog.
+
 #### 7. Health checks
 
 A `health()` plugin in `@mantlejs/mantle`, mounted via the `http:router` contract.
@@ -542,7 +557,7 @@ packages/
 | --------------------- | --------------------------------------------------------------------------------------------------- |
 | @mantlejs/ratelimit   | @mantlejs/mantle (test-only: @mantlejs/http, @mantlejs/mcp, @mantlejs/memory)                       |
 | @mantlejs/idempotency | @mantlejs/mantle (test-only: @mantlejs/memory, @mantlejs/knex, @mantlejs/http, @mantlejs/mcp)       |
-| @mantlejs/otel        | @mantlejs/mantle (+ peer @opentelemetry/api; test-only: @mantlejs/memory)                           |
+| @mantlejs/otel        | @mantlejs/mantle (+ peer @opentelemetry/api; test-only: @mantlejs/http)                             |
 | @mantlejs/tenancy     | @mantlejs/mantle (test-only: @mantlejs/memory, @mantlejs/knex, @mantlejs/socketio, @mantlejs/audit) |
 
 `@mantlejs/audit`'s tenant field reads `params.tenant` structurally — no dependency on `@mantlejs/tenancy`.
@@ -580,6 +595,7 @@ The `CLAUDE.md` table and the `dependencyMatrix` export are edited together, per
 | 11  | New packages join the `experimental` release group                                                                                                                           | Same precedent as `mcp-code` in Phase 7: new surface stays at `-experimental` until it has settled.                                                                                                                                                         |
 | 12  | Logo v1 drafted in-repo as SVG, built on the existing amber palette; replaceable later                                                                                       | The colors already suit the name. Everything references the tokens and asset files, so a designer's mark later is a file swap.                                                                                                                              |
 | 13  | MCP SDK mechanics for specs 9–11 (spike 3, 2026-10-21, against `@modelcontextprotocol/sdk` 1.29.0)                                                                         | Pinned in `packages/mcp/src/lib/sdk-mechanics.spec.ts`. **Annotations:** `@mantlejs/mcp` registers tools through the low-level `Server.setRequestHandler(ListToolsRequestSchema)`, not `McpServer.registerTool()`, so annotations are a plain `annotations` field on each listed tool (`title`, `readOnlyHint`, `destructiveHint`, `idempotentHint`, `openWorldHint`); verified to reach the client intact. **`_meta`:** `request.params._meta` in the `tools/call` handler is a loose object, so a custom key arrives unchanged (absent → `undefined`), including over the single-shot HTTP path, which delivers messages verbatim. The MCP spec (2025-11-25) says `_meta` prefixes SHOULD be reverse DNS, so the key is `com.mantlejs/idempotencyKey` (spec 10 amended). **Test client:** `InMemoryTransport.createLinkedPair()` already backs the mcp/mcp-code specs' `connect()` helpers; independent pairs don't interfere. The one design point: resolve a test principal through the HTTP endpoint's session-params path rather than hand-built `params` (spec 11 amended). Nothing in specs 9–11 is contradicted. |
+| 14  | Tracing hangs on a core `addInstrumentation()` seam; spans parent on the active span, then `traceparent`; a 4xx leaves a `SERVER` span's status unset | `otel()` must wrap every call on the app, but `hooks()` is per service and replaces rather than merges, and hooks can't wrap the service method. A small observer interface (`start` → `run`/`hook`/`end`) does it without core knowing OpenTelemetry, and metrics can reuse it. **Parentage:** the active span first, so internal calls nest under the call that made them and Mantle's span nests under an HTTP instrumentation's server span; then `params.traceparent`; then the request context's (an internal call without a context manager still joins the trace). **Error status** follows OpenTelemetry's HTTP conventions: a 4xx is the caller's mistake on a `SERVER` span, so it stays unset with `mantle.error.code` recorded; a 5xx, a non-Mantle error, or a 4xx from an internal call is `ERROR`. Repositories aren't instrumented; drivers already are. |
 
 ---
 

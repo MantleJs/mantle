@@ -18,6 +18,7 @@ import {
   resolveClientIp,
   resolveCorsOrigin,
   resolveRequestId,
+  resolveTraceHeaders,
   withContext,
 } from "@mantlejs/mantle";
 import { mountServiceRoutes, requestParams } from "./routes.js";
@@ -86,8 +87,10 @@ export function express(existingApp?: Application, options: ExpressOptions = {})
       const resolved = resolveRequestId((name) => req.headers[name]);
       res.locals["requestId"] = resolved.requestId;
       res.locals["ip"] = resolveClientIp(req.socket.remoteAddress, req.headers["x-forwarded-for"], options.trustProxy);
+      const trace = resolveTraceHeaders((name) => req.headers[name]);
+      res.locals["trace"] = trace;
       res.set(requestIdHeaders(resolved));
-      withContext(createRequestContext(resolved.requestId), next);
+      withContext(createRequestContext(resolved.requestId, trace), next);
     });
     expressApp.use(expressLib.json());
     expressApp.use(expressLib.urlencoded({ extended: false }));

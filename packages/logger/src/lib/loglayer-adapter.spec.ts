@@ -44,6 +44,15 @@ describe("loglayerAdapter()", () => {
     expect(log.calls[0]?.meta).toEqual({ correlationId: "req-abc", component: "test" });
   });
 
+  it("adds traceId and spanId from the request's traceparent", () => {
+    const log = makeLogLayer();
+    const adapter = loglayerAdapter(log);
+    withContext({ traceparent: "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01" }, () => {
+      adapter.info("hello");
+    });
+    expect(log.calls[0]?.meta).toEqual({ traceId: "4bf92f3577b34da6a3ce929d0e0e4736", spanId: "00f067aa0ba902b7" });
+  });
+
   it("folds child bindings into every withMetadata call", () => {
     const log = makeLogLayer();
     const adapter = loglayerAdapter(log);

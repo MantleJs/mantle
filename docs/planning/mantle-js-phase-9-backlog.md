@@ -43,3 +43,8 @@ Full spec: [Phase 7 backlog, item 2](./mantle-js-phase-7-backlog.md).
   only memory and knex make `conditional()` writes atomic (Phase 8 Decision #10)
 - `idempotencyKey` on `@mantlejs/react`'s `useCreate`/`usePatch`: a key fixed across TanStack Query's own retries but
   new per `mutate()` call (Phase 8 item 9)
+- Trace context on socket.io (handshake headers) and MCP (`traceparent` in `_meta`), which today only the HTTP
+  transports read (Phase 8 item 10)
+- Log lines inside an `otel()` span carry the caller's `spanId`; rebinding the request context to Mantle's own span
+  would link each line to the exact service call (Phase 8 item 10)
+- Metrics (call duration, error counts) over the same `addInstrumentation()` seam (Phase 8 Decision #14)

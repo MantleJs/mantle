@@ -20,6 +20,7 @@ import {
   requestIdHeaders,
   resolveClientIp,
   resolveRequestId,
+  resolveTraceHeaders,
   successResponse,
   withContext,
 } from "@mantlejs/mantle";
@@ -78,13 +79,14 @@ async function dispatch(
 ): Promise<DispatchResult> {
   const idHeaders = requestIdHeaders(resolved);
   const errorOptions = { errors, instance: pathname, requestId: resolved.requestId };
-  return withContext(createRequestContext(resolved.requestId), async () => {
+  const trace = resolveTraceHeaders((name) => headers[name]);
+  return withContext(createRequestContext(resolved.requestId, trace), async () => {
     const matched = router.match(method, pathname);
     if (!matched) {
       const errRes = toErrorResponse(new NotFound("Not found"), undefined, errorOptions);
       return { status: errRes.status, body: errRes.body, headers: { ...idHeaders, ...errRes.headers } };
     }
-    const request: RequestInfo = { ip, requestId: resolved.requestId, response: {} };
+    const request: RequestInfo = { ip, requestId: resolved.requestId, trace, response: {} };
     try {
       const result = await matched.entry.handler(matched.params, body, query, headers, request);
       const { status, headers: hookHeaders, bodyless } = successResponse(request.response, result.status);

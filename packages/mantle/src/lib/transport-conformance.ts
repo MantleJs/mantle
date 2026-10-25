@@ -49,6 +49,9 @@ class TeapotError extends MantleError {
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
+/** A valid W3C traceparent (the spec's own example). */
+const TRACEPARENT = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01";
+
 /** Fake peer and proxy addresses. Specs connect over `127.0.0.1`, so the socket peer is always `127.0.0.1`. */
 const FORWARDED_FOR = "198.51.100.9, 203.0.113.7";
 
@@ -61,7 +64,14 @@ export function registerTransportConformanceServices(app: MantleApplication): vo
     "conformance-echo",
     {
       async get(_id, params) {
-        return { ip: params?.ip, requestId: params?.requestId, contextRequestId: getContext()?.requestId };
+        return {
+          ip: params?.ip,
+          requestId: params?.requestId,
+          contextRequestId: getContext()?.requestId,
+          traceparent: params?.traceparent,
+          tracestate: params?.tracestate,
+          contextTraceparent: getContext()?.traceparent,
+        };
       },
     },
     { methods: ["get"] },
@@ -396,6 +406,54 @@ export const TRANSPORT_CONFORMANCE_CASES: TransportConformanceCase[] = [
       body: { title: "Edited" },
     },
     expect: { status: 200, headers: { ETag: '"2"' }, body: { title: "Edited", version: 2 } },
+  },
+  {
+    name: "a valid traceparent and tracestate land on params and the request context",
+    request: {
+      method: "GET",
+      path: "/conformance-echo/1",
+      headers: { traceparent: TRACEPARENT, tracestate: "rojo=00f067aa0ba902b7, congo=t61rcWkgMzE" },
+    },
+    expect: {
+      status: 200,
+      body: {
+        traceparent: TRACEPARENT,
+        tracestate: "rojo=00f067aa0ba902b7,congo=t61rcWkgMzE",
+        contextTraceparent: TRACEPARENT,
+      },
+    },
+  },
+  {
+    name: "a missing traceparent leaves params.traceparent unset",
+    request: { method: "GET", path: "/conformance-echo/1" },
+    expect: { status: 200, body: { traceparent: undefined, tracestate: undefined, contextTraceparent: undefined } },
+  },
+  {
+    name: "a malformed traceparent is dropped, and its tracestate with it, without failing the request",
+    request: {
+      method: "GET",
+      path: "/conformance-echo/1",
+      headers: { traceparent: "00-00000000000000000000000000000000-00f067aa0ba902b7-01", tracestate: "rojo=1" },
+    },
+    expect: { status: 200, body: { traceparent: undefined, tracestate: undefined, contextTraceparent: undefined } },
+  },
+  {
+    name: "a malformed tracestate is dropped while a valid traceparent is kept",
+    request: {
+      method: "GET",
+      path: "/conformance-echo/1",
+      headers: { traceparent: TRACEPARENT, tracestate: "Bad Key=1" },
+    },
+    expect: { status: 200, body: { traceparent: TRACEPARENT, tracestate: undefined } },
+  },
+  {
+    name: "a future-version traceparent is read by its first four fields and re-serialized as version 00",
+    request: {
+      method: "GET",
+      path: "/conformance-echo/1",
+      headers: { traceparent: `cc${TRACEPARENT.slice(2)}-extra` },
+    },
+    expect: { status: 200, body: { traceparent: TRACEPARENT } },
   },
   {
     name: "params.ip is the socket peer, ignoring X-Forwarded-For, without trustProxy",

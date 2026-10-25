@@ -1,5 +1,6 @@
 import { getContext } from "@mantlejs/mantle";
 import type { Logger } from "@mantlejs/mantle";
+import { requestBindings } from "./request-bindings.js";
 
 /** Minimal duck-type for a pino logger. Accepts pino.Logger or any compatible object. */
 export interface PinoLike {
@@ -13,14 +14,14 @@ export interface PinoLike {
 /**
  * Wraps a pino logger to satisfy the Mantle Logger interface.
  * Pino uses (obj, msg) argument order; the Logger interface uses (msg, obj).
- * Automatically merges the current RequestContext (correlationId, etc.) into every log record.
+ * Automatically merges the current RequestContext (requestId, traceId/spanId, etc.) into every log record.
  */
 export function pinoAdapter(pino: PinoLike): Logger {
   const wrap =
     (fn: (obj: object, msg: string) => void) =>
     (msg: string, context?: Record<string, unknown>): void => {
       const reqCtx = getContext();
-      const merged = reqCtx ? { ...reqCtx, ...(context ?? {}) } : (context ?? {});
+      const merged = reqCtx ? { ...requestBindings(reqCtx), ...(context ?? {}) } : (context ?? {});
       fn(merged, msg);
     };
 

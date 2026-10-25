@@ -77,6 +77,10 @@ the request context (`getContext().requestId`), so `@mantlejs/logger` adds it to
 `X-Correlation-Id` is deprecated: for one release it is still accepted when `X-Request-Id` is absent, and
 echoed back under both names. `getContext().correlationId` likewise still works as an alias.
 
+A valid W3C `traceparent` header (and `tracestate` beside it) is set as `params.traceparent` / `params.tracestate`
+and bound into the request context; malformed values are dropped. [`@mantlejs/otel`](../otel/README.md) parents its
+spans on it, and `@mantlejs/logger` adds `traceId`/`spanId` to log lines.
+
 `params.ip` is the client address. By default it's the socket peer; set `trustProxy` to read
 `X-Forwarded-For` behind a proxy: `true` takes the leftmost entry (client-controlled, so only safe when the
 proxy overwrites the header), a number trusts that many hops (`1` behind one nginx that appends the client address). Load balancers differ —

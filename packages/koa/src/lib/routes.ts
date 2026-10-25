@@ -1,6 +1,13 @@
 import Router from "@koa/router";
 import type { Context } from "koa";
-import type { HttpResponseMeta, Id, MantleApplication, ServiceOptions, ServiceParams } from "@mantlejs/mantle";
+import type {
+  HttpResponseMeta,
+  Id,
+  MantleApplication,
+  ServiceOptions,
+  ServiceParams,
+  TraceHeaders,
+} from "@mantlejs/mantle";
 import { parseQueryString, successResponse } from "@mantlejs/mantle";
 
 const STANDARD_METHODS = new Set(["find", "get", "create", "update", "patch", "remove"]);
@@ -13,6 +20,7 @@ export function requestParams(ctx: Context): ServiceParams {
     request: ctx.req,
     ip: ctx.state["ip"] as string | undefined,
     requestId: ctx.state["requestId"] as string,
+    ...(ctx.state["trace"] as TraceHeaders | undefined),
   };
 }
 
