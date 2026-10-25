@@ -5,15 +5,17 @@ description: Mantle's layers, the inward-only dependency rule, and why services 
 
 import RepoTable from "../../components/RepoTable.astro";
 
-Mantle is a layered framework in the spirit of Clean and Onion Architecture. The name is the metaphor: the
-application layer is the geological _mantle_ — between the database at the core and the UI at the crust.
+Mantle is a layered framework in the spirit of Clean and Onion Architecture. The name is the metaphor: the domain
+is the core, and the application layer wrapped around it is the geological _mantle_, beneath the UI at the crust.
+The database is not the core. The core only defines the `Repository<T>` interfaces it needs; the code that talks to
+a database implements them in the Infrastructure layer, the outermost ring, so the core never depends on it.
 
 ```text
 CRUST (UI)            React, Vue, Angular, iOS, Android
 Transport layer       Express / Koa / HTTP / Socket.IO / MCP — route calls to services
 Application layer     Service<T> contracts, the hook pipeline          ← the mantle
 Domain layer (core)   Entities, Repository<T> interfaces
-Infrastructure        KnexRepository, MongoRepository, … — implement the Domain interfaces
+Infrastructure        KnexRepository, MongoRepository, … — implement the Domain interfaces (outer layer)
 ```
 
 ## The dependency rule

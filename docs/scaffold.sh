@@ -937,8 +937,9 @@ The key differentiator from FeathersJS: in FeathersJS, a service couples busines
 logic directly with data access. In Mantle, `Service<T>` is a contract only —
 data access lives in `Repository<T>` implementations in the Infrastructure layer.
 
-**Name origin:** The Application Layer is the geological "mantle" — between the
-database core and the UI crust.
+**Name origin:** The Domain is the core and the Application Layer around it is the
+geological "mantle", beneath the UI crust. The database is not the core: the core
+defines `Repository<T>` interfaces, and Infrastructure (the outer layer) implements them.
 
 ---
 

@@ -1,6 +1,6 @@
 # Mantle JS
 
-A full-stack, tech-agnostic JavaScript/TypeScript framework optimized for building real-time applications and scalable web APIs. Mantle serves as a flexible core layer between the database and the UI — analogous to the geological mantle sitting beneath the crust.
+A full-stack, tech-agnostic JavaScript/TypeScript framework optimized for building real-time applications and scalable web APIs. Mantle is the application layer between your UI and your data — analogous to the geological mantle beneath the crust. Your domain sits at the core and defines the interfaces it needs; database adapters implement them from the outside.
 
 Mantle is designed to be **architecture-first**: it enforces a clean separation of concerns inspired by Clean Architecture and Onion Architecture, rather than coupling business logic to data access or transport concerns.
 
