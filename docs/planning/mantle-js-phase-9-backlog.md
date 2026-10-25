@@ -48,3 +48,7 @@ Full spec: [Phase 7 backlog, item 2](./mantle-js-phase-7-backlog.md).
 - Log lines inside an `otel()` span carry the caller's `spanId`; rebinding the request context to Mantle's own span
   would link each line to the exact service call (Phase 8 item 10)
 - Metrics (call duration, error counts) over the same `addInstrumentation()` seam (Phase 8 Decision #14)
+- Neon on edge runtimes: Workers / Vercel Edge can't open a TCP Postgres connection, so `@mantlejs/knex` needs a way
+  to run over Neon's `@neondatabase/serverless` driver (HTTP/WebSocket) — a driver option on `knex()` plus a recipe,
+  not a separate adapter, since Neon is plain Postgres and the `pg` client already works on Node. Verify first that
+  knex's pg dialect runs on that driver (pooling, transactions, `RETURNING`)
