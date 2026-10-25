@@ -52,6 +52,13 @@ export interface ServiceParams {
   /** Request ID, set by the HTTP transports from a valid `X-Request-Id` (or a generated UUID) and echoed in the response. */
   requestId?: string;
   /**
+   * W3C `traceparent` of the incoming request, set by the HTTP transports when the header is valid (malformed values
+   * are dropped), re-serialized as version `00`. `@mantlejs/otel` parents its spans on it.
+   */
+  traceparent?: string;
+  /** W3C `tracestate` of the incoming request — present only alongside a valid `traceparent`. */
+  tracestate?: string;
+  /**
    * A condition the record must still meet for this write to apply — set by `conditional()` from a matching
    * `If-Match`. `RepositoryService` passes it to the repository's `updateById`/`patchById`/`deleteById` as
    * `WriteOptions`, so a concurrent change makes the write fail with `PreconditionFailed` instead of overwriting.

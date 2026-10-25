@@ -1,4 +1,4 @@
-import { mantle, BadRequest, NotFound, withContext } from "@mantlejs/mantle";
+import { mantle, BadRequest, NotFound, createRequestContext, withContext } from "@mantlejs/mantle";
 import type { HookContext, Logger, MantleApplication, Service } from "@mantlejs/mantle";
 import { logger, pinoAdapter, logRequest, logError } from "../../src/index.js";
 import type { PinoLike } from "../../src/index.js";
@@ -106,6 +106,20 @@ describe("pinoAdapter()", () => {
       adapter.info("hello", { component: "test" });
     });
     expect(pino.calls[0]).toEqual({ obj: { correlationId: "req-abc", component: "test" }, msg: "hello" });
+  });
+
+  it("adds traceId and spanId from the request's traceparent, not the raw trace headers", () => {
+    const pino = makePino();
+    const adapter = pinoAdapter(pino);
+    const traceparent = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01";
+    withContext(createRequestContext("req-1", { traceparent, tracestate: "rojo=1" }), () => {
+      adapter.info("hello");
+    });
+    expect(pino.calls[0]?.obj).toEqual({
+      requestId: "req-1",
+      traceId: "4bf92f3577b34da6a3ce929d0e0e4736",
+      spanId: "00f067aa0ba902b7",
+    });
   });
 
   it("per-call context fields override RequestContext fields", () => {

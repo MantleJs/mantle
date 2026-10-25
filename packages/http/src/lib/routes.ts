@@ -6,7 +6,7 @@ const STANDARD_METHODS = new Set(["find", "get", "create", "update", "patch", "r
 
 /** Params shared by service routes and the batch endpoint. */
 export function requestParams(headers: Record<string, string>, request: RequestInfo): ServiceParams {
-  return { provider: "http", headers, ip: request.ip, requestId: request.requestId };
+  return { provider: "http", headers, ip: request.ip, requestId: request.requestId, ...request.trace };
 }
 
 function buildParams(

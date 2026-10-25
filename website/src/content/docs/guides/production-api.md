@@ -1,6 +1,6 @@
 ---
 title: Production APIs
-description: The standards a production HTTP API is expected to follow — Problem Details errors, ETags and conditional writes, rate limits, idempotency keys, and request IDs — and the Mantle hook or option for each.
+description: The standards a production HTTP API is expected to follow — Problem Details errors, ETags and conditional writes, rate limits, idempotency keys, request IDs, and distributed tracing — and the Mantle hook or option for each.
 sidebar:
   order: 6
 ---
@@ -33,6 +33,22 @@ shape; [`@mantlejs/client`](/packages/client/) reads both.
 Every response carries `X-Request-Id` — the caller's, if it sent a valid one, otherwise a new UUID. The same ID is on
 `params.requestId`, in Problem Details' `requestId`, and on every log line [`@mantlejs/logger`](/packages/logger/)
 writes for the request, so a user's bug report leads straight to the server's logs.
+
+## Tracing
+
+The transports read the [W3C Trace Context](https://www.w3.org/TR/trace-context/) headers that gateways, browsers'
+OpenTelemetry SDKs, and other services send. A valid `traceparent` is on `params.traceparent`; a malformed one is
+dropped and the request starts a new trace, never fails. Log lines get `traceId` and `spanId`.
+
+```typescript
+import { otel } from "@mantlejs/otel";
+
+app.configure(otel());
+```
+
+With an OpenTelemetry SDK registered, every service call becomes a span (`mantle.service articles.get`) in the
+caller's trace. A service call made from a hook nests under the call that made it, each hook is a span event, and a
+5xx marks the span as an error. Without an SDK, `otel()` is a no-op. See [`@mantlejs/otel`](/packages/otel/).
 
 ## Caching and lost updates: ETags
 

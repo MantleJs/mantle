@@ -130,9 +130,13 @@ runs in four stages:
       `idempotencyKey`, README, and a new "Production APIs" guide plus deployment/agents guide updates. MCP end to end
       moves to item 14 with the `_meta` passthrough. See "As built" under PRD spec 4.
 
-- [ ] **10. Tracing** _(PRD spec 6)_
+- [x] **10. Tracing** _(PRD spec 6)_
       `traceparent`/`tracestate` parsing in core, logger fields, new `@mantlejs/otel` package.
       **Accept:** parsing specs; in-memory exporter spec for span names, parentage, and error status.
+      **Done (2026-10-24):** parsing specs plus five shared transport conformance cases (express, koa, http); a new
+      `addInstrumentation()` seam in core; logger `traceId`/`spanId`; `@mantlejs/otel` with 18 specs on an in-memory
+      exporter (names, attributes, parentage from params, request context, active span, and HTTP end to end, hook
+      events, error status). README and the "Production APIs" guide. See "As built" under PRD spec 6.
 
 - [ ] **11. Health checks** _(PRD spec 7)_
       `health()` plugin, `ping?()` on `knex`, `mongodb`, `dynamodb`, `supabase`; deployment guide updated.

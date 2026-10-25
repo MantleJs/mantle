@@ -117,7 +117,7 @@
       },
       "experimental": {
         "projectsRelationship": "fixed",
-        "projects": ["mcp-code", "ratelimit", "idempotency"]
+        "projects": ["mcp-code", "ratelimit", "idempotency", "otel"]
       }
     }
   },

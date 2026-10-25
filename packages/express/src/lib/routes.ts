@@ -1,5 +1,12 @@
 import type { Application, NextFunction, Request, Response } from "express";
-import type { HttpResponseMeta, Id, MantleApplication, ServiceOptions, ServiceParams } from "@mantlejs/mantle";
+import type {
+  HttpResponseMeta,
+  Id,
+  MantleApplication,
+  ServiceOptions,
+  ServiceParams,
+  TraceHeaders,
+} from "@mantlejs/mantle";
 import { parseQueryString, successResponse } from "@mantlejs/mantle";
 
 const STANDARD_METHODS = new Set(["find", "get", "create", "update", "patch", "remove"]);
@@ -12,6 +19,7 @@ export function requestParams(req: Request, res: Response): ServiceParams {
     request: req,
     ip: res.locals["ip"] as string | undefined,
     requestId: res.locals["requestId"] as string,
+    ...(res.locals["trace"] as TraceHeaders | undefined),
   };
 }
 

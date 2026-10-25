@@ -364,6 +364,22 @@ response) and `params.ip` (the client address; `X-Forwarded-For` is honored only
 `trustProxy` option). The request ID is also bound into the request context (`getContext().requestId`). The
 shared logic lives in `resolveRequestId()` and `resolveClientIp()`, exported for custom transports.
 
+#### Trace context — `params.traceparent`, `params.tracestate`
+
+The HTTP transports also read the [W3C Trace Context](https://www.w3.org/TR/trace-context/) headers. A valid
+`traceparent` lands on `params.traceparent` (re-serialized as version `00`), with `tracestate` beside it; both are
+bound into the request context, so internal calls made from hooks inherit them. Malformed values — bad hex, an
+all-zero ID, version `ff`, more than 32 `tracestate` members — are dropped, never rejected: the request just starts a
+new trace. `parseTraceparent()`, `parseTracestate()`, and `resolveTraceHeaders()` are exported for custom transports.
+
+#### Instrumentation — `addInstrumentation()`
+
+`addInstrumentation(app, instrumentation)` observes every service call on the app — the seam
+[`@mantlejs/otel`](../otel/README.md) uses, since per-service `hooks()` can't wrap a whole call. `start(context)` runs
+before the first hook and returns an object with `run(fn)` (wraps the whole pipeline, e.g. with a span active),
+an optional `hook(phase, hook, error?)` after each hook, and `end(context, error?)` once the call settles — or
+`undefined` to skip the call. With nothing registered, the pipeline runs as before.
+
 ---
 
 ### Error classes

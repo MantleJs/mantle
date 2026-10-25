@@ -24,6 +24,7 @@ import {
   resolveClientIp,
   resolveCorsOrigin,
   resolveRequestId,
+  resolveTraceHeaders,
   withContext,
 } from "@mantlejs/mantle";
 import { mountServiceRoutes, requestParams } from "./routes.js";
@@ -152,8 +153,10 @@ export function koa(options: KoaOptions = {}): MantlePlugin {
         ctx.req.headers["x-forwarded-for"],
         options.trustProxy,
       );
+      const trace = resolveTraceHeaders((name) => ctx.req.headers[name]);
+      ctx.state["trace"] = trace;
       ctx.set(requestIdHeaders(resolved));
-      await withContext(createRequestContext(resolved.requestId), next);
+      await withContext(createRequestContext(resolved.requestId, trace), next);
     });
     koaApp.use(createErrorHandler({ errors: options.errors }));
     koaApp.use(bodyParser());

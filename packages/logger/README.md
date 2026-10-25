@@ -65,6 +65,8 @@ The transport reads a valid `X-Request-Id` request header (or generates a UUID) 
 
 The `X-Request-Id` is echoed back in the response header so callers can correlate their requests with server-side log entries.
 
+When the request carries a valid W3C `traceparent` header, records also get `traceId` and `spanId` (the caller's span), the fields log backends use to link a log line to its trace. The raw `traceparent`/`tracestate` headers are not logged. See [`@mantlejs/otel`](../otel/README.md) for the spans themselves.
+
 Hooks and other code can read the request ID directly:
 
 ```typescript

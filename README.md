@@ -84,6 +84,7 @@ Dependencies always point inward. Nothing in Domain or Application layers knows 
 | `@mantlejs/audit`          | Audit-trail hook — who did what, as which identity (user or agent), written to any `Repository<T>` sink                                   |
 | `@mantlejs/ratelimit`      | Rate limiting — `rateLimit()` hook keyed by agent, user, tenant, or IP; memory + Redis stores; IETF `RateLimit` headers                   |
 | `@mantlejs/idempotency`    | `Idempotency-Key` support — safe `create`/`patch` retries over any `Repository<T>`, with replay, 409, and 422                             |
+| `@mantlejs/otel`           | OpenTelemetry tracing — a span per service call, parented on the incoming W3C `traceparent`, with hooks as span events                    |
 | `@mantlejs/embeddings`     | Auto-embed-on-write hook — pluggable embedding provider, upserts into a `VectorRepository<T>`                                             |
 | `@mantlejs/client`         | Official client SDK — REST + Socket.IO, auth with token rotation, from browsers/Node.js/React Native                                      |
 | `@mantlejs/react`          | React bindings — hooks and providers over the Mantle client SDK                                                                           |

@@ -146,6 +146,9 @@
     },
     {
       "path": "./packages/idempotency"
+    },
+    {
+      "path": "./packages/otel"
     }
   ]
 }

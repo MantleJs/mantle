@@ -1,5 +1,6 @@
 import { getContext } from "@mantlejs/mantle";
 import type { Logger } from "@mantlejs/mantle";
+import { requestBindings } from "./request-bindings.js";
 
 /** Duck-type of a LogLayer instance — no dependency on the `loglayer` package. */
 export interface LogLayerLike {
@@ -26,7 +27,7 @@ export function loglayerAdapter(log: LogLayerLike): Logger {
       (level: Level) =>
       (msg: string, context?: Record<string, unknown>): void => {
         const reqCtx = getContext();
-        const merged = { ...baseBindings, ...(reqCtx ?? {}), ...(context ?? {}) };
+        const merged = { ...baseBindings, ...requestBindings(reqCtx), ...(context ?? {}) };
         log.withMetadata(merged)[level](msg);
       };
 

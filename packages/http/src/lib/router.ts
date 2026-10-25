@@ -1,9 +1,11 @@
-import type { HttpResponseMeta } from "@mantlejs/mantle";
+import type { HttpResponseMeta, TraceHeaders } from "@mantlejs/mantle";
 
 /** Per-request transport state handed to every route handler. */
 export interface RequestInfo {
   ip?: string;
   requestId: string;
+  /** The request's validated `traceparent` / `tracestate`. */
+  trace: TraceHeaders;
   /** Receives the service call's `context.http`; applied to the response on success and on error. */
   response: HttpResponseMeta;
 }

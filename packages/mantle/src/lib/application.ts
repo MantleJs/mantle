@@ -1,5 +1,7 @@
 import { EventEmitter } from "node:events";
 import { BadRequest, GeneralError, MantleError, MethodNotAllowed, NotFound } from "./errors.js";
+import type { CallInstrumentation, HookPhase } from "./instrumentation.js";
+import { startInstrumentation } from "./instrumentation.js";
 import type {
   BatchCall,
   BatchDispatchOptions,
@@ -55,10 +57,32 @@ const SERVICE_EVENTS: Partial<Record<string, string>> = {
  * Runs hooks in order, storing each returned context in `state` as it goes, so when a hook throws the
  * error path still sees what earlier hooks returned (e.g. a rate-limit hook's response headers).
  */
-async function runHookChain<T>(hooks: HookFunction<T>[], state: { ctx: HookContext<T> }): Promise<void> {
+async function runHookChain<T>(
+  hooks: HookFunction<T>[],
+  state: { ctx: HookContext<T> },
+  observe?: (hook: HookFunction<T>, error?: unknown) => void,
+): Promise<void> {
   for (const hook of hooks) {
-    state.ctx = await hook(state.ctx);
+    if (!observe) {
+      state.ctx = await hook(state.ctx);
+      continue;
+    }
+    try {
+      state.ctx = await hook(state.ctx);
+    } catch (error) {
+      observe(hook, error);
+      throw error;
+    }
+    observe(hook);
   }
+}
+
+type HookObserver<T> = (phase: HookPhase) => ((hook: HookFunction<T>, error?: unknown) => void) | undefined;
+
+function hookObserver<T>(calls: CallInstrumentation[]): HookObserver<T> {
+  return (phase) => (hook, error) => {
+    for (const call of calls) call.hook?.(phase, hook as HookFunction, error);
+  };
 }
 
 function copyHttpResponse(http: HttpResponseMeta | undefined, response: HttpResponseMeta | undefined): void {
@@ -186,16 +210,40 @@ class ServiceHandleImpl<T> implements ServiceHandle<T> {
     options?: DispatchOptions,
   ): Promise<T | T[] | Paginated<T>> {
     const state = { ctx: this.makeContext(method, params, id, data) };
+    const calls = startInstrumentation(this.app, state.ctx as HookContext);
+    if (calls.length === 0) return this.executePipeline(state, method, options);
 
+    const observe = hookObserver<T>(calls);
+    // The first registered instrumentation is outermost.
+    const run = calls.reduceRight<() => Promise<T | T[] | Paginated<T>>>(
+      (inner, call) => () => call.run(inner),
+      () => this.executePipeline(state, method, options, observe),
+    );
+    try {
+      const result = await run();
+      for (const call of calls) call.end(state.ctx as HookContext);
+      return result;
+    } catch (error) {
+      for (const call of calls) call.end(state.ctx as HookContext, error);
+      throw error;
+    }
+  }
+
+  private async executePipeline(
+    state: { ctx: HookContext<T> },
+    method: string,
+    options?: DispatchOptions,
+    observe?: HookObserver<T>,
+  ): Promise<T | T[] | Paginated<T>> {
     try {
       try {
-        await runHookChain(this.getPhaseHooks("before", method), state);
+        await runHookChain(this.getPhaseHooks("before", method), state, observe?.("before"));
 
         if (state.ctx.result === undefined) {
           state.ctx.result = await this.callServiceMethod(state.ctx);
         }
 
-        await runHookChain(this.getPhaseHooks("after", method), state);
+        await runHookChain(this.getPhaseHooks("after", method), state, observe?.("after"));
 
         const serviceEventName = SERVICE_EVENTS[method] ?? (this.options.events.includes(method) ? method : undefined);
         if (serviceEventName && state.ctx.event !== null) {
@@ -205,7 +253,7 @@ class ServiceHandleImpl<T> implements ServiceHandle<T> {
         return state.ctx.result as T | T[] | Paginated<T>;
       } catch (error) {
         state.ctx.error = error instanceof Error ? error : new GeneralError(String(error));
-        await runHookChain(this.getPhaseHooks("error", method), state);
+        await runHookChain(this.getPhaseHooks("error", method), state, observe?.("error"));
         if (state.ctx.error) throw state.ctx.error;
         return state.ctx.result as T | T[] | Paginated<T>;
       }
