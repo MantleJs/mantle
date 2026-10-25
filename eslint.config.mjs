@@ -37,6 +37,7 @@ export const dependencyMatrix = {
   audit: ["mantle"],
   embeddings: ["mantle"],
   ratelimit: ["mantle"],
+  idempotency: ["mantle"],
   schema: ["mantle"],
   memory: ["mantle"],
   config: ["mantle"],
@@ -74,6 +75,8 @@ export const testOnlyDependencies = {
   embeddings: ["memory"],
   // ratelimit.spec.ts: headers end to end over a real HTTP transport, and agent-keyed limits through the MCP server
   ratelimit: ["http", "mcp"],
+  // idempotency specs: replay end to end over a real HTTP transport, against in-memory and knex/sqlite stores
+  idempotency: ["http", "memory", "knex"],
 };
 
 const testFiles = ["**/*.spec.ts", "**/*.spec.tsx"];

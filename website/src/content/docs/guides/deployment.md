@@ -2,7 +2,7 @@
 title: Deployment
 description: Running a Mantle app in production — Google Cloud Run as the reference target, and the settings that matter once there's more than one instance.
 sidebar:
-  order: 6
+  order: 7
 ---
 
 A Mantle app is a plain Node.js (≥ 22) HTTP server: `app.listen(port)` on any host that runs a container or a
@@ -49,8 +49,27 @@ in-process memory has to move to a shared store:
 | Agent-token revocation        | in-memory          | inject a shared `AgentTokenStore` into `auth({ agentTokenStore })`                                             |
 | Realtime events               | local process only | `sync({ adapter: redisAdapter(…) })` — [`@mantlejs/sync`](/packages/sync/)                                     |
 | Uploaded files                | local disk         | `s3Storage()` / `gcsStorage()` — instances have no shared, persistent disk                                     |
+| Rate-limit counters           | in-memory per hook | `rateLimit({ store: redisStore(redis) })` — [`@mantlejs/ratelimit`](/packages/ratelimit/); otherwise each instance counts separately and the limit multiplies |
+| Idempotency records           | the store you pass | a database-backed repository (knex, supabase, dynamodb, mongodb), not `MemoryRepository` — [`@mantlejs/idempotency`](/packages/idempotency/) |
 
 Cloud Run's filesystem is in-memory and per instance, so `diskStorage()` is for development only.
+
+## Behind a load balancer
+
+Cloud Run, like most platforms, puts proxies in front of the app, so the socket's peer address is a proxy's, not the
+client's. Set the transport's `trustProxy` option to the number of proxy hops that append to `X-Forwarded-For`, so
+`params.ip` — and IP-keyed rate limits — see the real client:
+
+```typescript
+app.configure(express(undefined, { trustProxy: 2 })); // e.g. two hops: count yours first (below)
+```
+
+Platforms differ in how many entries they append — Google Cloud's external Application Load Balancer, for instance,
+adds both the client's address and its own — so log `X-Forwarded-For` (and the peer address) for one request on your
+deployment and count the entries your infrastructure added. `trustProxy: true` takes the *first* entry instead, which
+the client controls; use it only behind a proxy that overwrites the header. Getting the number wrong in the other
+direction (too high) lets clients spoof `params.ip`. Every response carries an `X-Request-Id`, and every log line carries the same
+`requestId`, so a failing request can be found in Cloud Logging from the ID the client saw.
 
 ## Graceful shutdown
 

@@ -38,4 +38,8 @@ Full spec: [Phase 7 backlog, item 2](./mantle-js-phase-7-backlog.md).
 - MCP `tools/list_changed` dynamic tool loading (stateful sessions only)
 - `428 Precondition Required` for `requireIfMatch`
 - OpenChain (ISO/IEC 5230, ISO/IEC 18974) conformance
-- Making Problem Details the default error body (a 1.0 breaking change)
+- ~~Making Problem Details the default error body~~ — done in Phase 8 item 6 (pre-1.0, no known users)
+- Atomic `WriteOptions.where` on mongodb (filter), dynamodb (`ConditionExpression`), and supabase (`.eq()`) — today
+  only memory and knex make `conditional()` writes atomic (Phase 8 Decision #10)
+- `idempotencyKey` on `@mantlejs/react`'s `useCreate`/`usePatch`: a key fixed across TanStack Query's own retries but
+  new per `mutate()` call (Phase 8 item 9)

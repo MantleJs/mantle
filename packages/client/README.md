@@ -109,6 +109,20 @@ const attachment = await api.service<Attachment>("attachments").upload(file, {
 the request goes over XHR instead. Elsewhere (Node), `fetch` is used and `onProgress` never fires. Pass `signal` to abort;
 the promise rejects with the signal's reason.
 
+### Safe retries — `idempotencyKey`
+
+`create` and `patch` take an `idempotencyKey`, sent as the `Idempotency-Key` header. Against a service guarded by
+[`@mantlejs/idempotency`](../idempotency/README.md), retrying the call with the same key returns the first result
+instead of writing twice:
+
+```typescript
+await payments.create({ amount: 500 }, { idempotencyKey: true }); // a UUID, reused by the client's 401 refresh-retry
+await payments.create({ amount: 500 }, { idempotencyKey: order.id }); // your own key — pass it again to retry yourself
+```
+
+A keyed call is never coalesced into a batch. `true` needs `crypto.randomUUID()`; on React Native without a crypto
+polyfill, pass your own string.
+
 ### Errors
 
 Non-2xx responses are deserialized into `MantleClientError` — `name` (`"BadRequest"`, `"NotFound"`, …), `code` (HTTP status), `data`, `errors`, the server's actionable `hint` when present, and the `requestId` to quote when reporting it. Both server error formats are read — Mantle's JSON and RFC 9457 Problem Details (`application/problem+json`, chosen by `Content-Type`), whose `type` URI is kept on the error. Non-JSON bodies (gateway errors) fall back to the HTTP status. Network failures propagate as the native fetch `TypeError`, unwrapped.
@@ -186,9 +200,9 @@ Creates a `MantleClient`. Throws `TypeError` if `url` is missing.
 | --------------------------- | ------------------------------------------------------------- | ----------------------------------------------------------------------------- |
 | `find(params?)`             | `GET /:service`                                               | `Promise<T[] \| Paginated<T>>`                                                |
 | `get(id, params?)`          | `GET /:service/:id`                                           | `Promise<T>`                                                                  |
-| `create(data, params?)`     | `POST /:service`                                              | `Promise<T>`                                                                  |
+| `create(data, params?)`     | `POST /:service`                                              | `Promise<T>`; `params.idempotencyKey` makes retries safe — see "Safe retries" |
 | `update(id, data, params?)` | `PUT /:service/:id`                                           | `Promise<T>`                                                                  |
-| `patch(id, data, params?)`  | `PATCH /:service/:id`                                         | `Promise<T>`                                                                  |
+| `patch(id, data, params?)`  | `PATCH /:service/:id`                                         | `Promise<T>`; accepts `params.idempotencyKey` like `create`                   |
 | `remove(id, params?)`       | `DELETE /:service/:id`                                        | `Promise<T>`                                                                  |
 | `similar(data, params?)`    | `POST /:service/similar`                                      | Vector-search convention — `Promise<Array<T & { _score }>>`                   |
 | `upload(file, options?)`    | `POST /:service` (or `PATCH /:service/:id` with `options.id`) | `multipart/form-data` for `handleUpload()` — see "File uploads"               |
@@ -204,6 +218,10 @@ Creates a `MantleClient`. Throws `TypeError` if `url` is missing.
 interface ClientParams {
   query?: Record<string, unknown>; // serialized into the URL
   headers?: Record<string, string>; // per-request header overrides
+}
+
+interface WriteParams extends ClientParams {
+  idempotencyKey?: string | true; // create/patch: sent as Idempotency-Key; true = a UUID per call
 }
 
 interface TokenStorage {

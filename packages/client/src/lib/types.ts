@@ -78,6 +78,17 @@ export interface ClientParams {
   headers?: Record<string, string>;
 }
 
+/** `ClientParams` for `create` and `patch`, which can carry an idempotency key. */
+export interface WriteParams extends ClientParams {
+  /**
+   * Sent as the `Idempotency-Key` header, so a retry of this call (by you, or by the client's own refresh-and-retry
+   * on a 401) can't apply the write twice — the server (`@mantlejs/idempotency`) replays the first result instead.
+   * `true` generates a UUID for this call. To retry after a network failure yourself, pass the same string again.
+   * A keyed call is sent on its own, never coalesced into a batch.
+   */
+  idempotencyKey?: string | true;
+}
+
 export interface AuthCredentials {
   strategy: string;
   [key: string]: unknown;

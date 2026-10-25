@@ -5,6 +5,7 @@ import type {
   BatchCall,
   ClientParams,
   Id,
+  WriteParams,
   Paginated,
   ServiceEvent,
   SimilarQuery,
@@ -50,9 +51,10 @@ export class ServiceClient<T = unknown> {
     return this.rest.request("GET", this.idPath(id), undefined, params);
   }
 
-  create(data: Partial<T>, params?: ClientParams): Promise<T> {
-    if (this.canBatch(params)) return this.batched("create", params, undefined, data) as Promise<T>;
-    return this.rest.request("POST", this.path, data, params);
+  create(data: Partial<T>, params?: WriteParams): Promise<T> {
+    const resolved = withIdempotencyKey(params);
+    if (this.canBatch(resolved)) return this.batched("create", resolved, undefined, data) as Promise<T>;
+    return this.rest.request("POST", this.path, data, resolved);
   }
 
   update(id: Id, data: Partial<T>, params?: ClientParams): Promise<T> {
@@ -60,9 +62,10 @@ export class ServiceClient<T = unknown> {
     return this.rest.request("PUT", this.idPath(id), data, params);
   }
 
-  patch(id: Id, data: Partial<T>, params?: ClientParams): Promise<T> {
-    if (this.canBatch(params)) return this.batched("patch", params, id, data) as Promise<T>;
-    return this.rest.request("PATCH", this.idPath(id), data, params);
+  patch(id: Id, data: Partial<T>, params?: WriteParams): Promise<T> {
+    const resolved = withIdempotencyKey(params);
+    if (this.canBatch(resolved)) return this.batched("patch", resolved, id, data) as Promise<T>;
+    return this.rest.request("PATCH", this.idPath(id), data, resolved);
   }
 
   remove(id: Id, params?: ClientParams): Promise<T> {
@@ -147,4 +150,29 @@ export class ServiceClient<T = unknown> {
   private idPath(id: Id): string {
     return `${this.path}/${encodeURIComponent(String(id))}`;
   }
+}
+
+/**
+ * Turn `idempotencyKey` into an `Idempotency-Key` header, resolving `true` to a UUID once per call — before the
+ * request, so the client's own retries resend the same key.
+ */
+function withIdempotencyKey(params?: WriteParams): ClientParams | undefined {
+  if (params?.idempotencyKey === undefined) return params;
+  const { idempotencyKey, ...rest } = params;
+  const key = idempotencyKey === true ? randomKey() : idempotencyKey;
+  return { ...rest, headers: { ...rest.headers, "Idempotency-Key": key } };
+}
+
+/** A UUID from the platform's secure random source. React Native needs a polyfill (e.g. react-native-get-random-values). */
+function randomKey(): string {
+  const source = (globalThis as { crypto?: { randomUUID?: () => string } }).crypto;
+  if (typeof source?.randomUUID !== "function") {
+    throw new MantleClientError(
+      "idempotencyKey: true needs crypto.randomUUID(), which this platform doesn't provide",
+      400,
+      "BadRequest",
+      { hint: "Pass your own unique string as idempotencyKey, or install a crypto polyfill." },
+    );
+  }
+  return source.randomUUID();
 }
